@@ -1,0 +1,33 @@
+import { sb, state, unwrap, rpc, refreshUnread } from '../api.js';
+import { h, mount, fmtDate, emptyState, toast, busy } from '../ui.js';
+
+const ICON = { approval: '✓', payout: 'N$', proof: '🧾', stock_review: '📦', cash_ready: 'N$', closed: '✓', rejected: '✕', returned: '↩', physical: '📄',
+  advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'N$', approved: '✓', in_progress: '…', cancelled: '✕' };
+
+export async function notificationsPage() {
+  const rows = unwrap(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100));
+  const unread = rows.filter((r) => !r.read_at);
+  const list = h('div', {});
+  const markAll = h('button', { class: 'btn' }, 'Mark all read');
+  markAll.onclick = busy(markAll, async () => { await rpc('mark_notifications_read'); rows.forEach((r) => { r.read_at = r.read_at || new Date().toISOString(); }); await refreshUnread(); draw(); });
+
+  async function open(n) {
+    if (!n.read_at) { n.read_at = new Date().toISOString(); rpc('mark_notifications_read', { p_ids: [n.id] }).then(refreshUnread).catch(() => {}); }
+    if (n.link) location.hash = n.link; else draw();
+  }
+  function draw() {
+    const groups = [['New', rows.filter((r) => !r.read_at)], ['Earlier', rows.filter((r) => r.read_at)]].filter(([, g]) => g.length);
+    mount(list, rows.length ? groups.map(([title, g]) => h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, title), h('span', { class: 'sub' }, g.length)),
+      h('ul', { class: 'ledger-list' }, g.map((n) => h('li', { class: 'click', onclick: () => open(n), style: { alignItems: 'flex-start' } },
+        h('span', { style: { width: '28px', height: '28px', borderRadius: '50%', background: n.read_at ? 'var(--paper)' : 'var(--green-tint)', color: n.read_at ? 'var(--ink-3)' : 'var(--green-ink)', display: 'grid', placeItems: 'center', fontSize: '.8rem', fontWeight: 600, flex: '0 0 auto' } }, ICON[n.kind] || '•'),
+        h('div', { class: 'what' }, h('strong', { style: { fontWeight: n.read_at ? 500 : 600, whiteSpace: 'normal' } }, n.title), n.body ? h('span', { style: { display: 'block', whiteSpace: 'normal' } }, n.body) : null,
+          h('span', { style: { display: 'block' } }, fmtDate(n.created_at, { time: true }))))))))
+      : emptyState('Nothing yet', 'You will be told here when something needs you: an approval, cash ready to collect, a receipt to check.'));
+  }
+  draw();
+  return h('div', {},
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Alerts'), h('p', {}, unread.length ? `${unread.length} new.` : 'You are up to date.')),
+      h('div', { class: 'page-actions' }, unread.length ? markAll : null)),
+    list,
+    h('p', { class: 'hint' }, state.me.email_notifications ? 'These also go to your email. Change that under Account.' : 'Email copies are switched off. Change that under Account.'));
+}
