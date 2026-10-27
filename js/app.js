@@ -84,6 +84,7 @@ let renderToken = 0;
 export async function render() {
   const hash = location.hash.replace(/^#/, '') || '/home';
   const me = state.me;
+  if (hash.split('?')[0] === '/verify') { mount(app, h('div', { class: 'auth' }, h('div', { class: 'card' }, await verifyPage()))); return; }
   if (hash.split('?')[0] === '/install') { mount(app, h('div', { class: 'auth' }, h('div', { class: 'card', style: { maxWidth: '560px' } }, await installPage(), me ? null : h('p', { class: 'links', style: { marginTop: '14px' } }, h('a', { href: '#/home' }, 'Back to sign in'))))); return; }
   if (!me) { mount(app, await authPage()); return; }
   if (!me.active) {
@@ -140,6 +141,22 @@ export async function render() {
     console.error(err);
     if (token === renderToken) page.replaceWith(h('div', { class: 'banner banner-red' }, h('strong', {}, 'Could not load this page'), err.message));
   }
+}
+
+/** A link from an invitation, a reset or a sign-in email: the app finishes the sign-in itself with the one-time token. */
+async function verifyPage() {
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const th = params.get('th'); const type = params.get('type') === 'magiclink' ? 'magiclink' : 'recovery';
+  if (!th) return h('div', {}, h('h1', {}, 'That link is incomplete'), h('p', { class: 'lead' }, 'Open the full link from the message, or ask your administrator for a new one.'), h('p', { class: 'links' }, h('a', { href: '#/home' }, 'Go to sign in')));
+  const { error } = await sb.auth.verifyOtp({ token_hash: th, type });
+  if (error) {
+    log('warn', `Link verification failed: ${error.message}`);
+    return h('div', {}, h('h1', {}, 'This link no longer works'), h('p', { class: 'lead' }, /expired|invalid/i.test(error.message) ? 'Links work once and expire after a while. Ask your administrator for a new one – or, if you already set a password, just sign in.' : error.message), h('p', { class: 'links' }, h('a', { href: '#/home' }, 'Go to sign in')));
+  }
+  await loadSessionContext();
+  history.replaceState(null, '', location.pathname + (type === 'recovery' ? '#/account?recovery=1' : '#/home'));
+  render();
+  return h('div', { class: 'loading' }, 'Signing you in…');
 }
 
 window.addEventListener('hashchange', render);

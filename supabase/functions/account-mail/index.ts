@@ -53,10 +53,14 @@ async function caller(req: Request) {
   const { data: profile } = await admin.from("profiles").select("*").eq("id", data.user.id).single();
   return profile;
 }
-async function link(type: "recovery" | "magiclink", email: string, redirectTo: string) {
-  const { data, error } = await admin.auth.admin.generateLink({ type, email, options: { redirectTo } });
+// The link points at the app itself, which finishes the sign-in with the token – so it never depends on the
+// project's "Site URL" / redirect allow-list and can never land on localhost.
+async function link(type: "recovery" | "magiclink", email: string, app: string) {
+  const { data, error } = await admin.auth.admin.generateLink({ type, email, options: { redirectTo: app } });
   if (error) throw error;
-  return data.properties?.action_link as string;
+  const th = data.properties?.hashed_token as string;
+  if (!th) throw new Error("Could not create a sign-in link");
+  return `${app}#/verify?th=${encodeURIComponent(th)}&type=${type}`;
 }
 async function send(to: string, subject: string, text: string, html: string, from: string | null) {
   if (!RESEND) return { sent: false, reason: "no_provider" };
