@@ -19,6 +19,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Stamp this build into the service worker and page
+        run: |
+          sed -i "s/__BUILD__/${GITHUB_SHA::8}/g" sw.js
+          sed -i "s|js/app.js\"|js/app.js?v=${GITHUB_SHA::8}\"|" index.html
+          # every internal import carries the build stamp, so one page load can only ever see one version of the app
+          sed -i -E "s#(from '(\./|\.\./)[^']+\.js)'#\1?v=${GITHUB_SHA::8}'#g; s#(import\('(\./|\.\./)[^']+\.js)'\)#\1?v=${GITHUB_SHA::8}')#g" js/*.js js/pages/*.js
       - uses: actions/configure-pages@v5
         with:
           enablement: true
