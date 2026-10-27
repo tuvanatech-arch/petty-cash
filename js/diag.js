@@ -9,7 +9,7 @@ let flushing = false;
 
 function device() {
   const d = document.documentElement.dataset;
-  return { device: d.device, input: d.input, orient: d.orient, w: innerWidth, h: innerHeight, standalone: matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true, online: navigator.onLine, dpr: devicePixelRatio };
+  return { device: d.device, input: d.input, orient: d.orient, w: window.innerWidth, h: window.innerHeight, standalone: !!(window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true), online: navigator.onLine, dpr: window.devicePixelRatio };
 }
 
 /** Record something worth knowing. Deduplicated per message within a session; sent in the background. */

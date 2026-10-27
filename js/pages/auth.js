@@ -1,4 +1,4 @@
-import { sb, adminUsers, cleanError } from '../api.js';
+import { sb, adminUsers, accountMail, cleanError } from '../api.js';
 import { h, field, busy, toast } from '../ui.js';
 
 const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark' }, 'N$'),
@@ -37,16 +37,22 @@ const linkBtn = h('button', { class: 'btn btn-block', type: 'button', style: { m
 linkBtn.onclick = busy(linkBtn, async () => {
   const email = document.querySelector('.auth input[type=email]')?.value.trim();
   if (!email) { toast('Enter your email first.', { error: true }); return; }
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: false } });
-  if (error) { toast(/rate|limit/i.test(error.message) ? 'Too many emails in a short time – try again in a while, or use your password.' : /signups not allowed|not found/i.test(error.message) ? 'No account with that email. Ask your administrator.' : cleanError(error), { error: true, ms: 7000 }); return; }
-  toast(`Sign-in link sent to ${email}. Open it on this device and you are in – no password needed.`, { ms: 9000 });
+  try {
+    const r = await accountMail({ action: 'magiclink', email });
+    if (!r.sent && r.reason === 'no_provider') { toast('Email is not set up yet – sign in with your password, or ask your administrator for a sign-in link.', { error: true, ms: 8000 }); return; }
+    if (!r.sent) { toast('The email could not be sent right now. Use your password, or ask your administrator.', { error: true, ms: 8000 }); return; }
+    toast(`If that email has an account, a sign-in link is on its way to ${email}. Open it on this device and you are in.`, { ms: 9000 });
+  } catch (e) { toast(cleanError(e), { error: true, ms: 7000 }); }
 });
 
 async function forgot(email) {
   if (!email) { toast('Enter your email first, then tap “Forgot password”.', { error: true }); return; }
-  const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: location.origin + location.pathname });
-  if (error) toast(cleanError(error), { error: true });
-  else toast('If that email has an account, a reset link is on its way. Your administrator can also set a new password for you.', { ms: 7000 });
+  try {
+    const r = await accountMail({ action: 'reset', email: email.trim() });
+    if (!r.sent && r.reason === 'no_provider') { toast('Email is not set up yet. Ask your administrator – they can set you a new password in a moment.', { error: true, ms: 8000 }); return; }
+    if (!r.sent) { toast('The email could not be sent right now. Ask your administrator to set you a new password.', { error: true, ms: 8000 }); return; }
+    toast('If that email has an account, a reset link is on its way. Your administrator can also set a new password for you.', { ms: 7000 });
+  } catch (e) { toast(cleanError(e), { error: true, ms: 7000 }); }
 }
 
 function bootstrapForm() {

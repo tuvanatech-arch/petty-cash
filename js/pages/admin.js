@@ -1,4 +1,4 @@
-import { sb, state, adminUsers, refreshPeople, unwrap, ROLE_LABEL, personName } from '../api.js';
+import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, ROLE_LABEL, personName } from '../api.js';
 import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, today, isoDate, emptyState } from '../ui.js';
 
 export async function adminPage(tab = 'users') {
@@ -31,12 +31,18 @@ async function usersTab() {
           h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]),
           h('td', { class: 'num', style: { whiteSpace: 'nowrap' } },
             h('button', { class: 'btn btn-sm btn-quiet', onclick: () => userDialog(p) }, 'Edit'), ' ',
+            p.active ? h('button', { class: 'btn btn-sm btn-quiet', onclick: () => inviteDialog(p) }, 'Invite') : null, ' ',
             h('button', { class: 'btn btn-sm btn-quiet', onclick: () => passwordDialog(p) }, 'Password'), ' ',
             p.id !== state.me.id ? h('button', { class: `btn btn-sm btn-quiet${p.active ? ' btn-danger' : ''}`, onclick: async () => {
               const ok = await confirmDialog(p.active ? `Deactivate ${p.full_name}?` : `Reactivate ${p.full_name}?`, p.active ? 'They will not be able to sign in. Their history stays.' : 'They will be able to sign in again.', { ok: p.active ? 'Deactivate' : 'Reactivate', danger: p.active });
               if (!ok) return;
               try { await adminUsers({ action: 'set_active', user_id: p.id, active: !p.active }); toast(p.active ? 'Deactivated.' : 'Reactivated.'); refresh(); } catch (e) { toast(e.message, { error: true }); }
-            } }, p.active ? 'Deactivate' : 'Reactivate') : null))))))),
+            } }, p.active ? 'Deactivate' : 'Reactivate') : null, ' ',
+            p.id !== state.me.id && !p.active ? h('button', { class: 'btn btn-sm btn-quiet btn-danger', onclick: async () => {
+              const ok = await confirmDialog(`Delete ${p.full_name}'s account?`, 'Only possible for an account that never did anything in the app. Anyone with history is kept (deactivated) so the records stay whole.', { ok: 'Delete', danger: true });
+              if (!ok) return;
+              try { await adminUsers({ action: 'delete', user_id: p.id }); toast('Deleted.'); refresh(); } catch (e) { toast(e.message, { error: true, ms: 7000 }); }
+            } }, 'Delete') : null))))))),
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h3', {}, 'Roles')),
       h('dl', { class: 'kv' }, Object.entries(roleHelp).map(([k, v]) => [h('dt', {}, ROLE_LABEL[k]), h('dd', {}, v)]))));
 }
@@ -52,15 +58,44 @@ function userDialog(p) {
     const go = busy(b, async () => {
       err.textContent = '';
       try {
-        if (p) await adminUsers({ action: 'update', user_id: p.id, full_name: name.value, role: role.value, email: email.value });
-        else await adminUsers({ action: 'create', email: email.value, full_name: name.value, role: role.value, password: pass.value });
-        toast(p ? (email.value.trim().toLowerCase() !== (p.email || '').toLowerCase() ? `Saved. ${name.value.trim()} now signs in as ${email.value.trim().toLowerCase()}.` : 'Saved.') : `Account created. Give ${name.value.trim()} the temporary password.`, { ms: 6000 }); close(); refresh();
+        if (p) {
+          await adminUsers({ action: 'update', user_id: p.id, full_name: name.value, role: role.value, email: email.value });
+          toast(email.value.trim().toLowerCase() !== (p.email || '').toLowerCase() ? `Saved. ${name.value.trim()} now signs in as ${email.value.trim().toLowerCase()}.` : 'Saved.', { ms: 6000 }); close(); refresh();
+        } else {
+          const { user_id } = await adminUsers({ action: 'create', email: email.value, full_name: name.value, role: role.value, password: pass.value });
+          close(); refresh();
+          inviteDialog({ id: user_id, full_name: name.value.trim(), email: email.value.trim().toLowerCase(), role: role.value }, pass.value);
+        }
       } catch (e) { err.textContent = e.message; }
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       field('Name', name), field('Email', email, p ? 'They sign in with this. If you change it, tell them – the old address stops working at once.' : 'They sign in with this.'), field('Role', role),
-      pass ? field('Temporary password', pass, 'Share it with them in person or by message; they can change it under Account.') : null,
+      pass ? field('Temporary password', pass, 'Only needed if the invitation cannot be emailed; shown again on the next screen.') : null,
       err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
+/** Send (or hand over) the welcome link. With email set up it is sent; without, the link and a ready-made message are shown to copy. */
+function inviteDialog(p, tempPassword = null) {
+  modal(`Invite ${p.full_name || p.email}`, (close) => {
+    const box = h('div', {}, h('p', { class: 'hint' }, 'Preparing the one-time link…'));
+    const copy = (text, label = 'Copy') => { const b = h('button', { type: 'button', class: 'btn btn-sm' }, label); b.onclick = async () => { try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; setTimeout(() => { b.textContent = label; }, 1500); } catch { toast('Select the text and copy it.', { error: true }); } }; return b; };
+    accountMail({ action: 'welcome', user_id: p.id }).then((r) => {
+      if (r.sent) {
+        mount(box, h('div', { class: 'banner banner-green' }, h('strong', {}, `Invitation emailed to ${r.email}`), `${p.full_name || 'They'} opens the link once, sets a password and lands in the ${ROLE_LABEL[p.role] || p.role} view. The link expires; “Invite” on the People list sends a fresh one.`));
+      } else {
+        const why = r.reason === 'no_provider' ? 'Email is not set up yet (no sending key), so pass this on yourself – WhatsApp works well.'
+          : r.reason === 'no_sender' ? 'No sending address is set under Admin → Settings, so pass this on yourself.' : `The email could not be sent (${r.reason}). Pass this on yourself.`;
+        const share = navigator.share ? h('button', { type: 'button', class: 'btn btn-sm btn-primary', onclick: () => navigator.share({ text: r.message }).catch(() => {}) }, 'Share…') : null;
+        mount(box,
+          h('p', { class: 'hint' }, why),
+          h('div', { class: 'field' }, h('span', { class: 'label' }, 'Message to send'), h('textarea', { class: 'input', rows: 5, readonly: true, value: r.message })),
+          h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, share, copy(r.message, 'Copy message'), copy(r.link, 'Copy link only')),
+          tempPassword ? h('p', { class: 'hint', style: { marginTop: '10px' } }, `If the link has expired by the time they open it, they can sign in with the temporary password instead: `, h('code', {}, tempPassword), ' – and change it under Account.') : null,
+          h('p', { class: 'hint' }, 'The link works once and expires after a while; “Invite” on the People list makes a new one.'));
+      }
+    }).catch((e) => mount(box, h('div', { class: 'error' }, e.message), tempPassword ? h('p', { class: 'hint' }, `Give ${p.full_name || 'them'} the temporary password `, h('code', {}, tempPassword), ' to sign in with; they change it under Account.') : null));
+    return h('div', {}, box, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Done')));
   });
 }
 

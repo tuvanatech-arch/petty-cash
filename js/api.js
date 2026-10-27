@@ -249,6 +249,18 @@ export async function adminUsers(body) {
   return json;
 }
 
+/** Call the account-mail function: welcome / invitation (admin), password reset and sign-in link (public). */
+export async function accountMail(body) {
+  const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY };
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  let res;
+  try { res = await fetch(`${FUNCTIONS_URL}/account-mail`, { method: 'POST', headers, body: JSON.stringify(body) }); }
+  catch { throw new Error('No connection. Check your internet and try again.'); }
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error(json.error || `Request failed (${res.status})`);
+  return json;
+}
+
 /* ---------- proofs ---------- */
 export async function uploadProof(requestId, expenseId, file) {
   const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);

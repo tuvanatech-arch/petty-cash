@@ -38,6 +38,11 @@ check(!!w.document.getElementById('marker'), 'a repeated SIGNED_IN (back from ba
 mock.emitAuth('TOKEN_REFRESHED'); await sleep(100);
 check(!!w.document.getElementById('marker'), 'TOKEN_REFRESHED does not redraw');
 
+// a recovery link (welcome email / forgot password): supabase emits SIGNED_IN then PASSWORD_RECOVERY → set-a-password screen
+w.location.hash = '#access_token=abc&type=recovery';
+mock.emitAuth('SIGNED_IN'); mock.emitAuth('PASSWORD_RECOVERY'); await sleep(250);
+check(/recovery=1/.test(w.location.hash) && /Set a new password/.test(text()), `recovery link lands on the set-password screen (${w.location.hash})`);
+
 await mock.createClient().auth.signOut(); await sleep(200);
 check(/Sign in/.test(text()) && !w.document.getElementById('marker'), 'signing out returns to the form');
 check(!errors.length, `no errors (${errors.map(String).join(' | ').slice(0, 200)})`);

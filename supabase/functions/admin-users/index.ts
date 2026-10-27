@@ -6,6 +6,7 @@
 //   update          -> change full name / role / email                    (approver only)
 //   reset_password  -> set a new temporary password                       (approver only)
 //   set_active      -> deactivate / reactivate (blocks sign-in)           (approver only)
+//   delete          -> remove an account that never did anything           (approver only)
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -182,6 +183,20 @@ Deno.serve(async (req) => {
       const { error: e2 } = await admin.auth.admin.updateUserById(user_id, { ban_duration: active ? "none" : "876000h" });
       if (e2) throw e2;
       // profiles.active = false also makes my_role() return null, so every policy and function denies at once
+      return json({ ok: true });
+    }
+
+    if (action === "delete") {
+      // only an account that never did anything; anyone with history is deactivated instead, so the records stay whole
+      if (user_id === me.id) throw new Error("You cannot delete yourself");
+      const { data: n, error: he } = await admin.rpc("profile_history", { p_user: user_id });
+      if (he) throw he;
+      if (Number(n) > 0) throw new Error("This person has history in the app (requests, pay-outs or counts). Deactivate them instead – their records stay in the packs.");
+      await admin.from("notifications").delete().eq("user_id", user_id);
+      await admin.from("push_subscriptions").delete().eq("user_id", user_id);
+      await admin.from("receipt_inbox").delete().eq("user_id", user_id);
+      const { error } = await admin.auth.admin.deleteUser(user_id);
+      if (error) throw error;
       return json({ ok: true });
     }
 
