@@ -168,7 +168,7 @@ async function reportsTab(manage) {
   function draw() {
     mount(list, groups.length ? h('ul', { class: 'ledger-list' }, groups.map((g) => {
       const out = g.reports.some((r) => r.level === 'out');
-      const cb = manage ? h('input', { type: 'checkbox', checked: g.reports.every((r) => chosen.has(r.id)), onchange: (e) => { for (const r of g.reports) e.target.checked ? chosen.add(r.id) : chosen.delete(r.id); drawToolbar(); } }) : null;
+      const cb = manage ? h('label', { class: 'tap' }, h('input', { type: 'checkbox', checked: g.reports.every((r) => chosen.has(r.id)), onchange: (e) => { for (const r of g.reports) e.target.checked ? chosen.add(r.id) : chosen.delete(r.id); drawToolbar(); } })) : null;
       const onOrder = g.reports.find((r) => r.request_id);
       return h('li', { style: { alignItems: 'flex-start' } }, cb,
         h('div', { class: 'what' }, h('strong', {}, g.item?.name || 'Item', ' ', h('span', { class: `pill ${out ? 'pill-red' : 'pill-amber'}` }, out ? 'Out' : 'Running low'), onOrder ? h('a', { class: 'pill pill-blue', href: `#/requests/${onOrder.request_id}`, style: { marginLeft: '6px', textDecoration: 'none' } }, 'on a restock order') : null),

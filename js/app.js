@@ -11,6 +11,7 @@ import { accountPage } from './pages/account.js';
 import { notificationsPage } from './pages/notifications.js';
 import { snapPage } from './pages/snap.js';
 import { installPage, installBanner, captureInstallPrompt } from './pages/install.js';
+import { startAdapting } from './adapt.js';
 
 const app = document.getElementById('app');
 
@@ -108,6 +109,7 @@ export async function render() {
   const bell = h('a', { href: '#/notifications', class: `bell${activeKey === 'notifications' ? ' active' : ''}`, 'aria-label': 'Alerts' }, '🔔', h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread));
   const topbar = h('div', { class: 'topbar' }, h('div', { class: 'brand' }, h('div', { class: 'brand-mark' }, 'N$'), h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petty cash')), bell);
   mount(app,
+    h('a', { class: 'skip', href: '#', onclick: (e) => { e.preventDefault(); const first = document.querySelector('main .sheet [tabindex="0"], main .sheet button, main .sheet a[href]'); (first || document.querySelector('main h1'))?.focus(); } }, 'Skip to what needs me'),
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
         h('div', { class: 'brand' }, h('div', { class: 'brand-mark' }, 'N$'),
@@ -161,6 +163,7 @@ async function syncQueue() {
 window.addEventListener('online', syncQueue);
 
 // installable on a phone; the shell works offline
+startAdapting();
 captureInstallPrompt();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
