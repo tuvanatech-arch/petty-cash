@@ -44,7 +44,7 @@ export function can(what) {
     case 'finance': return has('finance') || has('approver');
     case 'admin': return role() === 'approver';          // administration never passes to a stand-in
     case 'reports': return isStaff();
-    case 'catalogue': return isStaff();
+    case 'catalogue': return role() === 'stock_manager' || role() === 'approver';   // the catalogue (items, suppliers, categories) stays with the real stock manager, not a stand-in
     default: return false;
   }
 }

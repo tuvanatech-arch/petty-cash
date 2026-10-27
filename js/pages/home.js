@@ -3,6 +3,7 @@ import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState
 import { requestRow, expenseOf } from './requests.js';
 import { floatStrip } from './cash.js';
 import { reportDialog } from './stock.js';
+import { setupCard, welcomeStrip } from '../learn.js';
 
 /** A duty is a role you hold today: your own, or one you are standing in for. The approver can see everything but only approving is theirs. */
 const duty = (r) => role() === r || state.standingIn.some((d) => d.role === r);
@@ -103,11 +104,17 @@ export async function homePage() {
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
+  // first visit: three lines on how it works for this role – unless they have plainly used it already
+  const acted = (mineRes.data || []).length > 0 || cash.length > 0 || (staff && open.some((q) => [q.approved_by, q.disbursed_by, q.stock_reviewed_by].includes(me.id)));
+  const welcome = welcomeStrip({ actedAlready: acted });
+  const setup = await setupCard();
   return h('div', {},
     h('div', { class: 'page-head' },
       h('div', {}, h('h1', {}, `${greet}, ${(me.full_name || me.email).split(' ')[0]}`),
         h('p', {}, n ? `${n} thing${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} you.` : 'You are all caught up.')),
       h('div', { class: 'page-actions' }, actions)),
+    setup,
+    welcome,
     alertsAsk(),
     floatCard,
     cards.map((c) => c.el),

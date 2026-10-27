@@ -19,12 +19,12 @@ export async function stockPage(tab = 'items') {
     const restock = h('button', { class: 'btn' }, 'Restock order');
     restock.onclick = busy(restock, async () => { const req = await rpc('create_restock_request'); toast('Draft restock order created from measured usage. Check the quantities, then submit.'); location.hash = `#/requests/${req.id}/edit`; });
     actions.push(restock);
-    if (tab === 'items') actions.push(h('button', { class: 'btn btn-quiet', onclick: () => itemDialog(null, () => refresh()) }, '+ Item'));
-    actions.push(h('a', { class: 'btn btn-quiet', href: '#/stock/suppliers' }, 'Catalogue'));
+    if (tab === 'items' && can('catalogue')) actions.push(h('button', { class: 'btn btn-quiet', onclick: () => itemDialog(null, () => refresh()) }, '+ Item'));
+    if (can('catalogue')) actions.push(h('a', { class: 'btn btn-quiet', href: '#/stock/suppliers' }, 'Catalogue'));
   }
   if (manage && setup) {
     actions.push(h('a', { class: 'btn btn-quiet', href: '#/stock' }, '← Stock'));
-    if (tab === 'suppliers') actions.push(h('button', { class: 'btn btn-primary', onclick: () => supplierDialog(null, () => refresh()) }, 'Add supplier'));
+    if (tab === 'suppliers' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => supplierDialog(null, () => refresh()) }, 'Add supplier'));
     if (tab === 'categories' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => categoryDialog(null, () => refresh()) }, 'Add category'));
   }
   mount(body, await ({ items: itemsTab, reports: reportsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
@@ -115,7 +115,7 @@ function itemSheet(i, s, { catName, supName, sups }) {
         h('button', { class: 'btn btn-primary', onclick: () => { close(); usageDialog(i, () => refresh()); } }, 'Used'),
         h('button', { class: 'btn', onclick: () => { close(); issueDialog(i, () => refresh()); } }, 'Issue to someone'),
         h('button', { class: 'btn', onclick: () => { close(); receiveDialog(i, sups, () => refresh()); } }, 'Receive'),
-        h('button', { class: 'btn btn-quiet', onclick: () => { close(); itemDialog(i, done); } }, 'Edit')));
+        can('catalogue') ? h('button', { class: 'btn btn-quiet', onclick: () => { close(); itemDialog(i, done); } }, 'Edit') : null));
   });
 }
 
@@ -387,7 +387,7 @@ async function suppliersTab(manage) {
   return h('div', { class: 'sheet' }, rows.length ? h('table', { class: 'ledger' },
     h('thead', {}, h('tr', {}, h('th', {}, 'Supplier'), h('th', {}, 'Contact'), h('th', {}, 'Notes'), manage ? h('th') : null)),
     h('tbody', {}, rows.map((s) => h('tr', {}, h('td', {}, h('strong', {}, s.name), !s.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null), h('td', { class: 'muted' }, s.contact || ''), h('td', { class: 'muted' }, s.notes || ''),
-      manage ? h('td', { class: 'num' }, h('button', { class: 'btn btn-sm btn-quiet', onclick: () => supplierDialog(s, () => refresh()) }, 'Edit')) : null)))) : emptyState('No suppliers yet', 'Add the shops you buy from so prices can be compared.'));
+      manage && can('catalogue') ? h('td', { class: 'num' }, h('button', { class: 'btn btn-sm btn-quiet', onclick: () => supplierDialog(s, () => refresh()) }, 'Edit')) : null)))) : emptyState('No suppliers yet', 'Add the shops you buy from so prices can be compared.'));
 }
 function supplierDialog(s, done) {
   modal(s ? `Edit ${s.name}` : 'New supplier', (close) => {
@@ -416,7 +416,7 @@ async function categoriesTab(manage) {
   return h('div', { class: 'sheet' }, h('p', { class: 'hint' }, 'Categories group spending in the reports. Stock items carry their own category; cash requests pick one.'),
     h('table', { class: 'ledger' }, h('thead', {}, h('tr', {}, h('th', {}, 'Category'), h('th', {}, 'Used for'), manage ? h('th') : null)),
       h('tbody', {}, rows.map((c) => h('tr', {}, h('td', {}, c.name, !c.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null), h('td', { class: 'muted' }, kind[c.kind]),
-        manage ? h('td', { class: 'num' }, h('button', { class: 'btn btn-sm btn-quiet', onclick: () => categoryDialog(c, () => refresh()) }, 'Edit')) : null)))));
+        manage && can('catalogue') ? h('td', { class: 'num' }, h('button', { class: 'btn btn-sm btn-quiet', onclick: () => categoryDialog(c, () => refresh()) }, 'Edit')) : null)))));
 }
 function categoryDialog(c, done) {
   modal(c ? `Edit ${c.name}` : 'New category', (close) => {

@@ -175,10 +175,13 @@ export function tooltipFollow(el, getText) {
 export function refresh() { window.dispatchEvent(new HashChangeEvent('hashchange')); }
 
 /** An explanation shown until the person taps "Got it" on this device; then it is gone for good. */
+// which tips a person has dismissed: remembered on their profile (learn.js plugs in), with the browser as the fallback
+let tipStore = null;
+export function setTipStore(store) { tipStore = store; }
 export function onceHint(key, ...text) {
-  try { if (localStorage.getItem(`pcs_hint_${key}`)) return null; } catch { /* storage off: show it */ }
+  if (tipStore ? tipStore.seen(key) : (() => { try { return !!localStorage.getItem(`pcs_hint_${key}`); } catch { return false; } })()) return null;
   const el = h('p', { class: 'hint once-hint' }, ...text, ' ',
-    h('button', { type: 'button', class: 'linkish', onclick: () => { try { localStorage.setItem(`pcs_hint_${key}`, '1'); } catch {} el.remove(); } }, 'Got it'));
+    h('button', { type: 'button', class: 'linkish', onclick: () => { if (tipStore) tipStore.markSeen(key); else { try { localStorage.setItem(`pcs_hint_${key}`, '1'); } catch {} } el.remove(); } }, 'Got it'));
   return el;
 }
 

@@ -13,6 +13,7 @@ import { snapPage } from './pages/snap.js';
 import { installPage, installBanner, captureInstallPrompt } from './pages/install.js';
 import { startAdapting } from './adapt.js';
 import { startDiagnostics, bootFinished, startPullToRefresh, log, BUILD } from './diag.js';
+import { howPage } from './learn.js';
 
 startDiagnostics();
 
@@ -34,8 +35,10 @@ const ROUTES = [
   { path: /^\/notifications$/, page: () => notificationsPage() },
   { path: /^\/snap$/, page: () => snapPage() },
   { path: /^\/install$/, page: () => installPage() },
+  { path: /^\/how$/, page: () => howPage() },
   { path: /^\/more$/, page: async () => h('div', {}, h('div', { class: 'page-head' }, h('h1', {}, 'More')),
     h('div', { class: 'sheet' }, h('ul', { class: 'ledger-list' }, navItems().slice(4).map((it) => h('li', { class: 'click', onclick: () => { location.hash = it.href; } }, h('div', { class: 'what' }, h('strong', {}, it.label)))),
+      h('li', { class: 'click', onclick: () => { location.hash = '#/how'; } }, h('div', { class: 'what' }, h('strong', {}, 'How it works'), h('span', {}, 'One screen per role, and “show tips again”'))),
       h('li', { class: 'click', onclick: () => { location.reload(); } }, h('div', { class: 'what' }, h('strong', {}, 'Reload the app'), h('span', {}, `Build ${BUILD} · or pull down on any page`)))))) },
 ];
 
@@ -107,7 +110,7 @@ export async function render() {
   // at most one banner, most important first: unsent counts, then standing in, then install
   const queued = offlineQueueLength();
   const banner = queued ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `${queued} count${queued === 1 ? '' : 's'} saved on this device`), 'Sent as soon as there is a connection.')
-    : state.standingIn.length ? h('div', { class: 'banner banner-purple' }, h('strong', {}, `Standing in as ${state.standingIn.map((d) => `${ROLE_LABEL[d.role].replace(' (admin)', '').toLowerCase()} for ${personName(d.from_user)}`).join(' and ')} until ${fmtDate(state.standingIn[0].ends_on)}`), 'Their queue is on your Home; what you do is recorded under your name.')
+    : state.standingIn.length ? h('div', { class: 'banner banner-purple' }, h('strong', {}, `Standing in as ${state.standingIn.map((d) => `${ROLE_LABEL[d.role].replace(' (admin)', '').toLowerCase()} for ${personName(d.from_user)}`).join(' and ')} until ${fmtDate(state.standingIn[0].ends_on)}`), 'Their queue is on your Home; what you do is recorded under your name. Day-to-day only: the catalogue and settings stay with them.')
     : installBanner();
   const tabs = tabItems();
   const bell = h('a', { href: '#/notifications', class: `bell${activeKey === 'notifications' ? ' active' : ''}`, 'aria-label': 'Alerts' }, '🔔', h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread));

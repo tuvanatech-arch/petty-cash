@@ -480,3 +480,22 @@ html[data-pointer="coarse"] .more-body a, html[data-pointer="coarse"] .banner a 
 .ptr.armed { color: var(--ink); font-weight: 600; }
 @media (display-mode: standalone) { html, body { overscroll-behavior-y: contain; } }
 .snap-btn.over { border-color: var(--green); background: var(--green-tint); }
+
+/* ---------- learning: set-up checklist, welcome strip, how it works ---------- */
+.setup .steps { padding-left: 0; list-style: none; gap: 0; }
+.setup .steps li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--rule); }
+.setup .steps li:first-child { border-top: 0; }
+.setup .steps li::before { content: attr(data-n); flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 600; background: var(--paper); color: var(--ink-2); }
+.setup .steps li.done::before { content: '✓'; background: var(--green-tint); color: var(--green-ink); }
+.setup .steps li .what { flex: 1; min-width: 0; }
+.setup .steps li .what strong { display: block; }
+.setup .steps li .what span { color: var(--ink-2); font-size: .9rem; }
+.setup .steps li.done .what { color: var(--ink-3); }
+.setup .done-line { margin: 0 0 6px; }
+.setup .steps .row-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.welcome { border-color: var(--green); }
+.welcome ol { margin: 0 0 4px; padding-left: 22px; display: grid; gap: 6px; color: var(--ink-2); }
+.welcome ol li::marker { color: var(--green); font-weight: 600; }
+ol.how { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+ol.how li::marker { color: var(--ink-3); font-weight: 600; }
+@media (max-width: 560px) { .setup .steps li { display: grid; grid-template-columns: 26px 1fr; align-items: start; } .setup .steps li .row-actions { grid-column: 2; margin-top: 6px; } }
