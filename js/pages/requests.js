@@ -666,8 +666,15 @@ async function expensePanel(q, lines, expense, reload) {
     await rpc('record_expense', { p_request: q.id, p_spent_at: spentAt.value, p_lines: clean, p_notes: notes.value });
     toast('Expense submitted – finance will check the receipt.'); reload();
   });
+  // finance: a pay-out recorded by mistake can be undone while nothing has been spent against it
+  const untouched = !(Number(expense?.total) > 0) && !(expense?.proofs || []).some((p) => !p.extracted?.pre_payment);
+  const undo = can('finance') && untouched && q.type !== 'claim' ? h('button', { class: 'btn btn-sm btn-quiet btn-danger' }, 'Undo pay-out') : null;
+  if (undo) undo.onclick = busy(undo, async () => {
+    const n = await confirmDialog(`Undo the pay-out of ${money(q.disbursed_amount)}?`, `${personName(q.disbursed_to)} will be told, the money goes back into the float and the request returns to your pay-out queue. The history keeps a record.`, { ok: 'Undo pay-out', danger: true, note: { label: 'Why', required: true } });
+    if (!n) return; await rpc('undo_disbursement', { p_request: q.id, p_note: n }); toast('Pay-out undone.'); reload();
+  });
   return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
-    h('div', { class: 'sheet-head' }, h('h2', {}, `Record what you spent of the ${money(q.disbursed_amount)}`), h('span', { class: 'sub' }, `paid out ${fmtDate(q.disbursed_at)} by ${personName(q.disbursed_by)}`)),
+    h('div', { class: 'sheet-head' }, h('h2', {}, `Record what you spent of the ${money(q.disbursed_amount)}`), h('span', { class: 'sub' }, `paid out ${fmtDate(q.disbursed_at)} by ${personName(q.disbursed_by)}`, undo ? [' · ', undo] : null)),
     returned ? h('div', { class: 'banner banner-red' }, h('strong', {}, 'Finance returned this for correction'), expense.finance_note) : null,
     h('div', { class: 'field' }, h('span', { class: 'label' }, '1. Scan the receipt'), h('span', { class: 'hint' }, 'Take a photo or upload a PDF, then “Read receipt” to fill the lines in. Finance may still ask for the paper original.'), gallery),
     h('div', { class: 'field' }, h('span', { class: 'label' }, '2. What was bought'),
