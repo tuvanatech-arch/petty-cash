@@ -1,22 +1,20 @@
-// Month-end pack: one PDF with the reconciliation, every voucher paid from the float, and the scanned receipts.
+// Month-end pack: one PDF with the reconciliation, a one-page monthly summary, every voucher paid from the float,
+// and the receipts (photos embedded, PDF invoices merged in as pages).
 import { sb, state, personName, unwrap, proofUrl } from './api.js';
-import { money, qty, fmtDate, monthLabel, STATUS } from './ui.js';
+import { money, qty, fmtDate, monthLabel, STATUS, isoDate } from './ui.js';
 
-let jsPDFCtor = null;
-async function loadJsPDF() {
-  if (jsPDFCtor) return jsPDFCtor;
-  const mod = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/+esm');
-  jsPDFCtor = mod.jsPDF;
-  return jsPDFCtor;
-}
+let jsPDFCtor = null; let pdfLib = null;
+async function loadJsPDF() { if (!jsPDFCtor) jsPDFCtor = (await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/+esm')).jsPDF; return jsPDFCtor; }
+async function loadPdfLib() { if (!pdfLib) pdfLib = await import('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm'); return pdfLib; }
 
-/** Fetch a proof and return a JPEG data URL sized for print, or null for PDFs / failures. */
-async function proofImage(p) {
-  if (!/^image\//.test(p.mime || '')) return null;
+/** Fetch a proof: a JPEG data URL sized for print for images, raw bytes for PDFs, null on failure. */
+async function fetchProof(p) {
   const url = await proofUrl(p.storage_path);
   if (!url) return null;
   try {
     const blob = await (await fetch(url)).blob();
+    if (/pdf$/i.test(p.mime || '')) return { pdf: await blob.arrayBuffer() };
+    if (!/^image\//.test(p.mime || '')) return null;
     const bmp = await createImageBitmap(blob);
     const scale = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
     const c = document.createElement('canvas'); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
@@ -25,25 +23,65 @@ async function proofImage(p) {
   } catch { return null; }
 }
 
-export async function buildMonthEndPack(float, { onProgress = () => {} } = {}) {
-  const jsPDF = await loadJsPDF();
+const monthKey = (d) => String(d).slice(0, 7);
+function monthsAround(period) { const p = new Date(String(period).slice(0, 10) + 'T00:00:00'); return [2, 1, 0].map((i) => isoDate(new Date(p.getFullYear(), p.getMonth() - i, 1)).slice(0, 7)); }
+
+/** Everything the summary page and the accountant's email need, as plain numbers. */
+export async function packSummary(float, requests) {
+  const months = monthsAround(float.period);
+  const from = months[0] + '-01';
+  const next = new Date(String(float.period).slice(0, 10) + 'T00:00:00'); next.setMonth(next.getMonth() + 1);
+  const [lines, raised, budgets, cats] = await Promise.all([
+    unwrap(await sb.from('v_spend_lines').select('*').gte('spent_at', from).lt('spent_at', isoDate(next))),
+    unwrap(await sb.from('requests').select('id, type, status, estimated_total, approval_required, approved_by, for_store, disbursed_amount').gte('submitted_at', float.period).lt('submitted_at', isoDate(next))),
+    unwrap(await sb.from('budgets').select('category_id, person_id, monthly_limit').eq('active', true)),
+    unwrap(await sb.from('categories').select('id, name')),
+  ]);
+  const cur = months[2];
+  const byMonth = Object.fromEntries(months.map((m) => [m, { spent: 0, vouchers: new Set() }]));
+  for (const l of lines) { const k = monthKey(l.spent_at); if (byMonth[k]) { byMonth[k].spent += Number(l.line_total); byMonth[k].vouchers.add(l.request_id); } }
+  const byCat = {}; const byCatPrev = {};
+  for (const l of lines) { const k = monthKey(l.spent_at); if (k === cur) byCat[l.category_name] = (byCat[l.category_name] || 0) + Number(l.line_total); if (k === months[1]) byCatPrev[l.category_name] = (byCatPrev[l.category_name] || 0) + Number(l.line_total); }
+  const top = {}; for (const l of lines) if (monthKey(l.spent_at) === cur) top[l.description] = (top[l.description] || 0) + Number(l.line_total);
+  const ex = (r) => (Array.isArray(r.expense) ? r.expense[0] : r.expense);
+  const vouchers = requests.length;
+  const missing = requests.filter((r) => !(ex(r)?.proofs || []).length).length;
+  const physical = requests.filter((r) => ex(r)?.physical_received_at).length;
+  const catName = (id) => cats.find((c) => c.id === id)?.name || '—';
+  return {
+    period: float.period, allocated: Number(float.allocated), topped_up: Number(float.topped_up), carried_over: Number(float.carried_over), returned: Number(float.returned),
+    spent: Number(float.spent), outstanding: Number(float.outstanding), balance: Number(float.balance), counted_cash: float.counted_cash != null ? Number(float.counted_cash) : null,
+    vouchers, missing_proofs: missing, physical_receipts: physical,
+    months: months.map((m) => ({ month: m, spent: Math.round(byMonth[m].spent * 100) / 100, vouchers: byMonth[m].vouchers.size })),
+    by_category: Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([name, v]) => ({ name, amount: Math.round(v * 100) / 100, previous: Math.round((byCatPrev[name] || 0) * 100) / 100 })),
+    top_lines: Object.entries(top).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, v]) => ({ name, amount: Math.round(v * 100) / 100 })),
+    requests: { raised: raised.length, approved: raised.filter((r) => r.approved_by).length, approved_amount: Math.round(raised.filter((r) => r.approved_by).reduce((s, r) => s + Number(r.estimated_total), 0) * 100) / 100,
+      rejected: raised.filter((r) => r.status === 'rejected').length, claims: raised.filter((r) => r.type === 'claim').length, restock_orders: raised.filter((r) => r.for_store).length },
+    budgets: budgets.filter((b) => b.category_id).map((b) => ({ name: catName(b.category_id), limit: Number(b.monthly_limit), used: Math.round((byCat[catName(b.category_id)] || 0) * 100) / 100 })),
+  };
+}
+
+export async function buildMonthEndPack(float, { onProgress = () => {}, save = true } = {}) {
   onProgress('Collecting vouchers…');
   const [requests, txs] = await Promise.all([
     unwrap(await sb.from('requests').select('*, expense:expenses(*, lines:expense_lines(*), proofs:expense_proofs(*))').eq('float_id', float.id).order('disbursed_at')),
     unwrap(await sb.from('float_transactions').select('*').eq('float_id', float.id).order('created_at')),
   ]);
+  const summary = await packSummary(float, requests);
   const org = state.settings?.org_name || 'Petty cash';
+  const jsPDF = await loadJsPDF();
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, M = 16, LH = 5.2; let y = M;
+  const pdfInserts = []; // { afterPage, bytes } – PDF invoices merged in after the voucher page
   const ink = () => doc.setTextColor(25, 35, 31), muted = () => doc.setTextColor(123, 133, 127);
+  const footer = () => { doc.setFontSize(8); muted(); doc.text(`${org} · petty cash · ${monthLabel(float.period)}`, M, 297 - 8); ink(); };
   const newPage = () => { doc.addPage(); y = M; footer(); };
   const need = (hgt) => { if (y + hgt > 297 - M) newPage(); };
-  const footer = () => { const n = doc.getNumberOfPages(); doc.setFontSize(8); muted(); doc.text(`${org} · petty cash · ${monthLabel(float.period)} · page ${n}`, M, 297 - 8); ink(); };
-  const pdfSafe = (v) => String(v ?? '').replace(/\u2212/g, '-');
+  const pdfSafe = (v) => String(v ?? '').replace(/−/g, '-');
   const text = (s, { size = 10, bold = false, x = M, color = null } = {}) => { doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal'); if (color) doc.setTextColor(...color); else ink(); const lines = doc.splitTextToSize(pdfSafe(s), W - x - M); need(lines.length * LH); doc.text(lines, x, y); y += lines.length * LH; doc.setFont('helvetica', 'normal'); };
   const rule = () => { need(3); doc.setDrawColor(184, 192, 184); doc.line(M, y, W - M, y); y += 3; };
+  const heading = (s) => { text(s, { size: 13, bold: true }); rule(); };
   const table = (cols, rows, { size = 9 } = {}) => {
-    // cols: [{label, w, align}] widths in mm; rows: arrays of strings
     doc.setFontSize(size);
     const rowH = LH;
     const pad = (i) => (i > 0 && cols[i - 1].align === 'right' && cols[i].align !== 'right' ? 3 : 0);
@@ -59,6 +97,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {} } = {}) {
       y += hgt; doc.setDrawColor(214, 219, 212); doc.line(M, y - 1.5, W - M, y - 1.5); y += 1;
     }
   };
+  const kvRows = (rows) => { for (const [k, v, bold] of rows) { need(LH); doc.setFontSize(10); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.text(k, M, y); doc.text(pdfSafe(v), W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH; } };
 
   /* ---- page 1: reconciliation ---- */
   footer();
@@ -66,38 +105,76 @@ export async function buildMonthEndPack(float, { onProgress = () => {} } = {}) {
   text(`Petty cash pack – ${monthLabel(float.period)}`, { size: 18, bold: true });
   text(`${float.status === 'open' ? 'Open float (interim pack)' : `Closed ${fmtDate(float.closed_at)} by ${personName(float.closed_by)}`} · prepared ${fmtDate(new Date().toISOString(), { time: true })} by ${state.me.full_name || state.me.email}`, { size: 9, color: [123, 133, 127] });
   y += 4;
-  text('Reconciliation', { size: 13, bold: true }); rule();
-  const kv = [
+  heading('Reconciliation');
+  kvRows([
     ['Allocated by finance', money(float.allocated)],
     Number(float.carried_over) > 0 ? ['Carried over from last month', money(float.carried_over)] : null,
     Number(float.topped_up) > 0 ? ['Top-ups', money(float.topped_up)] : null,
-    Number(float.returned) > 0 ? ['Returned to finance', `−${money(float.returned)}`] : null,
-    ['Spent (receipts recorded)', `−${money(float.spent)}`],
-    ['Out with people, not yet accounted for', `−${money(float.outstanding)}`],
-    ['Book balance', money(float.balance)],
+    Number(float.returned) > 0 ? ['Returned to finance', `-${money(float.returned)}`] : null,
+    ['Spent (receipts recorded)', `-${money(float.spent)}`],
+    Number(float.outstanding) > 0 ? ['Out with people, not yet accounted for', `-${money(float.outstanding)}`] : null,
+    ['Book balance', money(float.balance), true],
     float.counted_cash != null ? ['Cash counted at close', money(float.counted_cash)] : null,
-    float.counted_cash != null ? ['Difference', money(Number(float.counted_cash) - Number(float.balance), { sign: true })] : null,
-  ].filter(Boolean);
-  for (const [k, v] of kv) { need(LH); doc.setFontSize(10); const bold = /balance|Difference/.test(k); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.text(k, M, y); doc.text(pdfSafe(v), W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH; }
+    float.counted_cash != null ? ['Difference', money(Number(float.counted_cash) - Number(float.balance), { sign: true }), true] : null,
+  ].filter(Boolean));
   if (float.notes) { y += 2; text(`Notes: ${float.notes}`, { size: 9 }); }
   y += 5;
   if (txs.length) {
-    text('Money in and out of the box', { size: 13, bold: true }); rule();
+    heading('Money in and out of the box');
     table([{ label: 'Date', w: 28 }, { label: 'What', w: 110 }, { label: 'Amount', w: 40, align: 'right' }],
       txs.map((t) => [fmtDate(t.created_at), `${{ allocation: 'Monthly allocation', top_up: 'Top-up', carry_over: 'Carry-over', return: 'Returned to finance' }[t.kind]}${t.note ? ` – ${t.note}` : ''}`, money(t.kind === 'return' ? -t.amount : t.amount, { sign: true })]));
     y += 5;
   }
 
-  /* ---- vouchers ---- */
+  /* ---- page 2: monthly summary ---- */
+  newPage();
+  heading('Monthly summary');
+  const s = summary;
+  const mName = (k) => monthLabel(k + '-01');
+  text('Spending against the previous two months', { size: 10, bold: true }); y += 1;
+  table([{ label: 'Month', w: 70 }, { label: 'Vouchers', w: 40, align: 'right' }, { label: 'Spent', w: 68, align: 'right' }],
+    s.months.map((m, i) => [mName(m.month) + (i === 2 ? ' (this pack)' : ''), String(m.vouchers), money(m.spent)]));
+  y += 4;
+  if (s.by_category.length) {
+    text('By category', { size: 10, bold: true }); y += 1;
+    const tot = s.by_category.reduce((a, c) => a + c.amount, 0) || 1;
+    table([{ label: 'Category', w: 78 }, { label: 'This month', w: 34, align: 'right' }, { label: 'Share', w: 22, align: 'right' }, { label: 'Last month', w: 44, align: 'right' }],
+      s.by_category.map((c) => [c.name, money(c.amount), `${Math.round(c.amount / tot * 100)}%`, c.previous ? money(c.previous) : '—']));
+    y += 4;
+  }
+  if (s.budgets.length) {
+    text('Budgets', { size: 10, bold: true }); y += 1;
+    table([{ label: 'Budget', w: 78 }, { label: 'Used', w: 34, align: 'right' }, { label: 'Limit', w: 34, align: 'right' }, { label: 'Status', w: 32 }],
+      s.budgets.map((b) => [b.name, money(b.used), money(b.limit), b.used > b.limit ? `over by ${money(b.used - b.limit)}` : 'within']));
+    y += 4;
+  }
+  text('Requests and controls', { size: 10, bold: true }); y += 1;
+  kvRows([
+    ['Requests raised in the month', String(s.requests.raised)],
+    [`Went through the approver (above ${money(state.settings?.approval_threshold)} or over budget)`, `${s.requests.approved} · ${money(s.requests.approved_amount)}`],
+    ['Rejected', String(s.requests.rejected)],
+    ['Claims reimbursed from the float', String(s.requests.claims)],
+    ['Restock orders by the stock manager', String(s.requests.restock_orders)],
+    ['Vouchers in this pack', String(s.vouchers)],
+    ['Vouchers without a scanned receipt', String(s.missing_proofs)],
+    ['Paper originals handed to finance', String(s.physical_receipts)],
+  ]);
+  if (s.top_lines.length) {
+    y += 4; text('Largest items', { size: 10, bold: true }); y += 1;
+    table([{ label: 'Item', w: 130 }, { label: 'Amount', w: 48, align: 'right' }], s.top_lines.map((t) => [t.name, money(t.amount)]));
+  }
+
+  /* ---- vouchers list ---- */
+  newPage();
   const ex = (r) => (Array.isArray(r.expense) ? r.expense[0] : r.expense);
-  text('Vouchers', { size: 13, bold: true }); rule();
+  heading('Vouchers');
   if (!requests.length) text('No cash was paid out from this float.', { size: 10, color: [123, 133, 127] });
   else {
     table([{ label: '#', w: 11 }, { label: 'Purpose', w: 55 }, { label: 'Paid to', w: 32 }, { label: 'Paid', w: 22, align: 'right' }, { label: 'Spent', w: 22, align: 'right' }, { label: 'Status', w: 36 }],
       requests.map((r) => { const e = ex(r); return [String(r.request_no), `${r.purpose}${r.type === 'claim' ? ' (claim)' : ''}${r.approved_by ? `\napproved by ${personName(r.approved_by)}` : ''}`, personName(r.disbursed_to), money(r.disbursed_amount), e && Number(e.total) > 0 ? money(e.total) : '—', STATUS[r.status]?.label || r.status]; }));
     y += 2;
-    const totPaid = requests.reduce((s, r) => s + Number(r.disbursed_amount || 0), 0);
-    const totSpent = requests.reduce((s, r) => s + Number(ex(r)?.total || 0), 0);
+    const totPaid = requests.reduce((a, r) => a + Number(r.disbursed_amount || 0), 0);
+    const totSpent = requests.reduce((a, r) => a + Number(ex(r)?.total || 0), 0);
     doc.setFontSize(10); doc.setFont('helvetica', 'bold'); need(LH); doc.text(`Paid out ${money(totPaid)} · receipts ${money(totSpent)}`, W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH;
   }
 
@@ -128,18 +205,40 @@ export async function buildMonthEndPack(float, { onProgress = () => {} } = {}) {
     const proofs = e?.proofs || [];
     if (!proofs.length) { y += 3; text('No scanned proof uploaded.', { size: 9, color: [167, 84, 26] }); continue; }
     for (const p of proofs) {
-      const img = await proofImage(p);
+      const got = await fetchProof(p);
       y += 4;
-      if (!img) { text(/pdf$/i.test(p.mime || '') ? `${p.file_name} – a PDF, kept in the app rather than embedded here` : `${p.file_name} – could not be embedded; open it in the app`, { size: 9, color: [123, 133, 127] }); continue; }
+      if (got?.pdf) { text(`${p.file_name} – follows on the next page`, { size: 8, color: [123, 133, 127] }); pdfInserts.push({ afterPage: doc.getNumberOfPages(), bytes: got.pdf, name: p.file_name }); continue; }
+      if (!got) { text(`${p.file_name} – could not be embedded; open it in the app`, { size: 9, color: [123, 133, 127] }); continue; }
       const maxW = W - 2 * M, maxH = 297 - M - y - 6;
-      let w = maxW, hgt = img.h / img.w * w;
-      if (hgt > maxH) { if (maxH < 80) { newPage(); hgt = Math.min(297 - 2 * M - 8, img.h / img.w * w); } else hgt = maxH; w = img.w / img.h * hgt; }
+      let w = maxW, hgt = got.h / got.w * w;
+      if (hgt > maxH) { if (maxH < 80) { newPage(); hgt = Math.min(297 - 2 * M - 8, got.h / got.w * w); } else hgt = maxH; w = got.w / got.h * hgt; }
       text(p.file_name, { size: 8, color: [123, 133, 127] });
-      doc.addImage(img.data, 'JPEG', M, y, w, hgt); y += hgt + 2;
+      doc.addImage(got.data, 'JPEG', M, y, w, hgt); y += hgt + 2;
     }
   }
-  onProgress('Saving…');
+
+  /* ---- merge PDF invoices in, number the pages ---- */
+  onProgress('Assembling the PDF…');
+  const { PDFDocument, StandardFonts, rgb } = await loadPdfLib();
+  const out = await PDFDocument.create();
+  const base = await PDFDocument.load(doc.output('arraybuffer'));
+  const basePages = await out.copyPages(base, base.getPageIndices());
+  for (let n = 0; n < basePages.length; n++) {
+    out.addPage(basePages[n]);
+    for (const ins of pdfInserts.filter((x) => x.afterPage === n + 1)) {
+      try { const d = await PDFDocument.load(ins.bytes, { ignoreEncryption: true }); (await out.copyPages(d, d.getPageIndices())).forEach((pg) => out.addPage(pg)); }
+      catch { /* an unreadable PDF is skipped; the voucher page says where it lives */ }
+    }
+  }
+  const font = await out.embedFont(StandardFonts.Helvetica);
+  const total = out.getPageCount();
+  out.getPages().forEach((pg, n) => { const { width } = pg.getSize(); const label = `page ${n + 1} of ${total}`; pg.drawText(label, { x: width - 45.4 - font.widthOfTextAtSize(label, 8), y: 22.7, size: 8, font, color: rgb(0.48, 0.52, 0.5) }); });
+  out.setTitle(`Petty cash pack – ${monthLabel(float.period)} – ${org}`);
+  const bytes = await out.save();
   const name = `petty-cash-${String(float.period).slice(0, 7)}.pdf`;
-  doc.save(name);
-  return name;
+  if (save) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); a.download = name;
+    document.body.append(a); a.click(); a.remove();
+  }
+  return { bytes, name, pages: total, summary };
 }

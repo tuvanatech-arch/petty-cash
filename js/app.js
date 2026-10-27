@@ -4,7 +4,7 @@ import { authPage } from './pages/auth.js';
 import { homePage } from './pages/home.js';
 import { requestsPage, newRequestPage, requestDetailPage } from './pages/requests.js';
 import { stockPage } from './pages/stock.js';
-import { cashPage } from './pages/cash.js';
+import { cashPage, packPage } from './pages/cash.js';
 import { reportsPage } from './pages/reports.js';
 import { adminPage } from './pages/admin.js';
 import { accountPage } from './pages/account.js';
@@ -21,6 +21,7 @@ const ROUTES = [
   { path: /^\/requests\/([0-9a-f-]{36})\/edit$/, page: (m) => newRequestPage(m[1]) },
   { path: /^\/stock(?:\/(\w+))?$/, page: (m) => stockPage(m[1]) },
   { path: /^\/cash$/, page: () => cashPage(), guard: 'finance' },
+  { path: /^\/cash\/pack\/([0-9a-f-]{36})$/, page: (m) => packPage(m[1]), guard: 'finance' },
   { path: /^\/reports$/, page: () => reportsPage(), guard: 'reports' },
   { path: /^\/admin(?:\/(\w+))?$/, page: (m) => adminPage(m[1]), guard: 'admin' },
   { path: /^\/account$/, page: () => accountPage() },

@@ -207,6 +207,8 @@ function settingsTab() {
   const reserveBuf = h('input', { class: 'input num', type: 'number', min: 0, max: 100, step: 1, value: s.reserve_buffer_pct ?? 15 });
   const emailFrom = h('input', { class: 'input', value: s.email_from || '', placeholder: 'Petty Cash <petty@yourdomain>' });
   const appUrl = h('input', { class: 'input', type: 'url', value: s.app_url || '', placeholder: 'https://…' });
+  const acctName = h('input', { class: 'input', value: s.accountant_name || '', placeholder: 'e.g. Maria Shilongo' });
+  const acctEmail = h('input', { class: 'input', type: 'email', value: s.accountant_email || '', placeholder: 'accounts@…' });
   const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save settings');
   const go = busy(b, async () => {
     unwrap(await sb.from('settings').update({
@@ -214,6 +216,7 @@ function settingsTab() {
       advance_grace_days: Math.max(1, Math.round(num(grace.value) || 5)), block_with_outstanding: blockOutstanding.checked, budget_mode: budgetMode.value,
       count_day: Number(countDay.value), headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
       reserve_buffer_pct: Math.min(100, Math.max(0, Math.round(num(reserveBuf.value)))),
+      accountant_name: acctName.value.trim() || null, accountant_email: acctEmail.value.trim() || null,
       updated_at: new Date().toISOString(),
     }).eq('id', 1));
     state.settings = unwrap(await sb.from('settings').select('*').eq('id', 1).single());
@@ -231,6 +234,7 @@ function settingsTab() {
     block('Budgets and the float', field('When a request goes over its budget', budgetMode, 'Budgets are set on the Budgets tab.'),
       field('Safety buffer on the recommended minimum', reserveBuf, 'Percent added on top of what is usually spent for the rest of the month. The approver is cautioned when an approval would leave the float below that minimum.')),
     block('Counting and reports', h('div', { class: 'row' }, field('Weekly count reminder', countDay, 'The stock manager gets a nudge to do a quick count.'), field('People in the office', headcount, 'Used for cost per head in reports.'))),
+    block('Month-end pack', h('div', { class: 'row' }, field('Senior accountant', acctName), field('Their email', acctEmail, 'The reviewed pack is emailed here, with the approver in copy.'))),
     block('Email', h('div', { class: 'row' }, field('Send emails from', emailFrom, 'Must be an address on a domain verified with the email provider; blank uses the test sender.'), field('Link to the app', appUrl, 'Used in emails so people can open the thing that needs them.'))),
     h('div', { class: 'form-actions' }, b));
 }

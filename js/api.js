@@ -101,6 +101,28 @@ export async function readReceipt(proofId) {
   return json;
 }
 
+/* ---------- month-end packs ---------- */
+export async function uploadPack(float, bytes, name) {
+  const path = `${String(float.period).slice(0, 7)}/${name}`;
+  const { error } = await sb.storage.from('packs').upload(path, new Blob([bytes], { type: 'application/pdf' }), { contentType: 'application/pdf', upsert: true });
+  if (error) throw new Error(cleanError(error));
+  return path;
+}
+export async function packUrl(path) {
+  const { data, error } = await sb.storage.from('packs').createSignedUrl(path, 60 * 30);
+  return error ? null : data.signedUrl;
+}
+/** Email the pack to the accountant via the send-pack function. */
+export async function sendPack(packId, note) {
+  const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${state.session?.access_token || ''}` };
+  let res;
+  try { res = await fetch(`${FUNCTIONS_URL}/send-pack`, { method: 'POST', headers, body: JSON.stringify({ pack_id: packId, note: note || null }) }); }
+  catch { throw new Error('No connection. Check your internet and try again.'); }
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error(json.error || `Could not send the pack (${res.status})`);
+  return json;
+}
+
 /* ---------- offline queue (quick counts done without signal) ---------- */
 const QUEUE_KEY = 'pcs_offline_queue';
 export function queueOffline(fn, args) {
