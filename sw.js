@@ -1,5 +1,5 @@
 // App shell cache: the pages open without signal; data always comes from the server when it can.
-const CACHE = 'pcs-shell-v3';
+const CACHE = 'pcs-shell-v4';
 const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png',
   './js/app.js', './js/api.js', './js/ui.js', './js/charts.js', './js/config.js', './js/pack.js',
   './js/pages/auth.js', './js/pages/home.js', './js/pages/requests.js', './js/pages/stock.js', './js/pages/cash.js',

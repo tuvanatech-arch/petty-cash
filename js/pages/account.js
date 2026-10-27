@@ -1,5 +1,5 @@
 import { sb, state, unwrap, ROLE_LABEL, cleanError, personName, pushStatus, enablePush, disablePush, testPush } from '../api.js';
-import { h, mount, toast, busy, field, fmtDate, today, confirmDialog, refresh } from '../ui.js';
+import { h, mount, toast, busy, field, fmtDate, today, confirmDialog, refresh, more } from '../ui.js';
 import { standinDialog, endDelegation } from './admin.js';
 
 export async function accountPage() {
@@ -25,7 +25,7 @@ export async function accountPage() {
     p1.value = ''; p2.value = ''; toast('Password changed.');
     if (recovery) location.hash = '#/home';
   });
-  const out = h('button', { class: 'btn btn-danger' }, 'Sign out');
+  const out = h('button', { class: 'btn btn-quiet btn-danger' }, 'Sign out');
   out.onclick = busy(out, async () => { await sb.auth.signOut(); });
 
   // email copies of alerts
@@ -40,19 +40,17 @@ export async function accountPage() {
   if (me.role !== 'requester') {
     const t = today();
     const mine = unwrap(await sb.from('delegations').select('*').eq('from_user', me.id).gte('ends_on', t).order('starts_on'));
-    standinSheet = h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'When you are away'), h('span', { class: 'sub' }, 'Your stand-in')),
+    standinSheet = h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'When you are away')),
       mine.length ? h('ul', { class: 'ledger-list' }, mine.map((d) => h('li', {},
         h('div', { class: 'what' }, h('strong', {}, `${personName(d.to_user)} covers for you`), h('span', {}, `${fmtDate(d.starts_on)} – ${fmtDate(d.ends_on)}${d.note ? ` · ${d.note}` : ''}${d.starts_on > t ? ' · not started yet' : ''}`)),
         h('button', { class: 'btn btn-sm btn-quiet', onclick: () => standinDialog(d, { fixedFrom: me }) }, 'Edit'),
         h('button', { class: 'btn btn-sm btn-quiet btn-danger', onclick: async () => { if (!(await confirmDialog('End this stand-in?', `${personName(d.to_user)} will stop seeing your queue.`, { ok: 'End it', danger: true }))) return; try { await endDelegation(d); toast('Ended.'); refresh(); } catch (e) { toast(e.message, { error: true }); } } }, 'End'))))
-        : h('p', { class: 'hint' }, `Nobody is set to cover ${ROLE_LABEL[me.role].replace(' (admin)', '').toLowerCase()} for you. Set someone up before leave so requests do not wait.`),
-      h('div', { class: 'form-actions' }, h('button', { class: 'btn', onclick: () => standinDialog(null, { fixedFrom: me }) }, 'Set a stand-in')));
+        : h('p', { class: 'hint' }, 'Nobody covers for you yet. Set someone before leave so nothing waits.'),
+      h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, h('button', { class: 'btn btn-sm', onclick: () => standinDialog(null, { fixedFrom: me }) }, mine.length ? 'Add another' : 'Set a stand-in')));
   }
 
   const standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone;
-  const installSheet = standalone ? null : h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'On your phone')),
-    h('p', { class: 'hint' }, 'Install it on the home screen: it opens like an app, “Snap a receipt” is a long-press away, and quick counts done without signal are sent when you are back online.'),
-    h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-primary', href: '#/install' }, 'Install on this phone')));
+  const installSheet = standalone ? null : more('Put it on your phone', h('p', { class: 'hint' }, 'Opens like an app, “Snap a receipt” is a long-press away, and counts done without signal are sent later.'), h('a', { class: 'btn', href: '#/install' }, 'Show me how'));
 
   // phone alerts
   const ps = await pushStatus();
@@ -72,17 +70,16 @@ export async function accountPage() {
   }
   drawPush(ps);
 
+  const passForm = h('form', {}, field('New password', p1), field('Repeat it', p2), err, h('div', { class: 'form-actions' }, savePass));
   return h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Account'), h('p', {}, `${me.email} · ${ROLE_LABEL[me.role]}`))),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Account'), h('p', {}, `${me.email} · ${ROLE_LABEL[me.role]}`)), h('div', { class: 'page-actions' }, out)),
     recovery ? h('div', { class: 'banner banner-green' }, h('strong', {}, 'Set a new password'), 'You arrived from a reset link. Choose a new password below.') : null,
-    h('div', { class: 'grid-2' },
-      h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Your name')), h('form', {}, field('Shown on requests and in history', name), h('div', { class: 'form-actions' }, saveName))),
-      h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Password')), h('form', {}, field('New password', p1), field('Repeat it', p2), err, h('div', { class: 'form-actions' }, savePass)))),
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Alerts')),
       pushBox,
-      h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me when something needs me'),
-      h('p', { class: 'hint', style: { marginTop: '6px' } }, 'Alerts always show in the app under Alerts. Emails are bundled, so a busy morning is one message rather than ten.')),
+      h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me (bundled – one message, not ten)')),
     standinSheet,
-    installSheet,
-    h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Session')), h('p', { class: 'hint' }, 'Signing out on a shared phone or computer keeps your account safe.'), out));
+    h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'You')),
+      h('form', {}, field('Your name, as shown on requests', name), h('div', { class: 'form-actions' }, saveName)),
+      recovery ? passForm : more('Change password', passForm),
+      installSheet));
 }

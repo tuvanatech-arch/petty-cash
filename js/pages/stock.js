@@ -1,28 +1,35 @@
 import { sb, state, can, personName, unwrap, rpc, queueOffline } from '../api.js';
-import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint } from '../ui.js';
 import { barChart } from '../charts.js';
 
 export async function stockPage(tab = 'items') {
   const manage = can('manage_stock');
   const openReports = (await sb.from('stock_reports').select('id', { count: 'exact', head: true }).is('resolved_at', null)).count || 0;
-  const tabs = manage ? [['items', 'Items'], ['reports', openReports ? `Reported by the team (${openReports})` : 'Reported by the team'], ['usage', 'Usage'], ['movements', 'Movements'], ['suppliers', 'Suppliers'], ['categories', 'Categories']]
-    : [['items', 'Items'], ['reports', 'My reports'], ['usage', 'Usage']];
+  // daily work in the tab bar; catalogue setup (suppliers, categories) one tap away under "Catalogue"
+  const setup = tab === 'suppliers' || tab === 'categories';
+  const tabs = setup ? [['suppliers', 'Suppliers'], ['categories', 'Categories']]
+    : manage ? [['items', 'Items'], ['reports', openReports ? `Reported (${openReports})` : 'Reported'], ['usage', 'Usage'], ['movements', 'Movements']]
+    : [['items', 'Items'], ['reports', 'My reports']];
   const body = h('div', {});
   const tabBar = h('div', { class: 'tabs' }, tabs.map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { location.hash = `#/stock/${k}`; } }, l)));
   const actions = [];
   if (!manage) actions.push(h('button', { class: 'btn btn-primary', onclick: () => reportDialog(null) }, 'Report low / out'));
-  if (manage) {
-    if (tab === 'items' || tab === 'usage') actions.push(h('button', { class: 'btn btn-primary', onclick: () => quickCountDialog() }, 'Quick count'));
-    const restock = h('button', { class: 'btn' }, 'Raise monthly restock');
+  if (manage && !setup) {
+    actions.push(h('button', { class: 'btn btn-primary', onclick: () => quickCountDialog() }, 'Quick count'));
+    const restock = h('button', { class: 'btn' }, 'Restock order');
     restock.onclick = busy(restock, async () => { const req = await rpc('create_restock_request'); toast('Draft restock order created from measured usage. Check the quantities, then submit.'); location.hash = `#/requests/${req.id}/edit`; });
     actions.push(restock);
-    if (tab === 'items') actions.push(h('button', { class: 'btn', onclick: () => itemDialog(null, () => refresh()) }, 'Add item'));
+    if (tab === 'items') actions.push(h('button', { class: 'btn btn-quiet', onclick: () => itemDialog(null, () => refresh()) }, '+ Item'));
+    actions.push(h('a', { class: 'btn btn-quiet', href: '#/stock/suppliers' }, 'Catalogue'));
+  }
+  if (manage && setup) {
+    actions.push(h('a', { class: 'btn btn-quiet', href: '#/stock' }, '← Stock'));
     if (tab === 'suppliers') actions.push(h('button', { class: 'btn btn-primary', onclick: () => supplierDialog(null, () => refresh()) }, 'Add supplier'));
     if (tab === 'categories' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => categoryDialog(null, () => refresh()) }, 'Add category'));
   }
   mount(body, await ({ items: itemsTab, reports: reportsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
   return h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Stock'), h('p', {}, manage ? 'What is in the store, how fast it goes, and when it will run out.' : 'What the store holds. Spotted something running low or finished? Report it and the stock manager takes it from there.')),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, setup ? 'Catalogue' : 'Stock'), h('p', {}, setup ? 'Suppliers and categories – set up once, rarely changed.' : manage ? 'What is in the store, how fast it goes, and when it runs out.' : 'Tap an item that is running low or finished to report it.')),
       h('div', { class: 'page-actions' }, actions)),
     tabBar, body);
 }
@@ -55,44 +62,61 @@ async function itemsTab(manage) {
   const supName = (id) => sups.find((s) => s.id === id)?.name || '—';
   let search = ''; let showInactive = false; let filter = 'all';
   const wrap = h('div', {});
-  const low = (i) => { const s = stats[i.id]; return Number(i.qty_on_hand) <= 0 || (Number(i.reorder_level) > 0 && Number(i.qty_on_hand) < Number(i.reorder_level)) || (s?.days_of_cover != null && Number(s.days_of_cover) <= 14); };
+  const low = (i) => { const s = stats[i.id]; return i.active && ( Number(i.qty_on_hand) <= 0 || (Number(i.reorder_level) > 0 && Number(i.qty_on_hand) < Number(i.reorder_level)) || (s?.days_of_cover != null && Number(s.days_of_cover) <= 14)); };
   function draw() {
-    const rows = items.filter((i) => (showInactive || i.active) && (!search || `${i.name} ${i.sku || ''} ${catName(i.category_id)}`.toLowerCase().includes(search))
-      && (filter === 'all' || (filter === 'low' ? low(i) : filter === 'recurring' ? i.recurring : stats[i.id]?.pace === filter)));
+    const rows = items.filter((i) => (showInactive ? !i.active : i.active) && (!search || `${i.name} ${i.sku || ''} ${catName(i.category_id)}`.toLowerCase().includes(search))
+      && (filter === 'all' || filter === 'inactive' || (filter === 'low' ? low(i) : filter === 'recurring' ? i.recurring : stats[i.id]?.pace === filter)));
     const totalValue = rows.reduce((s, i) => s + Number(i.qty_on_hand) * Number(i.last_unit_price || 0), 0);
     mount(wrap, rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
-      h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'On hand'), h('th', { class: 'num' }, 'Used / month'), h('th', { class: 'num' }, 'Runs out'), h('th', { class: 'num' }, 'Last price'), h('th', {}, 'Supplier'), h('th'))),
+      h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'On hand'), manage ? h('th', { class: 'num' }, 'Used / month') : null, h('th', { class: 'num' }, 'Runs out'), h('th'))),
       h('tbody', {}, rows.map((i) => {
         const s = stats[i.id];
-        return h('tr', { class: low(i) ? 'low' : '' },
+        return h('tr', { class: `item-row${low(i) ? ' low' : ''}`, onclick: () => (manage ? itemSheet(i, s, { catName, supName, sups }) : reportDialog(i)) },
           h('td', {}, h('strong', {}, i.name), paceBadge(s), !i.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null,
-            h('div', { class: 'muted', style: { fontSize: '.8rem' } }, [catName(i.category_id), i.recurring ? `monthly · expect ${qty(i.expected_monthly_qty)}` : null, Number(i.reorder_level) > 0 ? `reorder at ${qty(i.reorder_level)}` : null].filter(Boolean).join(' · '))),
+            manage ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, [catName(i.category_id), i.recurring ? 'monthly' : null].filter((x) => x && x !== '—').join(' · ')) : null),
           h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`),
-          h('td', { class: 'num' }, s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : h('span', { class: 'muted' }, '—')),
+          manage ? h('td', { class: 'num' }, s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : h('span', { class: 'muted' }, '—')) : null,
           runoutCell(i, s),
-          h('td', { class: 'num' }, i.last_unit_price != null ? money(i.last_unit_price) : '—'),
-          h('td', { class: 'muted' }, supName(i.preferred_supplier_id)),
-          manage ? h('td', { class: 'num', style: { whiteSpace: 'nowrap' } },
-            h('button', { class: 'btn btn-sm', onclick: () => usageDialog(i, () => refresh()) }, 'Used'),
-            ' ', h('button', { class: 'btn btn-sm', onclick: () => issueDialog(i, () => refresh()) }, 'Issue'),
-            ' ', h('button', { class: 'btn btn-sm', onclick: () => receiveDialog(i, sups, () => refresh()) }, 'Receive'),
-            ' ', h('button', { class: 'btn btn-sm btn-quiet', onclick: () => itemDialog(i, () => refresh()) }, 'Edit'))
-          : h('td', { class: 'num' }, h('button', { class: 'btn btn-sm', onclick: () => reportDialog(i) }, 'Report')));
+          h('td', { class: 'num chev' }, manage ? '›' : 'Report ›'));
       })),
-      h('tfoot', {}, h('tr', {}, h('td', { colspan: 4 }, `${rows.length} item${rows.length === 1 ? '' : 's'} · value at last price`), h('td', { class: 'num' }, money(totalValue)), h('td', { colspan: 2 })))))
+      manage ? h('tfoot', {}, h('tr', {}, h('td', { colspan: 3 }, `${rows.length} item${rows.length === 1 ? '' : 's'}`), h('td', { class: 'num' }, money(totalValue)), h('td'))) : null))
       : emptyState('Nothing here', manage ? (items.length ? 'No items match this filter.' : 'Add the things you buy regularly – paper, cleaning supplies, toner.') : 'The stock manager has not added items yet.'));
   }
   draw();
-  const chips = [['all', 'All'], ['low', 'Running low'], ['recurring', 'Monthly items'], ['fast', 'Fast movers'], ['slow', 'Slow movers']];
+  const chips = manage ? [['all', 'All'], ['low', 'Running low'], ['recurring', 'Monthly'], ['fast', 'Fast'], ['slow', 'Slow'], ['inactive', 'Inactive']] : [['all', 'All'], ['low', 'Running low']];
   const chipBar = h('div', { class: 'tabs', style: { borderBottom: 0, marginBottom: '6px' } });
-  const drawChips = () => mount(chipBar, chips.map(([k, l]) => h('button', { class: k === filter ? 'active' : '', onclick: () => { filter = k; drawChips(); draw(); } }, l)));
+  const drawChips = () => mount(chipBar, chips.map(([k, l]) => h('button', { class: k === filter ? 'active' : '', onclick: () => { filter = k; showInactive = k === 'inactive'; drawChips(); draw(); } }, l)));
   drawChips();
   return h('div', {},
-    h('div', { class: 'toolbar' }, h('input', { class: 'input', placeholder: 'Search items', oninput: (e) => { search = e.target.value.toLowerCase(); draw(); } }),
-      h('label', { class: 'check' }, h('input', { type: 'checkbox', onchange: (e) => { showInactive = e.target.checked; draw(); } }), 'Show inactive')),
+    items.length > 8 ? h('div', { class: 'toolbar' }, h('input', { class: 'input', placeholder: 'Search items', oninput: (e) => { search = e.target.value.toLowerCase(); draw(); } })) : null,
     chipBar,
     h('div', { class: 'sheet' }, wrap),
-    manage ? h('p', { class: 'hint' }, 'Usage is measured from quick counts, “Used” entries and issues. “Runs out” projects the current rate over what is on hand.') : null);
+    manage ? onceHint('stock-usage', 'Usage is measured from quick counts, “Used” entries and issues; “Runs out” projects that rate over what is on hand. Tap an item to record use, issue, receive or edit it.') : null);
+}
+
+/** One item: the numbers that matter, and the four things you can do with it. */
+function itemSheet(i, s, { catName, supName, sups }) {
+  modal(i.name, (close) => {
+    const done = () => { close(); refresh(); };
+    const stat = (k, v) => h('div', { class: 'stat' }, h('span', { class: 'k' }, k), h('span', { class: 'v', style: { fontSize: '1.1rem' } }, v));
+    return h('div', {},
+      h('div', { class: 'row', style: { marginBottom: '10px' } },
+        stat('On hand', `${qty(i.qty_on_hand)} ${i.unit}`),
+        stat('Used / month', s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : '—'),
+        stat('Runs out', s?.runout_date ? fmtDate(s.runout_date) : Number(i.qty_on_hand) <= 0 ? 'Out' : '—'),
+        stat('Last price', i.last_unit_price != null ? money(i.last_unit_price) : '—')),
+      h('dl', { class: 'kv', style: { marginBottom: '14px' } },
+        h('dt', {}, 'Category'), h('dd', {}, catName(i.category_id)),
+        h('dt', {}, 'Supplier'), h('dd', {}, supName(i.preferred_supplier_id)),
+        i.recurring ? [h('dt', {}, 'Monthly'), h('dd', {}, `expect ${qty(i.expected_monthly_qty)} ${i.unit}`)] : null,
+        Number(i.reorder_level) > 0 ? [h('dt', {}, 'Reorder at'), h('dd', {}, `${qty(i.reorder_level)} ${i.unit}`)] : null,
+        s?.pace && s.pace !== 'normal' ? [h('dt', {}, 'Pace'), h('dd', {}, (PACE[s.pace] || PACE.normal).label)] : null),
+      h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } },
+        h('button', { class: 'btn btn-primary', onclick: () => { close(); usageDialog(i, () => refresh()); } }, 'Used'),
+        h('button', { class: 'btn', onclick: () => { close(); issueDialog(i, () => refresh()); } }, 'Issue to someone'),
+        h('button', { class: 'btn', onclick: () => { close(); receiveDialog(i, sups, () => refresh()); } }, 'Receive'),
+        h('button', { class: 'btn btn-quiet', onclick: () => { close(); itemDialog(i, done); } }, 'Edit')));
+  });
 }
 
 /* ---------------- low-stock reports from the team ---------------- */
@@ -154,7 +178,7 @@ async function reportsTab(manage) {
   }
   draw(); if (manage) drawToolbar();
   return h('div', {},
-    manage ? h('p', { class: 'hint', style: { marginBottom: '12px' } }, 'The team reports; you decide. Tick the ones to buy and add them to a restock order (it goes to the approver, then finance), or mark them sorted if the store already covers it. A purchase into the store clears the report automatically.') : null,
+    manage ? onceHint('stock-reports', 'The team reports; you decide. Tick what to buy and add it to a restock order (approver, then finance), or mark it sorted if the store covers it. Receiving stock clears the report automatically.') : null,
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, manage ? 'Open reports' : 'Open'), h('span', { class: 'sub' }, open.length)), list, manage && groups.length ? toolbar : null),
     done.length ? h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Sorted recently')),
       h('ul', { class: 'ledger-list' }, done.map((r) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, r.item?.name || 'Item'), h('span', {}, `${r.level === 'out' ? 'Out' : 'Low'} · reported by ${personName(r.reported_by)} ${fmtDate(r.created_at)} · ${r.resolution || 'sorted'} ${fmtDate(r.resolved_at)}${r.resolved_by ? ` by ${personName(r.resolved_by)}` : ''}`)))))) : null);

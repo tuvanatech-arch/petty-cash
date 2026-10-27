@@ -1,5 +1,5 @@
 import { sb, state, can, personName, unwrap } from '../api.js';
-import { h, mount, money, qty, fmtDate, monthLabel, pill, emptyState, select, field, isoDate } from '../ui.js';
+import { h, mount, money, qty, fmtDate, monthLabel, pill, emptyState, select, field, isoDate, more } from '../ui.js';
 import { barChart, lineChart, hBars } from '../charts.js';
 
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -42,6 +42,9 @@ export async function reportsPage() {
   const scorecard = buildScorecard({ months, lines, requests, items, events, budgets: (budgets || []).filter((b) => b.active) });
 
   let range = 3; // months in the "period" views
+  let tab = 'spending';
+  const rangeSel = select([[1, 'This month'], [3, 'Last 3 months'], [6, 'Last 6 months'], [12, 'Last 12 months']], 3, { onchange: (e) => { range = Number(e.target.value); draw(); } });
+  const tabBar = h('div', { class: 'tabs', style: { marginTop: '4px' } });
   const periodMonths = () => months.slice(-range);
   const inPeriod = (l) => periodMonths().includes(monthKey(l.spent_at));
   const body = h('div', {});
@@ -103,12 +106,14 @@ export async function reportsPage() {
     const reqRow = (r) => h('tr', { class: 'click', onclick: () => { location.hash = `#/requests/${r.id}`; } }, h('td', {}, `#${r.request_no} ${r.purpose}`), h('td', { class: 'muted' }, personName(r.requester_id)), h('td', { class: 'muted' }, fmtDate(r.submitted_at || r.created_at)), h('td', {}, pill(r.status)), h('td', { class: 'num' }, money(exTotal(r) || r.estimated_total)));
     const tbl = (rows, empty) => rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' }, h('tbody', {}, rows.map(reqRow)))) : h('p', { class: 'hint' }, empty);
 
-    mount(body,
-      scorecard,
+    const flags = overUnapproved.length + splits.length + nearMiss.length;
+    mount(tabBar, [['spending', 'Spending'], ['prices', 'Prices & items'], ['controls', flags ? `Controls (${flags})` : 'Controls']].map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { tab = k; draw(); } }, l)));
+    rangeSel.style.display = tab === 'spending' ? '' : 'none';
+    const sections = {
+      spending: () => [
       h('div', { class: 'grid-3' },
         h('div', { class: 'sheet stat' }, h('span', { class: 'k' }, `Spent in ${pm.length === 1 ? monthLabel(pm[0] + '-01') : `the last ${pm.length} months`}`), h('span', { class: 'v' }, money(total))),
-        h('div', { class: 'sheet stat' }, h('span', { class: 'k' }, 'This month vs 3-month average'), h('span', { class: 'v' }, money(thisMonth), lastAvg != null ? h('small', { style: { color: thisMonth > lastAvg * 1.1 ? 'var(--amber)' : 'var(--ink-3)' } }, `avg ${money(lastAvg)}`) : null)),
-        h('div', { class: 'sheet stat' }, h('span', { class: 'k' }, `Above ${money(thr())} (needed approval)`), h('span', { class: 'v' }, above.length, h('small', {}, `${money(above.reduce((s, r) => s + Number(r.estimated_total), 0))} in 12 months`)))),
+        h('div', { class: 'sheet stat' }, h('span', { class: 'k' }, 'This month vs 3-month average'), h('span', { class: 'v' }, money(thisMonth), lastAvg != null ? h('small', { style: { color: thisMonth > lastAvg * 1.1 ? 'var(--amber)' : 'var(--ink-3)' } }, `avg ${money(lastAvg)}`) : null))),
       h('div', { class: 'grid-2' },
         h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Monthly spend'), h('span', { class: 'sub' }, 'last 6 months')), barChart(null, { labels: m6.map(shortMonth), values: m6.map((k) => byMonth[k]), line: avg, lineName: '3-month average', format: money })),
         h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Float burn-down'), h('span', { class: 'sub' }, open ? `${monthLabel(open.period)} · ${money(burn.cum)} of ${money(burn.funds)} spent` : 'no open float')),
@@ -116,9 +121,9 @@ export async function reportsPage() {
       h('div', { class: 'grid-2' },
         h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'By category'), h('span', { class: 'sub' }, periodLabel())), byCat.length ? hBars(byCat, { format: money }) : emptyState('No spend in this period')),
         h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'By supplier'), h('span', { class: 'sub' }, periodLabel())), bySup.length ? hBars(bySup.slice(0, 10), { format: money }) : emptyState('No spend in this period'))),
-      h('div', { class: 'grid-2' },
-        h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'By requester'), h('span', { class: 'sub' }, periodLabel())), byReq.length ? hBars(byReq, { format: money }) : emptyState('No spend in this period')),
-        h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Unit price over time'), itemSel), trendChart)),
+        more('By requester', h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'By requester'), h('span', { class: 'sub' }, periodLabel())), byReq.length ? hBars(byReq, { format: money }) : emptyState('No spend in this period')))],
+      prices: () => [
+        h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Unit price over time'), itemSel), trendChart),
       h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Price movement by item'), h('span', { class: 'sub' }, 'first recorded price against the latest')),
         trendRows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' }, h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'Purchases'), h('th', { class: 'num' }, 'First'), h('th', { class: 'num' }, 'Latest'), h('th', { class: 'num' }, 'Low – high'), h('th', { class: 'num' }, 'Change'))),
           h('tbody', {}, trendRows.map((r) => h('tr', {}, h('td', {}, r.name, h('span', { class: 'muted' }, ` · since ${fmtDate(r.since)}`)), h('td', { class: 'num' }, r.n), h('td', { class: 'num' }, money(r.first)), h('td', { class: 'num amt' }, money(r.last)), h('td', { class: 'num muted' }, `${money(r.min)} – ${money(r.max)}`),
@@ -128,18 +133,21 @@ export async function reportsPage() {
           h('tbody', {}, recRows.map(({ i, bought }) => h('tr', {}, h('td', {}, i.name), h('td', { class: 'num muted' }, qty(i.expected_monthly_qty)),
             recMonths.map((k) => { const b = bought[k] || 0; const exp = Number(i.expected_monthly_qty); return h('td', { class: 'num', style: { color: exp && b > exp * 1.25 ? 'var(--amber)' : '' } }, b ? qty(b) : '—'); }),
             h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`))))))) : null,
+      ],
+      controls: () => [
       h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Controls'), h('span', { class: 'sub' }, `around the ${money(thr())} threshold, last 12 months`)),
         h('h3', { style: { margin: '8px 0 6px' } }, `Spent above ${money(thr())} without approval`), h('p', { class: 'hint' }, 'The estimate was under the limit but the receipt came in over it.'), tbl(overUnapproved, 'None.'),
         h('h3', { style: { margin: '16px 0 6px' } }, 'Same person, same day, together above the limit'), h('p', { class: 'hint' }, 'Several small requests that add up to more than one approval would have covered.'),
         splits.length ? h('div', {}, splits.map((sp) => h('div', { style: { marginBottom: '8px' } }, h('strong', {}, `${personName(sp.who)} · ${fmtDate(sp.day)} · ${money(sp.sum)} across ${sp.rs.length} requests`), tbl(sp.rs, '')))) : h('p', { class: 'hint' }, 'None.'),
-        h('h3', { style: { margin: '16px 0 6px' } }, `Just under the limit (${money(thr() * 0.9)} – ${money(thr())})`), tbl(nearMiss, 'None.')));
+        h('h3', { style: { margin: '16px 0 6px' } }, `Just under the limit (${money(thr() * 0.9)} – ${money(thr())})`), tbl(nearMiss, 'None.'))],
+    };
+    mount(body, scorecard, tabBar, sections[tab]());
   }
   function periodLabel() { const pm = periodMonths(); return pm.length === 1 ? monthLabel(pm[0] + '-01') : `${shortMonth(pm[0])} – ${shortMonth(pm[pm.length - 1])}`; }
 
-  const rangeSel = select([[1, 'This month'], [3, 'Last 3 months'], [6, 'Last 6 months'], [12, 'Last 12 months']], range, { onchange: (e) => { range = Number(e.target.value); draw(); } });
   draw();
   return h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Reports'), h('p', {}, 'Where the petty cash goes, what things cost over time, and anything that skirts the approval limit.')),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Reports'), h('p', {}, 'The scorecard first; the detail when you want it.')),
       h('div', { class: 'page-actions' }, rangeSel, exportButton(lines))),
     body);
 }

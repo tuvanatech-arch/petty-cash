@@ -173,3 +173,16 @@ export function tooltipFollow(el, getText) {
 
 /** Re-run the router for the current page (after a dialog saved something). */
 export function refresh() { window.dispatchEvent(new HashChangeEvent('hashchange')); }
+
+/** An explanation shown until the person taps "Got it" on this device; then it is gone for good. */
+export function onceHint(key, ...text) {
+  try { if (localStorage.getItem(`pcs_hint_${key}`)) return null; } catch { /* storage off: show it */ }
+  const el = h('p', { class: 'hint once-hint' }, ...text, ' ',
+    h('button', { type: 'button', class: 'linkish', onclick: () => { try { localStorage.setItem(`pcs_hint_${key}`, '1'); } catch {} el.remove(); } }, 'Got it'));
+  return el;
+}
+
+/** A collapsed section: summary line visible, body on tap. */
+export function more(summary, ...body) {
+  return h('details', { class: 'more' }, h('summary', {}, summary), h('div', { class: 'more-body' }, ...body));
+}

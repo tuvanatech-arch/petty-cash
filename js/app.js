@@ -48,13 +48,25 @@ function navItems() {
   return items;
 }
 
+/** Phone tab bar: the four things this role does most, in that order; the rest under More. Alerts live in the top bell. */
+function tabItems() {
+  const all = Object.fromEntries(navItems().map((i) => [i.key, i]));
+  const snap = { href: '#/snap', label: 'Snap', key: 'snap' };
+  const order = { approver: ['home', 'requests', 'reports', 'cash'], finance: ['home', 'requests', 'cash', 'stock'], stock_manager: ['home', 'stock', 'requests', 'snap'], requester: ['home', 'snap', 'requests', 'stock'] }[role()] || ['home', 'requests', 'stock', 'snap'];
+  const main = order.map((k) => (k === 'snap' ? snap : all[k])).filter(Boolean);
+  const rest = navItems().filter((i) => i.key !== 'notifications' && !main.some((m) => m.key === i.key));
+  return { main, rest };
+}
+
 async function actionCounts() {
   // Items waiting on the current user, for the Home badge
   const me = state.me.id;
   const or = [];
-  if (has('stock_manager') || has('approver')) or.push('status.eq.stock_review');
-  if (has('approver')) or.push('status.eq.pending_approval');
-  if (has('finance') || has('approver')) { or.push('status.eq.awaiting_disbursement'); or.push('status.eq.proof_review'); or.push('status.eq.physical_required'); }
+  // same rule as Home: only the queues that are this person's duty (own role or standing in)
+  const duty = (r) => role() === r || state.standingIn.some((d) => d.role === r);
+  if (duty('stock_manager')) or.push('status.eq.stock_review');
+  if (duty('approver')) or.push('status.eq.pending_approval');
+  if (duty('finance')) { or.push('status.eq.awaiting_disbursement'); or.push('status.eq.proof_review'); or.push('status.eq.physical_required'); }
   or.push(`and(status.eq.disbursed,disbursed_to.eq.${me})`);
   const { count } = await sb.from('requests').select('id', { count: 'exact', head: true }).or(or.join(','));
   return count || 0;
@@ -83,16 +95,18 @@ export async function render() {
     let badge = null;
     if (it.key === 'home') { badge = h('span', { class: 'count', style: { display: 'none' } }); homeBadges.push(badge); }
     if (it.badge === 'unread') badge = h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread);
-    const active = it.key === activeKey || (it.key === 'more' && items.slice(4).some((x) => x.key === activeKey));
+    const active = it.key === activeKey || (it.key === 'more' && tabItems().rest.some((x) => x.key === activeKey));
     return h('a', { href: it.href, class: active ? 'active' : '' }, it.label, badge);
   };
   const token = ++renderToken;
-  const standIn = state.standingIn.length ? h('div', { class: 'banner banner-purple' }, h('strong', {}, 'You are standing in'),
-    state.standingIn.map((d) => `${ROLE_LABEL[d.role].replace(' (admin)', '')} for ${personName(d.from_user)} until ${fmtDate(d.ends_on)}`).join(' · '),
-    '. Everything you do is recorded under your own name.') : null;
+  // at most one banner, most important first: unsent counts, then standing in, then install
   const queued = offlineQueueLength();
-  const install = installBanner();
-  const offline = queued ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `${queued} count${queued === 1 ? '' : 's'} saved on this device`), 'They will be sent to the server as soon as there is a connection.') : null;
+  const banner = queued ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `${queued} count${queued === 1 ? '' : 's'} saved on this device`), 'Sent as soon as there is a connection.')
+    : state.standingIn.length ? h('div', { class: 'banner banner-purple' }, h('strong', {}, `Standing in as ${state.standingIn.map((d) => `${ROLE_LABEL[d.role].replace(' (admin)', '').toLowerCase()} for ${personName(d.from_user)}`).join(' and ')} until ${fmtDate(state.standingIn[0].ends_on)}`), 'Their queue is on your Home; what you do is recorded under your name.')
+    : installBanner();
+  const tabs = tabItems();
+  const bell = h('a', { href: '#/notifications', class: `bell${activeKey === 'notifications' ? ' active' : ''}`, 'aria-label': 'Alerts' }, '🔔', h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread));
+  const topbar = h('div', { class: 'topbar' }, h('div', { class: 'brand' }, h('div', { class: 'brand-mark' }, 'N$'), h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petty cash')), bell);
   mount(app,
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
@@ -100,8 +114,8 @@ export async function render() {
           h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petty cash', h('small', {}, 'Petty cash & stock'))),
         h('nav', { class: 'nav' }, items.map(navLink)),
         h('div', { class: 'me' }, h('strong', {}, me.full_name || me.email), h('span', {}, ROLE_LABEL[me.role]))),
-      h('main', { class: 'main' }, standIn, offline, install, page)),
-    h('nav', { class: 'tabbar' }, items.length <= 5 ? items.map(navLink) : [...items.slice(0, 4).map(navLink), navLink({ href: '#/more', label: 'More', key: 'more' })]));
+      h('main', { class: 'main' }, topbar, banner, page)),
+    h('nav', { class: 'tabbar' }, tabs.main.map(navLink), tabs.rest.length ? navLink({ href: '#/more', label: 'More', key: 'more' }) : null));
   window.scrollTo(0, 0);
 
   actionCounts().then((count) => { for (const b of homeBadges) { b.textContent = count; b.style.display = count ? '' : 'none'; } }).catch(() => {});

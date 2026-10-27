@@ -1,5 +1,5 @@
 import { sb, state, can, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt } from '../api.js';
-import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint } from '../ui.js';
 import { outlookBox } from './cash.js';
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
@@ -27,7 +27,8 @@ export function requestRow(q, { showRequester = false, note = null } = {}) {
 /* =============================================================== list page */
 export async function requestsPage() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
-  let view = params.get('view') || 'open';
+  const statusFilter = params.get('status') ? params.get('status').split(',') : null;
+  let view = statusFilter ? 'status' : params.get('view') || 'open';
   let search = '';
   const list = h('div', {});
   const tabs = h('div', { class: 'tabs' });
@@ -36,14 +37,15 @@ export async function requestsPage() {
 
   async function load() {
     let q = sb.from('requests').select('*, expense:expenses(total, proof_status)').order('updated_at', { ascending: false }).limit(300);
-    if (view === 'open') q = q.in('status', OPEN_STATUSES);
+    if (view === 'status') q = q.in('status', statusFilter);
+    else if (view === 'open') q = q.in('status', OPEN_STATUSES);
     else if (view === 'mine') q = q.eq('requester_id', state.me.id);
     else if (view === 'closed') q = q.in('status', ['closed', 'fulfilled_from_stock', 'rejected', 'cancelled']);
     rows = unwrap(await q);
     draw();
   }
   function draw() {
-    const views = [['open', 'Open'], ['mine', 'Mine'], ['closed', 'Finished'], ['all', 'All']];
+    const views = [view === 'status' ? ['status', 'Filtered'] : null, ['open', 'Open'], isStaff() ? ['mine', 'Mine'] : null, ['closed', 'Finished'], ['all', 'All']].filter(Boolean);
     mount(tabs, views.map(([k, l]) => h('button', { class: k === view ? 'active' : '', onclick: () => { view = k; load(); } }, l)));
     const filtered = rows.filter((r) => !search || `#${r.request_no} ${r.purpose}`.toLowerCase().includes(search));
     mount(list, filtered.length ? h('ul', { class: 'ledger-list' }, filtered.map((r) => requestRow(r, { showRequester: isStaff() })))
@@ -125,6 +127,9 @@ export async function newRequestPage(editId, presetType) {
     receiptBox.style.display = type === 'claim' ? '' : 'none';
     amountBox.style.display = type === 'cash' && simpleCash ? '' : 'none';
     linesBox.parentElement && (linesBox.parentElement.style.display = type === 'cash' && simpleCash ? 'none' : '');
+    const seen = (() => { try { return localStorage.getItem(`pcs_hint_newreq_${forStore ? 'store' : type}`); } catch { return null; } })();
+    try { localStorage.setItem(`pcs_hint_newreq_${forStore ? 'store' : type}`, '1'); } catch {}
+    intro.style.display = seen ? 'none' : '';
     intro.textContent = forStore ? 'Items to buy for the store this month. Quantities come from measured usage; adjust them.'
       : type === 'stock' ? `Stock requests go to the stock manager first; anything above ${money(thr())} then goes to the approver before finance pays out.`
       : type === 'cash' ? `Cash requests go straight to finance, or to the approver first if above ${money(thr())}.${stockAllowed ? '' : ' Need office stock? Report it under Stock instead – the stock manager buys it.'}`
@@ -351,8 +356,10 @@ export async function requestDetailPage(id) {
   const msgIn = h('input', { class: 'input', placeholder: 'Ask a question or leave a note…', maxlength: 1000 });
   const msgBtn = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Send');
   const msgSend = busy(msgBtn, async () => { const body = msgIn.value.trim(); if (!body) return; await rpc('post_message', { p_request: id, p_body: body }); msgIn.value = ''; toast('Sent.'); reload(); });
-  const messagesSheet = h('div', { class: 'sheet', id: 'messages' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Questions & notes'), h('span', { class: 'sub' }, messages.length || '')),
-    msgList, ['closed', 'rejected', 'cancelled', 'fulfilled_from_stock'].includes(q.status) && !messages.length ? null : h('form', { class: 'msg-form', onsubmit: (e) => { e.preventDefault(); msgSend(); } }, msgIn, msgBtn));
+  const finished = ['closed', 'rejected', 'cancelled', 'fulfilled_from_stock'].includes(q.status);
+  const msgForm = h('form', { class: 'msg-form', onsubmit: (e) => { e.preventDefault(); msgSend(); } }, msgIn, msgBtn);
+  const messagesSheet = messages.length ? h('div', { class: 'sheet', id: 'messages' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Questions & notes'), h('span', { class: 'sub' }, messages.length)), msgList, finished ? null : msgForm)
+    : finished || q.status === 'draft' ? null : more('Ask a question about this request', msgForm);
 
   const expenseSheet = expense && Number(expense.total) > 0 && !(isClaim && ['draft', 'pending_approval', 'awaiting_disbursement'].includes(q.status)) ? h('div', { class: 'sheet' },
     h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'What was claimed' : 'What was spent'), h('span', { class: 'sub' }, `${fmtDate(expense.spent_at)} · recorded by ${personName(expense.spent_by)}${expense.supplier_name ? ` · ${expense.supplier_name}` : ''}`)),
@@ -366,13 +373,13 @@ export async function requestDetailPage(id) {
     h('div', { style: { marginTop: '12px' } }, h('h3', { style: { marginBottom: '8px' } }, 'Proof'), await proofGallery(expense, q, false, reload)),
     expense.proof_status === 'confirmed' ? h('p', { class: 'hint', style: { marginTop: '8px' } }, `Confirmed by ${personName(expense.confirmed_by)} on ${fmtDate(expense.confirmed_at, { time: true })}${expense.physical_received_at ? ` · physical receipt received ${fmtDate(expense.physical_received_at)}` : ''}`) : null) : null;
 
-  const timeline = h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'History')),
+  const timeline = more(`History (${events.length + 1} step${events.length ? 's' : ''})`,
     h('ul', { class: 'timeline' },
       h('li', {}, h('span', { class: 'when' }, fmtDate(q.created_at, { time: true })), `Created by ${personName(q.requester_id)}`),
       events.map((ev, i) => h('li', { class: i === events.length - 1 ? 'now' : '' }, h('span', { class: 'when' }, fmtDate(ev.created_at, { time: true })),
         `${EVENT_LABEL[ev.action] || ev.action} · ${personName(ev.actor_id)}`, ev.note ? h('span', { class: 'note' }, ev.note) : null))));
 
-  const movementsSheet = movements.length ? h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Stock movements')),
+  const movementsSheet = movements.length ? more(`Stock movements (${movements.length})`,
     h('ul', { class: 'ledger-list' }, movements.map((m) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, m.item.name), h('span', {}, `${MOVEMENT_LABEL[m.kind]}${m.issued_to ? ' to ' + personName(m.issued_to) : ''} · ${fmtDate(m.occurred_on || m.created_at)}`)),
       h('span', { class: 'amt' }, `${Number(m.delta) > 0 ? '+' : ''}${qty(m.delta)} ${m.item.unit}`))))) : null;
 
@@ -384,10 +391,16 @@ export async function requestDetailPage(id) {
     q.disbursed_at ? [h('dt', {}, isClaim ? 'Reimbursed' : 'Cash paid out'), h('dd', {}, `${money(q.disbursed_amount)} to ${personName(q.disbursed_to)} by ${personName(q.disbursed_by)}, ${fmtDate(q.disbursed_at)}`)] : null,
     q.closed_at ? [h('dt', {}, 'Closed'), h('dd', {}, `${personName(q.closed_by)}, ${fmtDate(q.closed_at)}`)] : null);
 
+  const record = h('div', { class: 'sheet flat' }, timeline, movementsSheet);
+  // a finished request leads with what was spent; what was asked for is one tap away
+  const requestedBody = [linesTable, details.children.length ? h('div', { style: { marginTop: '14px' } }, details) : null];
+  const requestedSheet = finished && expenseSheet
+    ? h('div', { class: 'sheet flat' }, more(isClaim ? 'What was claimed, and who signed it off' : 'What was asked for, and who signed it off', ...requestedBody))
+    : h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'Claimed' : 'Requested')), ...requestedBody);
   return h('div', {}, head, stage,
     h('div', { class: 'grid-2' },
-      h('div', {}, h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'Claimed' : 'Requested')), linesTable, details.children.length ? h('div', { style: { marginTop: '14px' } }, details) : null), expenseSheet),
-      h('div', {}, messagesSheet, timeline, movementsSheet)));
+      h('div', {}, finished ? [expenseSheet, requestedSheet] : [requestedSheet, expenseSheet]),
+      h('div', {}, messagesSheet, record)));
 }
 
 /* =============================================================== stage panels */
