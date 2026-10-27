@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm';
-import { SUPABASE_URL, SUPABASE_KEY, FUNCTIONS_URL } from './config.js';
+import { SUPABASE_URL, SUPABASE_KEY, FUNCTIONS_URL, VAPID_PUBLIC_KEY } from './config.js';
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -99,6 +99,50 @@ export async function readReceipt(ref) {
   catch { throw new Error('No connection. Check your internet and try again.'); }
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) throw new Error(json.error || `Could not read the receipt (${res.status})`);
+  return json;
+}
+
+/* ---------- phone alerts (web push) ---------- */
+export function pushSupport() {
+  const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return { ok: false, reason: iOS && !standalone ? 'ios_not_installed' : 'unsupported' };
+  if (Notification.permission === 'denied') return { ok: false, reason: 'denied' };
+  return { ok: true, granted: Notification.permission === 'granted' };
+}
+async function swReady() { if (!('serviceWorker' in navigator)) throw new Error('Not supported in this browser'); return navigator.serviceWorker.ready; }
+function b64ToBytes(b64) { const pad = '='.repeat((4 - (b64.length % 4)) % 4); const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...raw].map((c) => c.charCodeAt(0))); }
+/** Is this device subscribed for the signed-in person? */
+export async function pushStatus() {
+  try {
+    const sup = pushSupport(); if (!sup.ok) return { on: false, ...sup };
+    const reg = await swReady(); const sub = await reg.pushManager.getSubscription();
+    if (!sub) return { on: false, ok: true };
+    const { data } = await sb.from('push_subscriptions').select('id').eq('endpoint', sub.endpoint).maybeSingle();
+    return { on: !!data, ok: true, orphan: !data };
+  } catch { return { on: false, ok: false, reason: 'unsupported' }; }
+}
+export async function enablePush() {
+  const sup = pushSupport(); if (!sup.ok) throw new Error(sup.reason === 'ios_not_installed' ? 'On iPhone, alerts only work once the app is on your home screen (Share → Add to Home Screen).' : sup.reason === 'denied' ? 'Notifications are blocked for this site in your browser settings.' : 'This browser cannot receive alerts.');
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') throw new Error('Alerts were not allowed.');
+  const reg = await swReady();
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_PUBLIC_KEY) });
+  const j = sub.toJSON();
+  unwrap(await sb.from('push_subscriptions').upsert({ user_id: state.me.id, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200) }, { onConflict: 'endpoint' }));
+  try { localStorage.setItem('pcs_push_asked', 'on'); } catch {}
+  return true;
+}
+export async function disablePush() {
+  try { const reg = await swReady(); const sub = await reg.pushManager.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {}
+  try { localStorage.setItem('pcs_push_asked', 'off'); } catch {}
+}
+export async function testPush() {
+  const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${state.session?.access_token || ''}` };
+  const res = await fetch(`${FUNCTIONS_URL}/send-push`, { method: 'POST', headers, body: JSON.stringify({ test: true }) });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error(json.error || `Could not send (${res.status})`);
   return json;
 }
 

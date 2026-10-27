@@ -132,6 +132,7 @@ sb.auth.onAuthStateChange(async (event) => {
     const before = state.session?.user?.id;
     await loadSessionContext();
     if (event === 'SIGNED_OUT') { location.hash = '#/home'; }
+    if (event === 'SIGNED_IN' && /access_token=|type=magiclink|type=recovery/.test(location.hash)) { history.replaceState(null, '', location.pathname + '#/home'); }
     if (before !== state.session?.user?.id || event === 'SIGNED_OUT' || event === 'SIGNED_IN') render();
   }
 });

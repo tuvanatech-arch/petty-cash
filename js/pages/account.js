@@ -1,5 +1,5 @@
-import { sb, state, unwrap, ROLE_LABEL, cleanError, personName } from '../api.js';
-import { h, toast, busy, field, fmtDate, today, confirmDialog, refresh } from '../ui.js';
+import { sb, state, unwrap, ROLE_LABEL, cleanError, personName, pushStatus, enablePush, disablePush, testPush } from '../api.js';
+import { h, mount, toast, busy, field, fmtDate, today, confirmDialog, refresh } from '../ui.js';
 import { standinDialog, endDelegation } from './admin.js';
 
 export async function accountPage() {
@@ -54,6 +54,24 @@ export async function accountPage() {
     h('p', { class: 'hint' }, 'Install it on the home screen: it opens like an app, “Snap a receipt” is a long-press away, and quick counts done without signal are sent when you are back online.'),
     h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-primary', href: '#/install' }, 'Install on this phone')));
 
+  // phone alerts
+  const ps = await pushStatus();
+  const pushBox = h('div', {});
+  function drawPush(st) {
+    const onBtn = h('button', { class: 'btn btn-primary' }, 'Turn on alerts on this phone');
+    onBtn.onclick = busy(onBtn, async () => { await enablePush(); toast('Alerts are on for this phone.'); drawPush(await pushStatus()); });
+    const offBtn = h('button', { class: 'btn' }, 'Turn off on this phone');
+    offBtn.onclick = busy(offBtn, async () => { await disablePush(); toast('Alerts off for this phone.'); drawPush(await pushStatus()); });
+    const tst = h('button', { class: 'btn btn-quiet' }, 'Send a test');
+    tst.onclick = busy(tst, async () => { await testPush(); toast('Sent – it should buzz in a moment.'); });
+    mount(pushBox,
+      st.on ? [h('p', { class: 'hint' }, '✓ This phone buzzes when something needs you.'), h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, tst, offBtn)]
+      : st.ok ? [h('p', { class: 'hint' }, 'Get a buzz the moment something needs you – an approval, cash to collect, a receipt to check – even with the app closed.'), h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, onBtn)]
+      : h('p', { class: 'hint' }, st.reason === 'ios_not_installed' ? 'On iPhone, alerts work once the app is on your home screen. ' : st.reason === 'denied' ? 'Notifications are blocked for this site in the browser settings – allow them there, then come back.' : 'This browser cannot receive phone alerts; you still get them in the app and by email.',
+          st.reason === 'ios_not_installed' ? h('a', { href: '#/install' }, 'Install it first') : null));
+  }
+  drawPush(ps);
+
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Account'), h('p', {}, `${me.email} · ${ROLE_LABEL[me.role]}`))),
     recovery ? h('div', { class: 'banner banner-green' }, h('strong', {}, 'Set a new password'), 'You arrived from a reset link. Choose a new password below.') : null,
@@ -61,7 +79,8 @@ export async function accountPage() {
       h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Your name')), h('form', {}, field('Shown on requests and in history', name), h('div', { class: 'form-actions' }, saveName))),
       h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Password')), h('form', {}, field('New password', p1), field('Repeat it', p2), err, h('div', { class: 'form-actions' }, savePass)))),
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Alerts')),
-      h('label', { class: 'check' }, emailToggle, 'Also email me when something needs me'),
+      pushBox,
+      h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me when something needs me'),
       h('p', { class: 'hint', style: { marginTop: '6px' } }, 'Alerts always show in the app under Alerts. Emails are bundled, so a busy morning is one message rather than ten.')),
     standinSheet,
     installSheet,

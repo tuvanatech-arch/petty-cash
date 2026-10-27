@@ -1,5 +1,5 @@
-import { sb, state, can, role, personName, unwrap, rpc } from '../api.js';
-import { h, money, fmtDate, pill, emptyState, qty, toast, busy } from '../ui.js';
+import { sb, state, can, role, personName, unwrap, rpc, pushSupport, enablePush } from '../api.js';
+import { h, money, fmtDate, pill, emptyState, qty, toast, busy, confirmDialog, refresh } from '../ui.js';
 import { requestRow, expenseOf } from './requests.js';
 import { floatStrip, outlookBox } from './cash.js';
 import { reportDialog } from './stock.js';
@@ -12,7 +12,7 @@ export async function homePage() {
   if (can('approve')) statuses.push('pending_approval');
   if (can('finance')) statuses.push('awaiting_disbursement', 'proof_review', 'physical_required');
 
-  const [queueRes, mineRes, cashRes, floatRes, lowRes, statsRes, outlookRes, reportsRes, inboxRes] = await Promise.all([
+  const [queueRes, mineRes, cashRes, floatRes, lowRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes] = await Promise.all([
     statuses.length ? sb.from('requests').select('*').in('status', statuses).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(8),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
@@ -22,7 +22,11 @@ export async function homePage() {
     can('approve') || can('finance') ? sb.rpc('float_outlook') : { data: null },
     sb.from('stock_reports').select('id, item_id, level, reported_by, created_at, item:items(name)').is('resolved_at', null).order('created_at', { ascending: false }),
     sb.from('receipt_inbox').select('id, file_name, extracted, created_at').eq('status', 'unfiled').order('created_at', { ascending: false }),
+    can('finance') ? sb.rpc('expense_checks') : { data: [] },
   ]);
+  const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
+  const outlook = outlookRes.data;
+  outlookRef.current = outlook; checksRef.current = checks;
   const unfiled = inboxRes.data || [];
   const reports = reportsRes.data || [];
   const myReports = reports.filter((r) => r.reported_by === me.id);
@@ -39,12 +43,15 @@ export async function homePage() {
     overdue.length ? `${overdue.length === cash.length ? 'These are' : `${overdue.length} of these are`} more than ${grace} days old. Upload the receipt and enter the lines so finance can close the month.` : 'Upload the receipt and enter the lines. Finance is waiting on these before month-end.'));
   const byStatus = (s) => queue.filter((q) => q.status === s);
   if (can('stock_review') && byStatus('stock_review').length) groups.push(group('Stock requests to review', byStatus('stock_review')));
-  if (can('approve') && byStatus('pending_approval').length) groups.push(group(`Above ${money(state.settings.approval_threshold)} – needs your approval`, byStatus('pending_approval'), null, 'purple'));
+  if (can('approve') && byStatus('pending_approval').length) groups.push(group(`Needs your approval`, byStatus('pending_approval'), 'Approve or reject here; open one for the full picture.', 'purple', approveActions));
   if (can('finance')) {
     const payouts = byStatus('awaiting_disbursement').filter((q) => q.type !== 'claim'), claims = byStatus('awaiting_disbursement').filter((q) => q.type === 'claim');
     if (payouts.length) groups.push(group('Ready to pay out', payouts));
     if (claims.length) groups.push(group('Claims to reimburse', claims, 'People paid from their own pocket. Check the receipt, then pay them back from the float.'));
-    if (byStatus('proof_review').length) groups.push(group('Proofs to check', byStatus('proof_review')));
+    if (byStatus('proof_review').length) {
+      const matched = byStatus('proof_review').filter((q) => checks[q.id]?.status === 'matches');
+      groups.push(group('Receipts to check', byStatus('proof_review'), matched.length ? `${matched.length} already match the scan – confirm them here.` : null, null, proofActions, matched.length > 1 ? confirmAllButton(matched) : null));
+    }
     if (byStatus('physical_required').length) groups.push(group('Waiting for physical receipts', byStatus('physical_required')));
   }
 
@@ -60,6 +67,17 @@ export async function homePage() {
     actions.push(b);
   }
 
+  // ask once to switch phone alerts on, where the browser can do it
+  let pushAsk = null;
+  try {
+    const sup = pushSupport(); const asked = localStorage.getItem('pcs_push_asked');
+    if (sup.ok && !sup.granted && !asked) {
+      const b = h('button', { class: 'btn btn-primary btn-sm' }, 'Turn on');
+      b.onclick = busy(b, async () => { await enablePush(); toast('Alerts are on.'); pushAsk.remove(); });
+      pushAsk = h('div', { class: 'banner banner-green install-banner' }, h('div', {}, h('strong', {}, 'Get a buzz when something needs you'), 'Approvals, cash to collect, receipts to check – even with the app closed.'),
+        h('div', { class: 'form-actions', style: { margin: 0 } }, h('button', { class: 'btn btn-quiet btn-sm', onclick: () => { try { localStorage.setItem('pcs_push_asked', 'later'); } catch {} pushAsk.remove(); } }, 'Not now'), b));
+    }
+  } catch {}
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -68,6 +86,7 @@ export async function homePage() {
       h('div', {}, h('h1', {}, `${greet}, ${(me.full_name || me.email).split(' ')[0]}`),
         h('p', {}, groups.length ? `${groups.reduce((n, g) => n + g.n, 0)} item${groups.reduce((n, g) => n + g.n, 0) === 1 ? '' : 's'} waiting on you.` : 'Nothing is waiting on you.')),
       h('div', { class: 'page-actions' }, actions)),
+    pushAsk,
     openFloat ? h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, `Petty cash – ${fmtMonth(openFloat.period)}`), h('a', { href: '#/cash' }, 'Manage float')), floatStrip(openFloat)) : null,
     openFloat && outlookRes.data ? outlookBox(outlookRes.data) : null,
     can('manage_stock') && reports.length ? h('div', { class: 'sheet' },
@@ -89,14 +108,48 @@ export async function homePage() {
       mine.length ? h('ul', { class: 'ledger-list' }, mine.map((q) => requestRow(q))) : emptyState('No requests yet', 'Raise one with “New request”.')));
 }
 
+/* ---- inline actions: approve / reject with the float impact in one line ---- */
+function approveActions(q) {
+  const o = outlookRef.current;
+  let note = null;
+  if (o && o.has_float) {
+    const after = Number(o.balance) - Number(o.awaiting) - Number(q.estimated_total);
+    const st = after < 0 ? 'bad' : after < Number(o.expected_remaining) ? 'bad' : after < Number(o.reserve) ? 'warn' : '';
+    note = h('span', { class: `note ${st}` }, `Leaves ${money(after)} in the float · ${after < 0 ? 'cannot cover it' : after < Number(o.expected_remaining) ? 'short for the rest of the month' : after < Number(o.reserve) ? 'tight' : 'comfortable'}${q.over_budget ? ' · over budget' : ''}`);
+  } else if (o && !o.has_float) note = h('span', { class: 'note warn' }, 'No float is open – finance cannot pay out yet');
+  const tight = note && /cannot cover|short for/.test(note.textContent);
+  const ok = h('button', { class: 'btn btn-sm btn-purple' }, tight ? 'Approve anyway' : 'Approve');
+  ok.onclick = busy(ok, async (e) => { e.stopPropagation(); await rpc('approve_request', { p_request: q.id, p_note: null }); toast(`Approved #${q.request_no}.`); refresh(); });
+  const no = h('button', { class: 'btn btn-sm btn-quiet btn-danger' }, 'Reject');
+  no.onclick = busy(no, async (e) => { e.stopPropagation(); const n = await confirmDialog(`Reject #${q.request_no}?`, q.purpose, { ok: 'Reject', danger: true, note: { label: 'Reason', required: true } }); if (!n) return; await rpc('reject_request', { p_request: q.id, p_reason: n }); toast('Rejected.'); refresh(); });
+  return h('div', { class: 'row-actions', onclick: (e) => e.stopPropagation() }, note, no, ok);
+}
+const outlookRef = { current: null };
+const checksRef = { current: {} };
+function proofActions(q) {
+  const c = checksRef.current[q.id];
+  const tone = { matches: 'pill-green', mismatch: 'pill-amber', duplicate: 'pill-red', unread: 'pill-grey', no_proof: 'pill-amber' }[c?.status] || 'pill-grey';
+  const label = { matches: 'Matches scan', mismatch: 'Scan differs', duplicate: 'Possible duplicate', unread: 'Scan not read', no_proof: 'No scan' }[c?.status] || 'Not checked';
+  const pillEl = h('span', { class: `pill check-pill ${tone}`, title: c?.note || '' }, label);
+  const note = h('span', { class: `note${c?.status === 'duplicate' ? ' bad' : c?.status === 'mismatch' ? ' warn' : ''}` }, c?.note || '');
+  const ok = c?.status === 'matches' ? h('button', { class: 'btn btn-sm btn-primary' }, 'Confirm & close') : null;
+  if (ok) ok.onclick = busy(ok, async (e) => { e.stopPropagation(); await rpc('finance_review_expense', { p_request: q.id, p_action: 'confirm', p_note: 'Matches the scanned receipt' }); toast(`#${q.request_no} closed.`); refresh(); });
+  return h('div', { class: 'row-actions', onclick: (e) => e.stopPropagation() }, pillEl, note, ok);
+}
+function confirmAllButton(matched) {
+  const b = h('button', { class: 'btn btn-sm btn-primary' }, `Confirm all ${matched.length} matched`);
+  b.onclick = busy(b, async () => { for (const q of matched) await rpc('finance_review_expense', { p_request: q.id, p_action: 'confirm', p_note: 'Matches the scanned receipt' }); toast(`${matched.length} closed.`); refresh(); });
+  return b;
+}
+
 function fmtMonth(d) { return new Date(d.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); }
 
-function group(title, items, hint, tone) {
+function group(title, items, hint, tone, extra = null, headAction = null) {
   return {
     n: items.length,
     el: h('div', { class: 'sheet' },
-      h('div', { class: 'sheet-head' }, h('h2', { class: tone === 'purple' ? 'threshold' : '' }, title), h('span', { class: 'sub' }, `${items.length}`)),
+      h('div', { class: 'sheet-head' }, h('h2', { class: tone === 'purple' ? 'threshold' : '' }, title), headAction || h('span', { class: 'sub' }, `${items.length}`)),
       hint ? h('p', { class: 'hint' }, hint) : null,
-      h('ul', { class: 'ledger-list' }, items.map((q) => requestRow(q, { showRequester: true, note: expenseOf(q)?.proof_status === 'returned' ? `Returned: ${expenseOf(q).finance_note}` : null })))),
+      h('ul', { class: 'ledger-list' }, items.map((q) => { const li = requestRow(q, { showRequester: true, note: expenseOf(q)?.proof_status === 'returned' ? `Returned: ${expenseOf(q).finance_note}` : null }); if (extra) li.append(extra(q)); return li; }))),
   };
 }

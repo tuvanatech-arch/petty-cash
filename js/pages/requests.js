@@ -96,6 +96,13 @@ export async function newRequestPage(editId, presetType) {
   const placeholders = { stock: 'e.g. Printer paper for reception', cash: 'e.g. Taxi to the bank', claim: 'e.g. Milk and sugar I paid for on Friday' };
 
   const purpose = h('input', { class: 'input', value: existing?.purpose || '', placeholder: placeholders[type], maxlength: 140 });
+  // a cash request is usually one thing: purpose + amount; the line table unfolds only on request
+  let simpleCash = !existing || (existing.type === 'cash' && lines.length === 1 && Number(lines[0].qty) === 1 && !lines[0].item_id);
+  const amountIn = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01', inputmode: 'decimal', placeholder: '0.00', value: simpleCash && existing && lines[0] ? Number(lines[0].est_unit_price).toFixed(2) : '' });
+  const amountBox = h('div', {});
+  const guessed = h('span', { class: 'hint' });
+  let userPickedCategory = !!existing?.category_id;
+  purpose.addEventListener('input', () => { if (type === 'cash' && !userPickedCategory) { const g = guessCategory(purpose.value, cats); if (g && category.value !== g.id) { category.value = g.id; guessed.textContent = `Category guessed: ${g.name} – change it if wrong.`; budget(); } else if (!g) guessed.textContent = ''; } });
   const needed = h('input', { class: 'input', type: 'date', value: existing?.needed_by || '' });
   const category = select([['', 'No category'], ...cats.filter((c) => c.kind !== 'stock').map((c) => [c.id, c.name])], existing?.category_id || '');
   const spentAt = h('input', { class: 'input', type: 'date', value: expense?.spent_at || today(), max: today() });
@@ -116,13 +123,15 @@ export async function newRequestPage(editId, presetType) {
     needed.closest('.field').style.display = type === 'claim' ? 'none' : '';
     for (const el of [spentAt, supplier, notes]) el.closest('.field').style.display = type === 'claim' ? '' : 'none';
     receiptBox.style.display = type === 'claim' ? '' : 'none';
+    amountBox.style.display = type === 'cash' && simpleCash ? '' : 'none';
+    linesBox.parentElement && (linesBox.parentElement.style.display = type === 'cash' && simpleCash ? 'none' : '');
     intro.textContent = forStore ? 'Items to buy for the store this month. Quantities come from measured usage; adjust them.'
       : type === 'stock' ? `Stock requests go to the stock manager first; anything above ${money(thr())} then goes to the approver before finance pays out.`
       : type === 'cash' ? `Cash requests go straight to finance, or to the approver first if above ${money(thr())}.${stockAllowed ? '' : ' Need office stock? Report it under Stock instead – the stock manager buys it.'}`
       : `You paid with your own money. Attach the receipt and finance pays you back from petty cash${thr() ? `; above ${money(thr())} the approver signs it off first` : ''}.`;
     budget();
   }
-  category.onchange = budget;
+  category.onchange = () => { userPickedCategory = true; guessed.textContent = ''; budget(); };
 
   function drawLines() {
     const rows = lines.map((ln, i) => {
@@ -149,7 +158,8 @@ export async function newRequestPage(editId, presetType) {
       h('tfoot', {}, h('tr', {}, h('td', { colspan: 2 }, h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { lines.push(blankLine()); drawLines(); } }, '+ Add line')), h('td', { class: 'num muted' }, type === 'claim' ? 'Claimed' : 'Estimated'), h('td', { class: 'num' }, totalEl))))));
     total();
   }
-  function currentTotal() { return lines.reduce((s, l) => s + num(l.qty) * num(l.est_unit_price), 0); }
+  function currentTotal() { if (type === 'cash' && simpleCash) return num(amountIn.value); return lines.reduce((s, l) => s + num(l.qty) * num(l.est_unit_price), 0); }
+  amountIn.oninput = () => total();
   function total() {
     const t = currentTotal();
     totalEl.textContent = money(t);
@@ -180,6 +190,7 @@ export async function newRequestPage(editId, presetType) {
       if (id) unwrap(await sb.from('requests').update(head).eq('id', id));
       else { const row = unwrap(await sb.from('requests').insert({ ...head, requester_id: state.me.id, for_store: forStore }).select().single()); id = row.id; existing = row; }
     }
+    if (type === 'cash' && simpleCash) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }];
     const clean = lines.filter((l) => (type === 'stock' ? l.item_id : l.description.trim()));
     if (validateAll) {
       if (!clean.length) throw new Error(type === 'stock' ? 'Choose at least one item.' : 'Add at least one line.');
@@ -195,6 +206,7 @@ export async function newRequestPage(editId, presetType) {
   }
   async function save(submit) {
     err.textContent = '';
+    if (submit && type === 'cash' && simpleCash && num(amountIn.value) <= 0) throw new Error('Enter the amount.');
     const id = await saveHead(submit);
     if (submit) { await rpc('submit_request', { p_request: id }); toast(type === 'claim' ? 'Claim submitted.' : 'Request submitted.'); }
     else toast('Draft saved.');
@@ -241,24 +253,51 @@ export async function newRequestPage(editId, presetType) {
       field('What is it for?', purpose),
       h('div', { class: 'row' }, field('Needed by', needed, 'Optional'), field('Category', category), field('Date you paid', spentAt), field('Shop / supplier', supplier)),
       field('Notes for finance', notes),
+      amountBox,
       h('div', { class: 'field' }, h('span', { class: 'label' }, 'Lines'), linesBox, budgetBox,
         h('span', { class: 'hint' }, type === 'stock' ? 'The stock manager may issue part of this from the store instead of buying.' : type === 'claim' ? 'Enter exactly what the receipt says.' : 'Estimates are fine – the real amounts go on the receipt afterwards.')),
       receiptBox,
       err,
       h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-quiet', href: existing ? `#/requests/${existing.id}` : '#/requests' }, 'Cancel'), saveBtn, submitBtn)));
+  mount(amountBox, h('div', { class: 'row' }, field('Amount', amountIn, 'The amount of cash you need.')),
+    h('p', { class: 'hint', style: { marginTop: '-6px' } }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); simpleCash = false; if (num(amountIn.value) > 0 && lines.every((l) => !l.description.trim())) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }]; drawType(); drawLines(); } }, 'Several things? Add them as separate lines')));
+  category.closest('.field').append(guessed);
   drawType(); drawLines(); await drawReceipts();
   return page;
+}
+
+/** Guess a category from the purpose text: category names, a few Namibian-office synonyms, and the person's own past requests. */
+const CATEGORY_HINTS = [
+  [/taxi|uber|fuel|petrol|diesel|transport|bus|parking|toll|mileage|lift|airtime/i, /transport|fuel|travel/i],
+  [/courier|post|nampost|parcel|stamp|deliver/i, /courier|postage|post/i],
+  [/repair|fix|plumb|electric|handle|lock|key|paint|maint|broken/i, /repair|mainten/i],
+  [/coffee|tea|milk|sugar|water|snack|rusk|biscuit|lunch|refresh|kitchen/i, /kitchen|refresh|catering|food/i],
+  [/clean|soap|bleach|toilet|tissue|detergent|dishwash|mop|broom/i, /clean/i],
+  [/paper|pen|stapler|file|folder|envelope|stationer|marker|notebook/i, /stationer|office/i],
+  [/toner|ink|cartridge|print/i, /print|toner/i],
+  [/cake|gift|flower|card|birthday|farewell/i, /other|gift|staff/i],
+];
+let pastByWord = null;
+export function guessCategory(text, cats) {
+  if (!text || !cats?.length) return null;
+  for (const [words, catRe] of CATEGORY_HINTS) if (words.test(text)) { const c = cats.find((x) => catRe.test(x.name) && x.kind !== 'stock'); if (c) return c; }
+  const toks = text.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+  for (const c of cats) if (c.kind !== 'stock' && toks.some((t) => c.name.toLowerCase().includes(t))) return c;
+  return null;
 }
 
 /* =============================================================== detail */
 export async function requestDetailPage(id) {
   const q = unwrap(await sb.from('requests').select('*').eq('id', id).single());
-  const [lines, events, expense, movements] = await Promise.all([
+  const [lines, events, expense, movements, messages, checkRes] = await Promise.all([
     unwrap(await sb.from('request_lines').select('*, item:items(name, unit, qty_on_hand, last_unit_price, category_id)').eq('request_id', id).order('line_no')),
     unwrap(await sb.from('request_events').select('*').eq('request_id', id).order('created_at')),
     sb.from('expenses').select('*, lines:expense_lines(*), proofs:expense_proofs(*)').eq('request_id', id).maybeSingle().then((r) => r.data),
     unwrap(await sb.from('stock_movements').select('*, item:items(name, unit)').eq('request_id', id).eq('void', false).order('created_at')),
+    sb.from('request_messages').select('*').eq('request_id', id).order('created_at').then((r) => r.data || []),
+    sb.rpc('expense_checks', { p_request: id }).then((r) => (r.data || [])[0] || null),
   ]);
+  const check = checkRes;
   if (expense?.lines) expense.lines = expense.lines.filter((l) => !l.void);
   const me = state.me.id;
   const isRequester = q.requester_id === me;
@@ -305,7 +344,15 @@ export async function requestDetailPage(id) {
       h('td', { class: 'num' }, money((reviewed ? Number(l.qty_to_buy ?? l.qty) : Number(l.qty)) * Number(l.est_unit_price)))))),
     h('tfoot', {}, h('tr', {}, h('td', { colspan: showSplit ? 5 : 3 }, isClaim ? 'Claimed' : reviewed ? 'To be bought' : 'Estimated'), h('td', { class: `num${over ? ' threshold' : ''}` }, money(q.estimated_total))))));
 
-  const stage = await stagePanel(q, lines, expense, reload);
+  const stage = await stagePanel(q, lines, expense, reload, check);
+
+  // questions and notes: everyone on the request sees them; the other side is alerted
+  const msgList = h('div', { class: 'msgs' }, messages.length ? messages.map((m) => h('div', { class: `msg${m.author_id === me ? ' mine' : ''}` }, h('span', { class: 'who' }, `${personName(m.author_id)} · ${fmtDate(m.created_at, { time: true })}`), m.body)) : h('p', { class: 'hint' }, 'No questions yet. Ask here instead of returning the whole request – the other side gets a buzz.'));
+  const msgIn = h('input', { class: 'input', placeholder: 'Ask a question or leave a note…', maxlength: 1000 });
+  const msgBtn = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Send');
+  const msgSend = busy(msgBtn, async () => { const body = msgIn.value.trim(); if (!body) return; await rpc('post_message', { p_request: id, p_body: body }); msgIn.value = ''; toast('Sent.'); reload(); });
+  const messagesSheet = h('div', { class: 'sheet', id: 'messages' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Questions & notes'), h('span', { class: 'sub' }, messages.length || '')),
+    msgList, ['closed', 'rejected', 'cancelled', 'fulfilled_from_stock'].includes(q.status) && !messages.length ? null : h('form', { class: 'msg-form', onsubmit: (e) => { e.preventDefault(); msgSend(); } }, msgIn, msgBtn));
 
   const expenseSheet = expense && Number(expense.total) > 0 && !(isClaim && ['draft', 'pending_approval', 'awaiting_disbursement'].includes(q.status)) ? h('div', { class: 'sheet' },
     h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'What was claimed' : 'What was spent'), h('span', { class: 'sub' }, `${fmtDate(expense.spent_at)} · recorded by ${personName(expense.spent_by)}${expense.supplier_name ? ` · ${expense.supplier_name}` : ''}`)),
@@ -340,13 +387,14 @@ export async function requestDetailPage(id) {
   return h('div', {}, head, stage,
     h('div', { class: 'grid-2' },
       h('div', {}, h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'Claimed' : 'Requested')), linesTable, details.children.length ? h('div', { style: { marginTop: '14px' } }, details) : null), expenseSheet),
-      h('div', {}, timeline, movementsSheet)));
+      h('div', {}, messagesSheet, timeline, movementsSheet)));
 }
 
 /* =============================================================== stage panels */
-async function stagePanel(q, lines, expense, reload) {
+async function stagePanel(q, lines, expense, reload, check = null) {
   const me = state.me.id;
-  const banner = (tone, title, text, ...extra) => h('div', { class: `banner banner-${tone}` }, h('strong', {}, title), text, ...extra);
+  const since = () => { const d = Math.floor((Date.now() - new Date(q.updated_at)) / 86400000); return d >= 1 ? h('span', { class: 'muted' }, ` Waiting since ${fmtDate(q.updated_at)} (${d} day${d === 1 ? '' : 's'}).`) : null; };
+  const banner = (tone, title, text, ...extra) => h('div', { class: `banner banner-${tone}` }, h('strong', {}, title), text, OPEN_STATUSES.includes(q.status) && q.status !== 'draft' ? since() : null, ...extra);
   const isClaim = q.type === 'claim';
 
   switch (q.status) {
@@ -377,11 +425,11 @@ async function stagePanel(q, lines, expense, reload) {
     }
 
     case 'proof_review':
-      if (can('finance')) return financeReviewPanel(q, expense, reload);
+      if (can('finance')) return financeReviewPanel(q, expense, reload, check);
       return banner('blue', 'Finance is checking the receipt', 'You will be told if anything else is needed.');
 
     case 'physical_required':
-      if (can('finance')) return financeReviewPanel(q, expense, reload);
+      if (can('finance')) return financeReviewPanel(q, expense, reload, check);
       return banner('amber', 'Finance needs the physical receipt', expense?.finance_note ? `${expense.finance_note} ` : 'Hand the original receipt to finance; they will close the request once they have it. ',
         q.disbursed_to === me ? h('div', { style: { marginTop: '10px' } }, await proofGallery(expense, q, true, reload)) : null);
 
@@ -636,7 +684,7 @@ async function proofGallery(expense, q, canEdit, reload, redraw, { onExtract = n
 }
 
 /* ---- finance: review proof ---- */
-function financeReviewPanel(q, expense, reload) {
+function financeReviewPanel(q, expense, reload, check = null) {
   const note = h('textarea', { class: 'input', placeholder: 'Note to the spender / for the record' });
   const act = (label, action, cls, needNote) => {
     const b = h('button', { class: `btn ${cls}` }, label);
@@ -648,12 +696,11 @@ function financeReviewPanel(q, expense, reload) {
     return b;
   };
   const physical = q.status === 'physical_required';
-  const reading = (expense?.proofs || []).map((p) => p.extracted).find((x) => x && x.total != null);
-  const off = reading && Math.abs(Number(reading.total) - Number(expense.total)) > Math.max(0.5, Number(reading.total) * 0.01);
+  const checkLine = check ? h('p', { class: 'hint', style: { color: { matches: 'var(--green-ink)', mismatch: 'var(--amber)', duplicate: 'var(--red)', no_proof: 'var(--amber)' }[check.status] || '' } }, `${{ matches: '✓ ', duplicate: '⚠ ', mismatch: '! ' }[check.status] || ''}${check.note}`) : null;
   return h('div', { class: 'sheet', style: { borderColor: 'var(--blue)' } },
     h('div', { class: 'sheet-head' }, h('h2', {}, physical ? 'Waiting for the physical receipt' : 'Check the receipt'),
       h('span', { class: 'sub' }, `${money(expense?.total)} spent of ${money(q.disbursed_amount)} · ${expense?.proofs?.length || 0} file${expense?.proofs?.length === 1 ? '' : 's'} uploaded`)),
-    reading ? h('p', { class: 'hint', style: { color: off ? 'var(--amber)' : 'var(--green-ink)' } }, off ? `The receipt reads ${money(reading.total)} but ${money(expense.total)} was recorded.` : `The receipt reading (${money(reading.total)}) matches what was recorded.`) : null,
+    checkLine,
     physical ? h('p', { class: 'hint' }, `Requested ${fmtDate(expense.physical_required_at)}${expense.finance_note ? ` – “${expense.finance_note}”` : ''}. Once you hold the paper original, mark it received to close the request.`)
       : h('p', { class: 'hint' }, 'Compare the scan below against the lines. Confirm if the scan is enough, or ask for the paper original to be handed in.'),
     h('div', { class: 'field' }, note),

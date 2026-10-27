@@ -19,6 +19,7 @@ function loginForm() {
     h('h1', {}, 'Sign in'),
     h('p', { class: 'lead' }, 'Requests, approvals and receipts for the petty cash float.'),
     field('Email', email), field('Password', pass), err, btn,
+    linkBtn,
     h('div', { class: 'links' },
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); forgot(email.value); } }, 'Forgot password?'),
       h('a', { href: '#/install' }, 'Put it on your phone')),
@@ -30,6 +31,16 @@ function loginForm() {
   });
   return form;
 }
+
+// no password: a one-tap sign-in link by email (the link opens the app already signed in)
+const linkBtn = h('button', { class: 'btn btn-block', type: 'button', style: { marginTop: '8px' } }, 'Email me a sign-in link instead');
+linkBtn.onclick = busy(linkBtn, async () => {
+  const email = document.querySelector('.auth input[type=email]')?.value.trim();
+  if (!email) { toast('Enter your email first.', { error: true }); return; }
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: false } });
+  if (error) { toast(/rate|limit/i.test(error.message) ? 'Too many emails in a short time – try again in a while, or use your password.' : /signups not allowed|not found/i.test(error.message) ? 'No account with that email. Ask your administrator.' : cleanError(error), { error: true, ms: 7000 }); return; }
+  toast(`Sign-in link sent to ${email}. Open it on this device and you are in – no password needed.`, { ms: 9000 });
+});
 
 async function forgot(email) {
   if (!email) { toast('Enter your email first, then tap “Forgot password”.', { error: true }); return; }

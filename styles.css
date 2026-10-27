@@ -329,3 +329,19 @@ textarea.input { min-height: 72px; resize: vertical; }
 .kbd { display: inline-block; padding: 0 6px; border: 1px solid var(--rule-strong); border-radius: 4px; font-weight: 600; }
 .install-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .btn-block { width: 100%; }
+
+/* ---------- act from the list ---------- */
+.ledger-list li { flex-wrap: wrap; }
+.row-actions { flex-basis: 100%; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 4px 0 2px 0; }
+.row-actions .note { font-size: .82rem; color: var(--ink-3); flex: 1; min-width: 160px; }
+.row-actions .note.warn { color: var(--amber); }
+.row-actions .note.bad { color: var(--red); }
+.check-pill { font-size: .75rem; padding: 1px 7px; }
+
+/* ---------- messages on a request ---------- */
+.msgs { display: grid; gap: 8px; margin-bottom: 10px; }
+.msg { padding: 8px 10px; border-radius: 8px; background: var(--paper); max-width: 85%; }
+.msg.mine { background: var(--green-tint); margin-left: auto; }
+.msg .who { font-size: .75rem; color: var(--ink-3); display: block; margin-bottom: 2px; }
+.msg-form { display: flex; gap: 8px; }
+.msg-form .input { flex: 1; }
