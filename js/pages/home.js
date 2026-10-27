@@ -42,7 +42,7 @@ export async function homePage() {
       h('ul', { class: 'ledger-list' },
         unfiled.map((u) => h('li', { class: 'click', onclick: () => { location.hash = `#/snap?inbox=${u.id}`; } }, h('div', { class: 'what' }, h('strong', {}, u.extracted?.supplier || 'Snapped receipt'), h('span', {}, `photo from ${fmtDate(u.created_at)} · not filed yet`)), h('span', { class: 'amt' }, u.extracted?.total != null ? money(u.extracted.total) : '→'))),
         cash.map((q) => requestRow(q))),
-      h('a', { class: 'btn btn-primary btn-sm', href: '#/snap', style: { marginTop: '10px' } }, '📷 Snap a receipt')));
+      h('a', { class: 'btn btn-primary btn-sm', href: '#/snap', style: { marginTop: '10px' } }, '📷 Snap or upload')));
   }
   if (duty('approver') && byStatus('pending_approval').length) {
     cards.push(card('Needs your approval', byStatus('pending_approval').length,
@@ -93,11 +93,11 @@ export async function homePage() {
   const mine = (mineRes.data || []).filter((q) => (staff ? !['closed', 'rejected', 'cancelled', 'fulfilled_from_stock'].includes(q.status) && q.status !== 'disbursed' : q.status !== 'disbursed'));
   const mineCard = mine.length || !staff ? h('div', { class: 'sheet' },
     h('div', { class: 'sheet-head' }, h('h2', {}, staff ? 'Your open requests' : 'Your requests'), h('a', { href: '#/requests' }, 'All')),
-    mine.length ? h('ul', { class: 'ledger-list' }, mine.slice(0, 6).map((q) => requestRow(q))) : emptyState('Nothing yet', 'Snap a receipt to claim money back, or ask for cash with “New request”.'),
+    mine.length ? h('ul', { class: 'ledger-list' }, mine.slice(0, 6).map((q) => requestRow(q))) : emptyState('Nothing yet', 'Snap or upload a receipt to claim money back, or ask for cash.'),
     myReports.length ? h('p', { class: 'hint', style: { marginTop: '10px' } }, `Reported to the stock manager: ${myReports.map((r) => r.item?.name).join(', ')}.`) : null) : null;
 
   /* ---------------- header ---------------- */
-  const actions = [h('a', { class: 'btn btn-primary', href: '#/snap' }, '📷 Snap a receipt')];
+  const actions = [h('a', { class: 'btn btn-primary', href: '#/snap' }, '📷 Snap or upload')];
   if (!can('manage_stock')) actions.push(h('button', { class: 'btn', onclick: () => reportDialog(null) }, 'Report low stock'));
   actions.push(h('a', { class: 'btn', href: '#/requests/new' }, 'Ask for cash'));
   const hour = new Date().getHours();

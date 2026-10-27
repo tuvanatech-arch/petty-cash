@@ -89,7 +89,7 @@ export async function installPage() {
     mount(box,
       btn ? [btn, h('p', { class: 'hint', style: { marginBottom: '12px' } }, 'One tap. If the button does nothing, follow the steps below.')] : null,
       h('ol', { class: 'steps' }, list.map(([t, sub]) => h('li', {}, h('strong', {}, t), sub ? h('div', { class: 'hint' }, sub) : null))),
-      h('p', { class: 'hint', style: { marginTop: '14px' } }, 'Once installed it opens like any app, works without signal for quick counts, and the N$ icon gives you “Snap a receipt” with a long press.'));
+      h('p', { class: 'hint', style: { marginTop: '14px' } }, 'Once installed it opens like any app, works without signal for quick counts, and the N$ icon gives you “Snap or upload” with a long press.'));
   }
   listeners.add(draw); draw();
   return h('div', {}, h('h1', {}, 'Put it on your phone'), h('p', { class: 'lead' }, `${d.iOS ? 'iPhone / iPad' : d.android ? 'Android' : 'Computer'} · ${{ 'ios-safari': 'Safari', 'ios-chrome': 'Chrome', 'ios-firefox': 'Firefox', 'ios-edge': 'Edge', samsung: 'Samsung Internet', edge: 'Edge', opera: 'Opera', firefox: 'Firefox', chrome: 'Chrome', 'mac-safari': 'Safari', other: 'your browser' }[d.browser]}`), box);

@@ -51,7 +51,7 @@ export async function accountPage() {
   }
 
   const standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone;
-  const installSheet = standalone ? null : more('Put it on your phone', h('p', { class: 'hint' }, 'Opens like an app, “Snap a receipt” is a long-press away, and counts done without signal are sent later.'), h('a', { class: 'btn', href: '#/install' }, 'Show me how'));
+  const installSheet = standalone ? null : more('Put it on your phone', h('p', { class: 'hint' }, 'Opens like an app, “Snap or upload” is a long-press away, and counts done without signal are sent later.'), h('a', { class: 'btn', href: '#/install' }, 'Show me how'));
 
   // phone alerts
   const ps = await pushStatus();
