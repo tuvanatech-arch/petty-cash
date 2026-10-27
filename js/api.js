@@ -90,15 +90,37 @@ export async function refreshUnread() {
   return state.unread;
 }
 
-/** Ask the read-receipt function to read a scanned proof. */
-export async function readReceipt(proofId) {
+/** Ask the read-receipt function to read a scanned proof (an expense proof id, or { inbox_id } for a snapped receipt). */
+export async function readReceipt(ref) {
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${state.session?.access_token || ''}` };
+  const body = typeof ref === 'object' ? ref : { proof_id: ref };
   let res;
-  try { res = await fetch(`${FUNCTIONS_URL}/read-receipt`, { method: 'POST', headers, body: JSON.stringify({ proof_id: proofId }) }); }
+  try { res = await fetch(`${FUNCTIONS_URL}/read-receipt`, { method: 'POST', headers, body: JSON.stringify(body) }); }
   catch { throw new Error('No connection. Check your internet and try again.'); }
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) throw new Error(json.error || `Could not read the receipt (${res.status})`);
   return json;
+}
+
+/* ---------- snapped receipts (inbox) ---------- */
+export async function uploadToInbox(file) {
+  const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80) || 'receipt.jpg';
+  const path = `inbox/${state.me.id}/${crypto.randomUUID()}-${safe}`;
+  const { error } = await sb.storage.from('proofs').upload(path, file, { contentType: file.type || 'application/octet-stream' });
+  if (error) throw new Error(cleanError(error));
+  return unwrap(await sb.from('receipt_inbox').insert({ user_id: state.me.id, storage_path: path, file_name: file.name || safe, mime: file.type }).select().single());
+}
+/** Move the snapped file into the request's folder and attach it as a proof. */
+export async function fileInboxReceipt(inbox, requestId) {
+  const base = inbox.storage_path.split('/').pop();
+  const newPath = `${requestId}/${base}`;
+  const { error } = await sb.storage.from('proofs').move(inbox.storage_path, newPath);
+  if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(cleanError(error));
+  return rpc('file_inbox_receipt', { p_inbox: inbox.id, p_request: requestId, p_new_path: newPath });
+}
+export async function discardInboxReceipt(inbox) {
+  await sb.storage.from('proofs').remove([inbox.storage_path]);
+  unwrap(await sb.from('receipt_inbox').update({ status: 'discarded' }).eq('id', inbox.id));
 }
 
 /* ---------- month-end packs ---------- */

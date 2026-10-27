@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
   if (!key) return json({ error: "Receipt reading is not switched on yet – the administrator still has to add the API key." }, 503);
 
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-  let body: { proof_id?: string; ping?: boolean };
+  let body: { proof_id?: string; inbox_id?: string; ping?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 
   // {ping:true}: a one-word call to confirm the key and credits work. Allowed with a signed-in user or the cron key.
@@ -47,11 +47,12 @@ Deno.serve(async (req) => {
   }
 
   if (!token) return json({ error: "Sign in first" }, 401);
-  if (!body.proof_id) return json({ error: "proof_id is required" }, 400);
+  if (!body.proof_id && !body.inbox_id) return json({ error: "proof_id or inbox_id is required" }, 400);
 
   // visibility is decided by row-level security, as the caller
   const asUser = createClient(URL_, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: proof, error: pe } = await asUser.from("expense_proofs").select("id, storage_path, mime, file_name").eq("id", body.proof_id).maybeSingle();
+  const table = body.inbox_id ? "receipt_inbox" : "expense_proofs";
+  const { data: proof, error: pe } = await asUser.from(table).select("id, storage_path, mime, file_name").eq("id", body.inbox_id || body.proof_id).maybeSingle();
   if (pe || !proof) return json({ error: "That file is not available to you" }, 403);
 
   const mime = (proof.mime || "").toLowerCase();
@@ -87,9 +88,10 @@ Deno.serve(async (req) => {
     const m = text.match(/\{[\s\S]*\}/);
     parsed = JSON.parse(m ? m[0] : text);
   } catch {
+    if (table === "receipt_inbox") await admin.from("receipt_inbox").update({ read_error: "Could not make sense of the receipt" }).eq("id", proof.id);
     return json({ error: "Could not make sense of the receipt. Try a clearer photo.", raw: text.slice(0, 300) }, 422);
   }
   parsed.read_at = new Date().toISOString();
-  await admin.from("expense_proofs").update({ extracted: parsed }).eq("id", proof.id);
+  await admin.from(table).update(table === "receipt_inbox" ? { extracted: parsed, read_error: null } : { extracted: parsed }).eq("id", proof.id);
   return json(parsed);
 });

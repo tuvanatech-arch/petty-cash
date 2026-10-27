@@ -50,10 +50,9 @@ export async function accountPage() {
   }
 
   const standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone;
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
   const installSheet = standalone ? null : h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'On your phone')),
-    h('p', { class: 'hint' }, ios ? 'Open this page in Safari, tap Share, then “Add to Home Screen”. It opens like an app, and quick counts you do without signal are saved and sent when you are back online.'
-      : 'In Chrome, open the menu and choose “Add to Home screen” (or “Install app”). It opens like an app, and quick counts you do without signal are saved and sent when you are back online.'));
+    h('p', { class: 'hint' }, 'Install it on the home screen: it opens like an app, “Snap a receipt” is a long-press away, and quick counts done without signal are sent when you are back online.'),
+    h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-primary', href: '#/install' }, 'Install on this phone')));
 
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Account'), h('p', {}, `${me.email} · ${ROLE_LABEL[me.role]}`))),

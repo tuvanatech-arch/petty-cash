@@ -302,3 +302,30 @@ textarea.input { min-height: 72px; resize: vertical; }
 .score .box .d.down { color: var(--green-ink); }
 .install-hint { display: none; }
 @media (display-mode: browser) and (max-width: 860px) { .install-hint { display: block; } }
+
+/* ---------- snap a receipt ---------- */
+.snap-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 28px 16px; border: 2px dashed var(--rule-strong); border-radius: 10px; cursor: pointer; text-align: center; color: var(--ink-2); font-weight: 500; }
+.snap-btn:hover { border-color: var(--green); color: var(--green-ink); }
+.snap-btn input { display: none; }
+.snap-btn .big { font-size: 2.2rem; line-height: 1; }
+.snap-row { display: flex; gap: 14px; align-items: flex-start; }
+.snap-thumb { width: 96px; height: 120px; flex: 0 0 auto; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; background: var(--paper); display: grid; place-items: center; color: var(--ink-3); }
+.snap-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.snap-read { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px 14px; margin-top: 6px; }
+.snap-read .k { display: block; font-size: .75rem; color: var(--ink-3); }
+.snap-read .v { font-weight: 600; }
+.snap-card { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius); margin-bottom: 8px; }
+.snap-card.primary { border-color: var(--green); background: var(--green-tint); }
+.snap-card .what { flex: 1; min-width: 0; }
+.snap-card .what strong { display: block; }
+.snap-card .what span { display: block; font-size: .82rem; color: var(--ink-2); white-space: normal; }
+.snap-options { margin-top: 14px; }
+@media (max-width: 560px) { .snap-card { flex-direction: column; align-items: stretch; } }
+
+/* ---------- install ---------- */
+.steps { padding-left: 22px; display: grid; gap: 10px; }
+.steps li strong { display: block; }
+.ios-share { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 1.5px solid currentColor; border-radius: 5px; font-size: .8rem; vertical-align: middle; }
+.kbd { display: inline-block; padding: 0 6px; border: 1px solid var(--rule-strong); border-radius: 4px; font-weight: 600; }
+.install-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn-block { width: 100%; }

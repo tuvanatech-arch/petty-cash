@@ -1,9 +1,9 @@
 // App shell cache: the pages open without signal; data always comes from the server when it can.
-const CACHE = 'pcs-shell-v1';
-const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon-192.png', './icon-512.png',
+const CACHE = 'pcs-shell-v2';
+const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png',
   './js/app.js', './js/api.js', './js/ui.js', './js/charts.js', './js/config.js', './js/pack.js',
   './js/pages/auth.js', './js/pages/home.js', './js/pages/requests.js', './js/pages/stock.js', './js/pages/cash.js',
-  './js/pages/reports.js', './js/pages/admin.js', './js/pages/account.js', './js/pages/notifications.js'];
+  './js/pages/reports.js', './js/pages/admin.js', './js/pages/account.js', './js/pages/notifications.js', './js/pages/snap.js', './js/pages/install.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

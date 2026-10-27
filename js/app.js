@@ -9,6 +9,8 @@ import { reportsPage } from './pages/reports.js';
 import { adminPage } from './pages/admin.js';
 import { accountPage } from './pages/account.js';
 import { notificationsPage } from './pages/notifications.js';
+import { snapPage } from './pages/snap.js';
+import { installPage, installBanner, captureInstallPrompt } from './pages/install.js';
 
 const app = document.getElementById('app');
 
@@ -26,6 +28,8 @@ const ROUTES = [
   { path: /^\/admin(?:\/(\w+))?$/, page: (m) => adminPage(m[1]), guard: 'admin' },
   { path: /^\/account$/, page: () => accountPage() },
   { path: /^\/notifications$/, page: () => notificationsPage() },
+  { path: /^\/snap$/, page: () => snapPage() },
+  { path: /^\/install$/, page: () => installPage() },
   { path: /^\/more$/, page: async () => h('div', {}, h('div', { class: 'page-head' }, h('h1', {}, 'More')),
     h('div', { class: 'sheet' }, h('ul', { class: 'ledger-list' }, navItems().slice(4).map((it) => h('li', { class: 'click', onclick: () => { location.hash = it.href; } }, h('div', { class: 'what' }, h('strong', {}, it.label))))))) },
 ];
@@ -60,6 +64,7 @@ let renderToken = 0;
 export async function render() {
   const hash = location.hash.replace(/^#/, '') || '/home';
   const me = state.me;
+  if (hash.split('?')[0] === '/install') { mount(app, h('div', { class: 'auth' }, h('div', { class: 'card', style: { maxWidth: '560px' } }, await installPage(), me ? null : h('p', { class: 'links', style: { marginTop: '14px' } }, h('a', { href: '#/home' }, 'Back to sign in'))))); return; }
   if (!me) { mount(app, await authPage()); return; }
   if (!me.active) {
     mount(app, h('div', { class: 'auth' }, h('div', { class: 'card' }, h('h1', {}, 'Account deactivated'),
@@ -86,6 +91,7 @@ export async function render() {
     state.standingIn.map((d) => `${ROLE_LABEL[d.role].replace(' (admin)', '')} for ${personName(d.from_user)} until ${fmtDate(d.ends_on)}`).join(' · '),
     '. Everything you do is recorded under your own name.') : null;
   const queued = offlineQueueLength();
+  const install = installBanner();
   const offline = queued ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `${queued} count${queued === 1 ? '' : 's'} saved on this device`), 'They will be sent to the server as soon as there is a connection.') : null;
   mount(app,
     h('div', { class: 'shell' },
@@ -94,7 +100,7 @@ export async function render() {
           h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petty cash', h('small', {}, 'Petty cash & stock'))),
         h('nav', { class: 'nav' }, items.map(navLink)),
         h('div', { class: 'me' }, h('strong', {}, me.full_name || me.email), h('span', {}, ROLE_LABEL[me.role]))),
-      h('main', { class: 'main' }, standIn, offline, page)),
+      h('main', { class: 'main' }, standIn, offline, install, page)),
     h('nav', { class: 'tabbar' }, items.length <= 5 ? items.map(navLink) : [...items.slice(0, 4).map(navLink), navLink({ href: '#/more', label: 'More', key: 'more' })]));
   window.scrollTo(0, 0);
 
@@ -140,6 +146,7 @@ async function syncQueue() {
 window.addEventListener('online', syncQueue);
 
 // installable on a phone; the shell works offline
+captureInstallPrompt();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }

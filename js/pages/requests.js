@@ -572,6 +572,10 @@ async function expensePanel(q, lines, expense, reload) {
   const gallery = h('div', {});
   async function drawGallery() { mount(gallery, await proofGallery(expense, q, true, reload, drawGallery, { onExtract: applyExtract })); }
   await drawGallery();
+  // arrived from "Snap a receipt": apply that photo's reading straight away
+  const applyId = new URLSearchParams(location.hash.split('?')[1] || '').get('apply');
+  const snapped = applyId && (expense?.proofs || []).find((p) => p.id === applyId && p.extracted && !p.extracted.error);
+  if (snapped) setTimeout(() => applyExtract(snapped.extracted), 0);
 
   const submit = h('button', { class: 'btn btn-primary' }, 'Submit expense to finance');
   submit.onclick = busy(submit, async () => {

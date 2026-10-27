@@ -21,7 +21,8 @@ function loginForm() {
     field('Email', email), field('Password', pass), err, btn,
     h('div', { class: 'links' },
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); forgot(email.value); } }, 'Forgot password?'),
-      h('span', { class: 'hint' }, 'No account? Ask your administrator.')));
+      h('a', { href: '#/install' }, 'Put it on your phone')),
+    h('p', { class: 'hint', style: { marginTop: '10px' } }, 'No account? Ask your administrator.'));
   const submit = busy(btn, async () => {
     err.textContent = '';
     const { error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value });

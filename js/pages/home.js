@@ -12,7 +12,7 @@ export async function homePage() {
   if (can('approve')) statuses.push('pending_approval');
   if (can('finance')) statuses.push('awaiting_disbursement', 'proof_review', 'physical_required');
 
-  const [queueRes, mineRes, cashRes, floatRes, lowRes, statsRes, outlookRes, reportsRes] = await Promise.all([
+  const [queueRes, mineRes, cashRes, floatRes, lowRes, statsRes, outlookRes, reportsRes, inboxRes] = await Promise.all([
     statuses.length ? sb.from('requests').select('*').in('status', statuses).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(8),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
@@ -21,7 +21,9 @@ export async function homePage() {
     can('manage_stock') ? sb.rpc('item_usage_stats') : { data: [] },
     can('approve') || can('finance') ? sb.rpc('float_outlook') : { data: null },
     sb.from('stock_reports').select('id, item_id, level, reported_by, created_at, item:items(name)').is('resolved_at', null).order('created_at', { ascending: false }),
+    sb.from('receipt_inbox').select('id, file_name, extracted, created_at').eq('status', 'unfiled').order('created_at', { ascending: false }),
   ]);
+  const unfiled = inboxRes.data || [];
   const reports = reportsRes.data || [];
   const myReports = reports.filter((r) => r.reported_by === me.id);
   const stats = {}; for (const s of statsRes.data || []) stats[s.item_id] = s;
@@ -46,8 +48,8 @@ export async function homePage() {
     if (byStatus('physical_required').length) groups.push(group('Waiting for physical receipts', byStatus('physical_required')));
   }
 
-  const actions = [h('a', { class: 'btn', href: '#/requests/new/claim' }, 'Claim back'), h('a', { class: 'btn btn-primary', href: '#/requests/new' }, 'New request')];
-  if (!can('manage_stock')) actions.unshift(h('button', { class: 'btn', onclick: () => reportDialog(null) }, 'Report low / out'));
+  const actions = [h('a', { class: 'btn btn-primary', href: '#/snap' }, '📷 Snap a receipt'), h('a', { class: 'btn', href: '#/requests/new' }, 'New request')];
+  if (!can('manage_stock')) actions.splice(1, 0, h('button', { class: 'btn', onclick: () => reportDialog(null) }, 'Report low / out'));
   if (can('manage_stock')) {
     const b = h('button', { class: 'btn' }, 'Raise monthly restock');
     b.onclick = busy(b, async () => {
@@ -72,6 +74,7 @@ export async function homePage() {
       h('div', { class: 'sheet-head' }, h('h2', {}, 'Reported by the team'), h('a', { href: '#/stock/reports' }, 'All reports')),
       h('ul', { class: 'ledger-list' }, Object.values(reports.reduce((m, r) => { (m[r.item_id] ||= { name: r.item?.name, out: false, n: 0, who: [] }); m[r.item_id].n++; m[r.item_id].out ||= r.level === 'out'; m[r.item_id].who.push(personName(r.reported_by)); return m; }, {})).map((g) =>
         h('li', { class: 'click', onclick: () => { location.hash = '#/stock/reports'; } }, h('div', { class: 'what' }, h('strong', {}, g.name), h('span', {}, `reported by ${[...new Set(g.who)].join(', ')}`)), h('span', { class: `pill ${g.out ? 'pill-red' : 'pill-amber'}` }, g.out ? 'Out' : 'Running low'))))) : null,
+    unfiled.length ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `${unfiled.length} unfiled receipt${unfiled.length === 1 ? '' : 's'}`), 'Snapped but not yet filed: ', unfiled.map((u, i) => [i ? ', ' : '', h('a', { href: `#/snap?inbox=${u.id}` }, u.extracted?.supplier || u.file_name)]), '.') : null,
     !can('manage_stock') && myReports.length ? h('p', { class: 'hint', style: { marginBottom: '14px' } }, `You have ${myReports.length} open report${myReports.length === 1 ? '' : 's'} with the stock manager: ${myReports.map((r) => r.item?.name).join(', ')}. `, h('a', { href: '#/stock/reports' }, 'See them')) : null,
     can('finance') && !openFloat ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'No petty cash float is open'), 'Cash cannot be paid out until finance opens this month\'s float. ', h('a', { href: '#/cash' }, 'Open it now')) : null,
     groups.map((g) => g.el),
