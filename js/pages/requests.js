@@ -51,7 +51,7 @@ export async function requestsPage() {
   }
   await load();
   return h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Requests'), h('p', {}, isStaff() ? 'Every request you can see, newest first.' : 'Your requests, claims and anything paid out to you.')),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Requests'), h('p', {}, isStaff() ? 'Every request you can see, newest first.' : 'Your cash requests, claims and anything paid out to you. Office stock is reported under Stock, not requested here.')),
       h('div', { class: 'page-actions' }, h('a', { class: 'btn', href: '#/requests/new/claim' }, 'Claim back'), h('a', { class: 'btn btn-primary', href: '#/requests/new' }, 'New request'))),
     tabs, h('div', { class: 'toolbar' }, searchBox), h('div', { class: 'sheet' }, list));
 }
@@ -88,7 +88,8 @@ export async function newRequestPage(editId, presetType) {
     lines = unwrap(await sb.from('request_lines').select('*').eq('request_id', editId).order('line_no'));
     if (existing.type === 'claim') expense = (await sb.from('expenses').select('*, proofs:expense_proofs(*)').eq('request_id', editId).maybeSingle()).data;
   }
-  let type = existing?.type || (presetType === 'claim' ? 'claim' : presetType === 'cash' ? 'cash' : 'stock');
+  const stockAllowed = can('manage_stock');   // the team asks for stock by reporting it; only the stock manager raises stock purchases
+  let type = existing?.type || (presetType === 'claim' ? 'claim' : presetType === 'cash' || !stockAllowed ? 'cash' : 'stock');
   const forStore = existing?.for_store || false;
   if (!lines.length) lines = [blankLine()];
   function blankLine() { return { item_id: '', description: '', qty: 1, est_unit_price: 0 }; }
@@ -109,7 +110,7 @@ export async function newRequestPage(editId, presetType) {
 
   const typeBtns = h('div', { class: 'tabs' });
   function drawType() {
-    mount(typeBtns, [['stock', 'Stock item'], ['cash', 'Cash for an expense'], ['claim', 'I already paid – claim back']].map(([k, l]) =>
+    mount(typeBtns, [stockAllowed ? ['stock', 'Stock item'] : null, ['cash', 'Cash for an expense'], ['claim', 'I already paid – claim back']].filter(Boolean).map(([k, l]) =>
       h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); } }, l)));
     category.closest('.field').style.display = type === 'stock' ? 'none' : '';
     needed.closest('.field').style.display = type === 'claim' ? 'none' : '';
@@ -117,7 +118,7 @@ export async function newRequestPage(editId, presetType) {
     receiptBox.style.display = type === 'claim' ? '' : 'none';
     intro.textContent = forStore ? 'Items to buy for the store this month. Quantities come from measured usage; adjust them.'
       : type === 'stock' ? `Stock requests go to the stock manager first; anything above ${money(thr())} then goes to the approver before finance pays out.`
-      : type === 'cash' ? `Cash requests go straight to finance, or to the approver first if above ${money(thr())}.`
+      : type === 'cash' ? `Cash requests go straight to finance, or to the approver first if above ${money(thr())}.${stockAllowed ? '' : ' Need office stock? Report it under Stock instead – the stock manager buys it.'}`
       : `You paid with your own money. Attach the receipt and finance pays you back from petty cash${thr() ? `; above ${money(thr())} the approver signs it off first` : ''}.`;
     budget();
   }

@@ -113,6 +113,7 @@ export function reportDialog(item) {
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       field('Item', sel), h('div', { class: 'field' }, h('label', {}, 'How bad is it?'), lvl), field('Note', note),
+      h('p', { class: 'hint' }, 'Need something from the store right now? Ask the stock manager – they hand it over and log it.'),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
