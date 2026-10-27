@@ -39,6 +39,9 @@ export async function reportsPage() {
     unwrap(await sb.from('request_events').select('request_id, from_status, to_status, created_at').gte('created_at', since3).order('created_at').limit(5000)),
     sb.rpc('budget_status'),
   ]);
+  // money spent before anyone approved it (claims), per person: this month and the last 12
+  const m12from = months[Math.max(0, months.length - 12)] + '-01';
+  const [{ data: claimsNow }, { data: claims12 }] = await Promise.all([sb.rpc('claims_summary'), sb.rpc('claims_summary', { p_from: m12from })]);
   const scorecard = buildScorecard({ months, lines, requests, items, events, budgets: (budgets || []).filter((b) => b.active) });
 
   let range = 3; // months in the "period" views
@@ -135,6 +138,7 @@ export async function reportsPage() {
             h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`))))))) : null,
       ],
       controls: () => [
+      claimsSheet(claimsNow || [], claims12 || []),
       h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Controls'), h('span', { class: 'sub' }, `around the ${money(thr())} threshold, last 12 months`)),
         h('h3', { style: { margin: '8px 0 6px' } }, `Spent above ${money(thr())} without approval`), h('p', { class: 'hint' }, 'The estimate was under the limit but the receipt came in over it.'), tbl(overUnapproved, 'None.'),
         h('h3', { style: { margin: '16px 0 6px' } }, 'Same person, same day, together above the limit'), h('p', { class: 'hint' }, 'Several small requests that add up to more than one approval would have covered.'),
@@ -150,6 +154,22 @@ export async function reportsPage() {
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Reports'), h('p', {}, 'The scorecard first; the detail when you want it.')),
       h('div', { class: 'page-actions' }, rangeSel, exportButton(lines))),
     body);
+}
+
+/** Claims are money spent before approval: how much of each person's spend went that way. */
+function claimsSheet(now, year) {
+  const byId = Object.fromEntries(year.map((r) => [r.person_id, r]));
+  for (const r of now) byId[r.person_id] = { ...(byId[r.person_id] || r), now: r };
+  const rows = Object.values(byId).sort((a, b) => Number(b.claimed) - Number(a.claimed));
+  const totNow = now.reduce((s, r) => s + Number(r.claimed), 0), nNow = now.reduce((s, r) => s + Number(r.claims), 0);
+  const tone = (share) => (Number(share) >= 25 ? 'var(--amber)' : '');
+  return h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Spent before approval'), h('span', { class: 'sub' }, nNow ? `this month: ${money(totNow)} across ${nNow} claim${nNow === 1 ? '' : 's'}` : 'none this month')),
+    h('p', { class: 'hint' }, 'A claim is money someone paid out of pocket without a prior request. A rising share is a conversation, not a rule – every claim already passes the approver.'),
+    rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Person'), h('th', { class: 'num' }, 'This month'), h('th', { class: 'num' }, 'Last 12 months'), h('th', { class: 'num' }, 'Claims'), h('th', { class: 'num' }, 'Share of their spend'))),
+      h('tbody', {}, rows.map((r) => h('tr', {}, h('td', {}, r.person_name), h('td', { class: 'num' }, r.now ? money(r.now.claimed) : '—'), h('td', { class: 'num amt' }, money(r.claimed)), h('td', { class: 'num muted' }, r.claims),
+        h('td', { class: 'num', style: { color: tone(r.share) } }, `${Number(r.share).toFixed(0)}%`))))))
+      : h('p', { class: 'hint' }, 'No claims in the last 12 months.'));
 }
 
 /** One-screen scorecard for the approver: is this month normal, and where does the time go. */

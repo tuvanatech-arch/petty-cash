@@ -201,6 +201,7 @@ function settingsTab() {
   const rollover = h('input', { type: 'checkbox', checked: !!s.float_rollover });
   const grace = h('input', { class: 'input num', type: 'number', min: 1, max: 60, step: 1, value: s.advance_grace_days ?? 5 });
   const blockOutstanding = h('input', { type: 'checkbox', checked: !!s.block_with_outstanding });
+  const claimsApprove = h('input', { type: 'checkbox', checked: s.claims_need_approval !== false });
   const budgetMode = select([['warn', 'Flag it, let it through'], ['require_approval', 'Send it to the approver'], ['block', 'Block it']], s.budget_mode || 'warn');
   const countDay = select([[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday'], [0, 'No reminder']], String(s.count_day ?? 5));
   const headcount = h('input', { class: 'input num', type: 'number', min: 1, step: 1, value: s.headcount ?? 8 });
@@ -213,7 +214,7 @@ function settingsTab() {
   const go = busy(b, async () => {
     unwrap(await sb.from('settings').update({
       org_name: org.value.trim() || 'Petty cash', currency: currency.value.trim() || 'N$', approval_threshold: num(threshold.value), default_monthly_float: num(floatAmt.value), float_rollover: rollover.checked,
-      advance_grace_days: Math.max(1, Math.round(num(grace.value) || 5)), block_with_outstanding: blockOutstanding.checked, budget_mode: budgetMode.value,
+      advance_grace_days: Math.max(1, Math.round(num(grace.value) || 5)), block_with_outstanding: blockOutstanding.checked, claims_need_approval: claimsApprove.checked, budget_mode: budgetMode.value,
       count_day: Number(countDay.value), headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
       reserve_buffer_pct: Math.min(100, Math.max(0, Math.round(num(reserveBuf.value)))),
       accountant_name: acctName.value.trim() || null, accountant_email: acctEmail.value.trim() || null,
@@ -231,6 +232,8 @@ function settingsTab() {
     block('Chasing cash that is out', h('div', { class: 'row' }, field('Days before a reminder', grace, 'Cash paid out with no receipt recorded after this many days gets a daily nudge; finance is told too.')),
       h('label', { class: 'check', style: { marginBottom: '8px' } }, blockOutstanding, 'Hold new pay-outs to someone who still owes a receipt'),
       h('p', { class: 'hint' }, 'Finance sees the outstanding advance on the pay-out screen either way.')),
+    block('Money spent before approval', h('label', { class: 'check', style: { marginBottom: '8px' } }, claimsApprove, 'Every claim passes the approver, whatever the amount'),
+      h('p', { class: 'hint' }, 'A claim is money someone paid out of pocket without a prior request. On: the approver signs off each one before finance pays it back. Off: claims under the threshold go straight to finance, like any other request. Reports show how much of each person’s spend went this way.')),
     block('Budgets and the float', field('When a request goes over its budget', budgetMode, 'Budgets are set on the Budgets tab.'),
       field('Safety buffer on the recommended minimum', reserveBuf, 'Percent added on top of what is usually spent for the rest of the month. The approver is cautioned when an approval would leave the float below that minimum.')),
     block('Counting and reports', h('div', { class: 'row' }, field('Weekly count reminder', countDay, 'The stock manager gets a nudge to do a quick count.'), field('People in the office', headcount, 'Used for cost per head in reports.'))),

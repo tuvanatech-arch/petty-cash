@@ -133,7 +133,7 @@ export async function newRequestPage(editId, presetType) {
     intro.textContent = forStore ? 'Items to buy for the store this month. Quantities come from measured usage; adjust them.'
       : type === 'stock' ? `Stock requests go to the stock manager first; anything above ${money(thr())} then goes to the approver before finance pays out.`
       : type === 'cash' ? `Cash requests go straight to finance, or to the approver first if above ${money(thr())}.${stockAllowed ? '' : ' Need office stock? Report it under Stock instead – the stock manager buys it.'}`
-      : `You paid with your own money. Attach the receipt and finance pays you back from petty cash${thr() ? `; above ${money(thr())} the approver signs it off first` : ''}.`;
+      : state.settings?.claims_need_approval === false ? `You paid with your own money. Attach the receipt and finance pays you back from petty cash${thr() ? `; above ${money(thr())} the approver signs it off first` : ''}.` : 'You paid with your own money before anyone approved it. Attach the receipt; the approver signs it off, then finance pays you back from petty cash.';
     budget();
   }
   category.onchange = () => { userPickedCategory = true; guessed.textContent = ''; budget(); };
@@ -213,7 +213,7 @@ export async function newRequestPage(editId, presetType) {
     err.textContent = '';
     if (submit && type === 'cash' && simpleCash && num(amountIn.value) <= 0) throw new Error('Enter the amount.');
     const id = await saveHead(submit);
-    if (submit) { await rpc('submit_request', { p_request: id }); toast(type === 'claim' ? 'Claim submitted.' : 'Request submitted.'); }
+    if (submit) { await rpc('submit_request', { p_request: id }); toast(type === 'claim' ? (state.settings?.claims_need_approval === false && currentTotal() <= thr() ? 'Claim submitted – finance will pay you back.' : 'Claim submitted – the approver signs it off, then finance pays you back.') : 'Request submitted.'); }
     else toast('Draft saved.');
     location.hash = `#/requests/${id}`;
   }
@@ -294,15 +294,17 @@ export function guessCategory(text, cats) {
 /* =============================================================== detail */
 export async function requestDetailPage(id) {
   const q = unwrap(await sb.from('requests').select('*').eq('id', id).single());
-  const [lines, events, expense, movements, messages, checkRes] = await Promise.all([
+  const [lines, events, expense, movements, messages, checkRes, docs] = await Promise.all([
     unwrap(await sb.from('request_lines').select('*, item:items(name, unit, qty_on_hand, last_unit_price, category_id)').eq('request_id', id).order('line_no')),
     unwrap(await sb.from('request_events').select('*').eq('request_id', id).order('created_at')),
     sb.from('expenses').select('*, lines:expense_lines(*), proofs:expense_proofs(*)').eq('request_id', id).maybeSingle().then((r) => r.data),
     unwrap(await sb.from('stock_movements').select('*, item:items(name, unit)').eq('request_id', id).eq('void', false).order('created_at')),
     sb.from('request_messages').select('*').eq('request_id', id).order('created_at').then((r) => r.data || []),
     sb.rpc('expense_checks', { p_request: id }).then((r) => (r.data || [])[0] || null),
+    sb.from('request_documents').select('*').eq('request_id', id).order('created_at').then((r) => r.data || []),
   ]);
   const check = checkRes;
+  q.docs = docs;
   if (expense?.lines) expense.lines = expense.lines.filter((l) => !l.void);
   const me = state.me.id;
   const isRequester = q.requester_id === me;
@@ -314,7 +316,8 @@ export async function requestDetailPage(id) {
     h('div', {},
       h('div', { class: 'ref' }, `${isClaim ? 'Claim' : 'Request'} #${q.request_no} · ${typeLabel(q)} · raised by ${personName(q.requester_id)} on ${fmtDate(q.created_at)}`),
       h('h1', {}, q.purpose || 'Request'),
-      h('p', {}, pill(q.status), ' ', q.approval_required ? h('span', { class: 'pill pill-purple' }, `Above ${money(thr())}`) : null, ' ',
+      h('p', {}, pill(q.status), ' ',
+        isClaim && q.status !== 'draft' ? h('span', { class: 'pill pill-purple', title: 'Money spent before anyone approved it' }, 'Paid out of pocket · no prior approval') : q.approval_required ? h('span', { class: 'pill pill-purple' }, `Above ${money(thr())}`) : null, ' ',
         q.over_budget ? h('span', { class: 'pill pill-amber', title: q.budget_note || '' }, 'Over budget') : null,
         q.needed_by ? h('span', { class: 'ref' }, ` · needed by ${fmtDate(q.needed_by)}`) : null)),
     h('div', { class: 'page-actions' }, headerActions()));
@@ -392,8 +395,17 @@ export async function requestDetailPage(id) {
     q.closed_at ? [h('dt', {}, 'Closed'), h('dd', {}, `${personName(q.closed_by)}, ${fmtDate(q.closed_at)}`)] : null);
 
   const record = h('div', { class: 'sheet flat' }, timeline, movementsSheet);
+  // an invoice or quote attached before the money moved
+  const docsBlock = docs.length ? h('div', { style: { marginTop: '14px' } }, h('h3', { style: { marginBottom: '8px' } }, docs.some((d) => d.kind === 'quote') ? 'Quote / invoice attached' : 'Invoice attached before the pay-out'),
+    h('ul', { class: 'ledger-list' }, await Promise.all(docs.map(async (d) => {
+      const url = await proofUrl(d.storage_path).catch(() => null);
+      const t = Number(d.extracted?.total); const base = Number(q.estimated_total) || 0; const diff = t - base;
+      const verdict = !(t > 0) ? 'total not read' : Math.abs(diff) <= Math.max(1, base * 0.02) ? `matches the ${money(base)}` : diff > 0 ? `${money(diff)} over the ${money(base)} ${q.approved_at ? 'approved' : 'requested'}` : `${money(-diff)} under the ${money(base)} ${q.approved_at ? 'approved' : 'requested'}`;
+      return h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${d.extracted?.supplier || d.file_name}${t > 0 ? ` · ${money(t)}` : ''}`), h('span', { style: { color: t > 0 && Math.abs(diff) > Math.max(1, base * 0.02) ? 'var(--amber)' : '' } }, `${verdict} · ${personName(d.uploaded_by)}, ${fmtDate(d.created_at)}`)),
+        url ? h('a', { class: 'btn btn-sm btn-quiet', href: url, target: '_blank', rel: 'noopener' }, 'Open') : null);
+    })))) : null;
   // a finished request leads with what was spent; what was asked for is one tap away
-  const requestedBody = [linesTable, details.children.length ? h('div', { style: { marginTop: '14px' } }, details) : null];
+  const requestedBody = [linesTable, docsBlock, details.children.length ? h('div', { style: { marginTop: '14px' } }, details) : null];
   const requestedSheet = finished && expenseSheet
     ? h('div', { class: 'sheet flat' }, more(isClaim ? 'What was claimed, and who signed it off' : 'What was asked for, and who signed it off', ...requestedBody))
     : h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'Claimed' : 'Requested')), ...requestedBody);
@@ -421,7 +433,8 @@ async function stagePanel(q, lines, expense, reload, check = null) {
 
     case 'pending_approval':
       if (can('approve')) return approvalPanel(q, reload);
-      return banner('purple', 'Waiting for approval', q.over_budget ? q.budget_note : `The amount is above ${money(thr())}, so the approver must sign it off before finance pays out.`);
+      return banner('purple', 'Waiting for approval', isClaim ? 'A claim is money spent before anyone approved it, so the approver signs it off before finance pays you back.' : q.over_budget ? q.budget_note : `The amount is above ${money(thr())}, so the approver must sign it off before finance pays out.`,
+        !isClaim && q.requester_id === me && !q.docs?.length ? h('div', { style: { marginTop: '8px' } }, h('a', { class: 'btn btn-sm', href: '#/snap' }, 'Have a quote? Attach it')) : null);
 
     case 'awaiting_disbursement':
       if (isClaim) {
@@ -429,7 +442,8 @@ async function stagePanel(q, lines, expense, reload, check = null) {
         return banner('amber', 'Waiting for finance to reimburse you', expense?.proof_status === 'physical_required' && !expense.physical_received_at ? `Finance needs the paper receipt first${expense.finance_note ? `: ${expense.finance_note}` : '.'}` : 'Finance checks the receipt and pays you from the float.');
       }
       if (can('finance')) return disbursePanel(q, reload);
-      return banner('amber', 'Approved – waiting for finance', 'Finance will pay the cash out from the float.');
+      return banner('amber', 'Approved – waiting for finance', 'Finance will pay the cash out from the float.',
+        q.requester_id === me && !q.docs?.length ? h('div', { style: { marginTop: '8px' } }, h('a', { class: 'btn btn-sm', href: '#/snap' }, 'Have the supplier’s invoice? Attach it so finance pays the exact amount')) : null);
 
     case 'disbursed': {
       const spender = q.disbursed_to === me;
@@ -500,7 +514,8 @@ async function approvalPanel(q, reload) {
   rej.onclick = busy(rej, async () => { const n = await confirmDialog('Reject this request?', 'The requester will see your reason.', { ok: 'Reject', danger: true, note: { label: 'Reason', required: true } }); if (!n) return; await rpc('reject_request', { p_request: q.id, p_reason: n }); toast('Rejected.'); reload(); });
   return h('div', {},
     h('div', { class: 'sheet', style: { borderColor: 'var(--purple)' } },
-      h('div', { class: 'sheet-head' }, h('h2', { class: 'threshold' }, 'Your approval is needed'), h('span', { class: 'sub' }, Number(q.estimated_total) > thr() ? `${money(q.estimated_total)} is above the ${money(thr())} threshold` : 'Sent to you because it goes over a budget')),
+      h('div', { class: 'sheet-head' }, h('h2', { class: 'threshold' }, 'Your approval is needed'), h('span', { class: 'sub' }, q.type === 'claim' ? `${money(q.estimated_total)} paid out of pocket by ${personName(q.requester_id)} – spent before approval` : Number(q.estimated_total) > thr() ? `${money(q.estimated_total)} is above the ${money(thr())} threshold` : 'Sent to you because it goes over a budget')),
+      q.docs?.length ? h('p', { class: 'hint' }, `${q.docs.length === 1 ? 'A quote/invoice is' : `${q.docs.length} documents are`} attached under “Requested” – ${q.docs.map((d) => (Number(d.extracted?.total) > 0 ? money(d.extracted.total) : 'total not read')).join(', ')}.`) : null,
       q.over_budget && q.budget_note ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'Over budget'), q.budget_note) : null,
       q.stock_note ? h('p', { class: 'hint' }, `Stock manager: ${q.stock_note}`) : null,
       q.for_store ? h('p', { class: 'hint' }, 'Restock order from the stock manager. Once approved it goes straight to finance to pay out.') : null,
@@ -511,12 +526,17 @@ async function approvalPanel(q, reload) {
 /* ---- finance: pay out ---- */
 function disbursePanel(q, reload) {
   const defaultTo = q.type === 'stock' && !q.for_store ? (q.stock_reviewed_by || q.requester_id) : q.requester_id;
-  const amount = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01', value: Number(q.estimated_total).toFixed(2) });
+  // an invoice attached beforehand sets the amount; the estimate is only the fallback
+  const invoice = (q.docs || []).filter((d) => d.kind === 'invoice' && Number(d.extracted?.total) > 0).slice(-1)[0];
+  const invTotal = invoice ? Number(invoice.extracted.total) : null;
+  const amount = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01', value: (invTotal ?? Number(q.estimated_total)).toFixed(2) });
   const to = select(state.people.filter((p) => p.active).map((p) => [p.id, p.full_name || p.email]), defaultTo);
   const note = h('input', { class: 'input', placeholder: 'Note (optional)' });
   const warn = h('div', { class: 'hint' });
   const check = () => { const a = num(amount.value); warn.textContent = a > thr() && !q.approved_by ? `Above ${money(thr())} and not approved – escalate it instead.` : ''; warn.style.color = warn.textContent ? 'var(--purple)' : ''; };
   amount.oninput = check; check();
+  const invNote = invoice ? h('p', { class: 'hint', style: { color: Math.abs(invTotal - Number(q.estimated_total)) > Math.max(1, Number(q.estimated_total) * 0.02) ? 'var(--amber)' : '' } },
+    `Invoice attached${invoice.extracted?.supplier ? ` from ${invoice.extracted.supplier}` : ''} reads ${money(invTotal)}${Math.abs(invTotal - Number(q.estimated_total)) > Math.max(1, Number(q.estimated_total) * 0.02) ? ` against ${money(q.estimated_total)} ${q.approved_by ? 'approved' : 'requested'}` : ' – matches what was approved'}. It becomes the proof once you pay out.`) : null;
   // cash already out with the payee and not yet accounted for
   const owing = h('div', { class: 'hint', style: { color: 'var(--amber)' } });
   const checkOwing = async () => {
@@ -537,6 +557,7 @@ function disbursePanel(q, reload) {
   return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
     h('div', { class: 'sheet-head' }, h('h2', {}, 'Pay out from petty cash'), h('span', { class: 'sub' }, q.approved_by ? `Approved by ${personName(q.approved_by)}` : `Within the ${money(thr())} limit – no approval needed`)),
     q.over_budget && q.budget_note ? h('p', { class: 'hint', style: { color: 'var(--amber)' } }, q.budget_note) : null,
+    invNote,
     h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', to), field('Note', note)),
     owing,
     h('div', { class: 'form-actions' }, rej, esc, pay));

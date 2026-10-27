@@ -176,6 +176,14 @@ export async function fileInboxReceipt(inbox, requestId) {
   if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(cleanError(error));
   return rpc('file_inbox_receipt', { p_inbox: inbox.id, p_request: requestId, p_new_path: newPath });
 }
+/** Move the file into the request's folder and attach it as an invoice/quote *before* the pay-out (own approved or pending request). */
+export async function fileInboxDocument(inbox, requestId, kind = 'invoice') {
+  const base = inbox.storage_path.split('/').pop();
+  const newPath = `${requestId}/${base}`;
+  const { error } = await sb.storage.from('proofs').move(inbox.storage_path, newPath);
+  if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(cleanError(error));
+  return rpc('file_inbox_document', { p_inbox: inbox.id, p_request: requestId, p_new_path: newPath, p_kind: kind });
+}
 export async function discardInboxReceipt(inbox) {
   await sb.storage.from('proofs').remove([inbox.storage_path]);
   unwrap(await sb.from('receipt_inbox').update({ status: 'discarded' }).eq('id', inbox.id));

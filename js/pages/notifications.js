@@ -1,7 +1,7 @@
 import { sb, state, unwrap, rpc, refreshUnread } from '../api.js';
 import { h, mount, fmtDate, emptyState, toast, busy } from '../ui.js';
 
-const ICON = { approval: '✓', payout: 'N$', proof: '🧾', stock_review: '📦', cash_ready: 'N$', closed: '✓', rejected: '✕', returned: '↩', physical: '📄',
+const ICON = { approval: '✓', payout: 'N$', document: '📎', proof: '🧾', stock_review: '📦', cash_ready: 'N$', closed: '✓', rejected: '✕', returned: '↩', physical: '📄',
   advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'N$', approved: '✓', in_progress: '…', cancelled: '✕', stock_report: '📦', stock_report_resolved: '✓', claim: 'N$', float_warning: '⚠', pack_review: '📑', pack_sent: '📤', month_close: '📅', message: '💬', stale: '⏳', stale_escalation: '⏳', weekly_digest: '📈' };
 
 export async function notificationsPage() {

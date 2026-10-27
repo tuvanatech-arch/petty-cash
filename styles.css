@@ -479,3 +479,4 @@ html[data-pointer="coarse"] .more-body a, html[data-pointer="coarse"] .banner a 
   transition: opacity .12s; pointer-events: none; top: max(8px, env(safe-area-inset-top)); }
 .ptr.armed { color: var(--ink); font-weight: 600; }
 @media (display-mode: standalone) { html, body { overscroll-behavior-y: contain; } }
+.snap-btn.over { border-color: var(--green); background: var(--green-tint); }
