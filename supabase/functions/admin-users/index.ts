@@ -3,7 +3,7 @@
 //   status          -> { needs_bootstrap }            (no auth)
 //   bootstrap       -> create the first administrator (only while no users exist)
 //   create          -> create a user with a role and temporary password   (approver only)
-//   update          -> change full name / role                            (approver only)
+//   update          -> change full name / role / email                    (approver only)
 //   reset_password  -> set a new temporary password                       (approver only)
 //   set_active      -> deactivate / reactivate (blocks sign-in)           (approver only)
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -147,6 +147,17 @@ Deno.serve(async (req) => {
         if (!ROLES.includes(body.role)) throw new Error("Unknown role");
         if (user_id === me.id && body.role !== "approver") throw new Error("You cannot remove your own administrator role");
         patch.role = body.role;
+      }
+      if (typeof body.email === "string" && body.email.trim()) {
+        const email = body.email.trim().toLowerCase();
+        if (!EMAIL.test(email)) throw new Error("Enter a valid email address");
+        const { data: cur } = await admin.from("profiles").select("email").eq("id", user_id).single();
+        if (cur && cur.email !== email) {
+          // the administrator vouches for the address, so no confirmation round-trip; they sign in with the new one from now on
+          const { error: ae } = await admin.auth.admin.updateUserById(user_id, { email, email_confirm: true });
+          if (ae) throw new Error(/already/i.test(ae.message) ? "That email already has an account" : ae.message);
+          patch.email = email;
+        }
       }
       const { error } = await admin.from("profiles").update(patch).eq("id", user_id);
       if (error) throw error;

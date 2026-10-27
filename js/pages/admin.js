@@ -44,7 +44,7 @@ async function usersTab() {
 function userDialog(p) {
   modal(p ? `Edit ${p.full_name || p.email}` : 'Add a person', (close) => {
     const name = h('input', { class: 'input', value: p?.full_name || '', required: true, autocomplete: 'off' });
-    const email = h('input', { class: 'input', type: 'email', value: p?.email || '', required: true, disabled: !!p, autocomplete: 'off' });
+    const email = h('input', { class: 'input', type: 'email', value: p?.email || '', required: true, autocomplete: 'off' });
     const role = select(Object.entries(ROLE_LABEL), p?.role || 'requester');
     const pass = p ? null : h('input', { class: 'input', type: 'text', value: tempPassword(), autocomplete: 'off' });
     const err = h('div', { class: 'error' });
@@ -52,13 +52,13 @@ function userDialog(p) {
     const go = busy(b, async () => {
       err.textContent = '';
       try {
-        if (p) await adminUsers({ action: 'update', user_id: p.id, full_name: name.value, role: role.value });
+        if (p) await adminUsers({ action: 'update', user_id: p.id, full_name: name.value, role: role.value, email: email.value });
         else await adminUsers({ action: 'create', email: email.value, full_name: name.value, role: role.value, password: pass.value });
-        toast(p ? 'Saved.' : `Account created. Give ${name.value.trim()} the temporary password.`, { ms: 6000 }); close(); refresh();
+        toast(p ? (email.value.trim().toLowerCase() !== (p.email || '').toLowerCase() ? `Saved. ${name.value.trim()} now signs in as ${email.value.trim().toLowerCase()}.` : 'Saved.') : `Account created. Give ${name.value.trim()} the temporary password.`, { ms: 6000 }); close(); refresh();
       } catch (e) { err.textContent = e.message; }
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      field('Name', name), field('Email', email, p ? 'Email cannot be changed here.' : 'They sign in with this.'), field('Role', role),
+      field('Name', name), field('Email', email, p ? 'They sign in with this. If you change it, tell them – the old address stops working at once.' : 'They sign in with this.'), field('Role', role),
       pass ? field('Temporary password', pass, 'Share it with them in person or by message; they can change it under Account.') : null,
       err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
