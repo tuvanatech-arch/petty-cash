@@ -1,4 +1,4 @@
-import { sb, state, loadSessionContext, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength } from './api.js';
+import { sb, state, loadSessionContext, refreshUnread, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength } from './api.js';
 import { h, mount, toast, fmtDate } from './ui.js';
 import { authPage } from './pages/auth.js';
 import { homePage } from './pages/home.js';
@@ -12,6 +12,9 @@ import { notificationsPage } from './pages/notifications.js';
 import { snapPage } from './pages/snap.js';
 import { installPage, installBanner, captureInstallPrompt } from './pages/install.js';
 import { startAdapting } from './adapt.js';
+import { startDiagnostics, bootFinished, startPullToRefresh, log, BUILD } from './diag.js';
+
+startDiagnostics();
 
 const app = document.getElementById('app');
 
@@ -32,7 +35,8 @@ const ROUTES = [
   { path: /^\/snap$/, page: () => snapPage() },
   { path: /^\/install$/, page: () => installPage() },
   { path: /^\/more$/, page: async () => h('div', {}, h('div', { class: 'page-head' }, h('h1', {}, 'More')),
-    h('div', { class: 'sheet' }, h('ul', { class: 'ledger-list' }, navItems().slice(4).map((it) => h('li', { class: 'click', onclick: () => { location.hash = it.href; } }, h('div', { class: 'what' }, h('strong', {}, it.label))))))) },
+    h('div', { class: 'sheet' }, h('ul', { class: 'ledger-list' }, navItems().slice(4).map((it) => h('li', { class: 'click', onclick: () => { location.hash = it.href; } }, h('div', { class: 'what' }, h('strong', {}, it.label)))),
+      h('li', { class: 'click', onclick: () => { location.reload(); } }, h('div', { class: 'what' }, h('strong', {}, 'Reload the app'), h('span', {}, `Build ${BUILD} · or pull down on any page`)))))) },
 ];
 
 function navItems() {
@@ -137,20 +141,30 @@ export async function render() {
 
 window.addEventListener('hashchange', render);
 
-sb.auth.onAuthStateChange(async (event) => {
-  if (event === 'PASSWORD_RECOVERY') {
-    await loadSessionContext();
-    location.hash = '#/account?recovery=1';
-    render();
-    return;
-  }
-  if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
-    const before = state.session?.user?.id;
-    await loadSessionContext();
-    if (event === 'SIGNED_OUT') { location.hash = '#/home'; }
-    if (event === 'SIGNED_IN' && /access_token=|type=magiclink|type=recovery/.test(location.hash)) { history.replaceState(null, '', location.pathname + '#/home'); }
-    if (before !== state.session?.user?.id || event === 'SIGNED_OUT' || event === 'SIGNED_IN') render();
-  }
+// Auth events. The callback fires while the auth client is busy, so the work is deferred and never waits on the client itself.
+// Note: supabase emits SIGNED_IN again every time the app comes back from the background – that is not a new sign-in,
+// and the page is left exactly as it was (a half-written request survives a phone call).
+let booting = true;
+sb.auth.onAuthStateChange((event, session) => {
+  setTimeout(async () => {
+    try {
+      if (event === 'SIGNED_IN' && /access_token=|type=magiclink|type=recovery/.test(location.hash)) history.replaceState(null, '', location.pathname + '#/home');
+      if (event === 'PASSWORD_RECOVERY') {
+        await loadSessionContext();
+        location.hash = '#/account?recovery=1';
+        render();
+        return;
+      }
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') { state.session = session; return; }
+      if (event === 'SIGNED_IN' && session?.user?.id && session.user.id === state.me?.id) { state.session = session; refreshUnread().catch(() => {}); return; }
+      if (booting && event !== 'SIGNED_OUT') return; // the boot below loads everything once
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        await loadSessionContext();
+        if (event === 'SIGNED_OUT') location.hash = '#/home';
+        render();
+      }
+    } catch (e) { log('error', `Auth event ${event} failed: ${e.message}`, e.stack); }
+  }, 0);
 });
 
 // counts saved while offline are sent once a connection is back
@@ -171,18 +185,22 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 
 (async () => {
   // never sit on "Loading…": if the account check has not answered in 8 s, show the app anyway and keep trying
-  let settled = false;
   const watchdog = new Promise((r) => setTimeout(() => r('timeout'), 8000));
   try {
-    const result = await Promise.race([loadSessionContext().then(() => { settled = true; return 'ok'; }), watchdog]);
+    const result = await Promise.race([loadSessionContext().then(() => 'ok'), watchdog]);
     if (result === 'timeout') {
+      log('warn', 'Boot: session context not loaded after 8 s');
       toast('Taking longer than usual to connect…', { ms: 6000 });
-      loadSessionContext().then(() => { settled = true; render(); }).catch(() => {});
+      loadSessionContext().then(() => render()).catch((e) => log('error', `Boot retry failed: ${e.message}`, e.stack));
     }
   } catch (e) {
     console.error(e);
-    toast('Could not reach the server. Check your connection and reload.', { error: true, ms: 8000 });
+    log('error', `Boot failed: ${e.message}`, e.stack);
+    toast('Could not reach the server. Check your connection and pull down to refresh.', { error: true, ms: 8000 });
   }
   render();
+  booting = false;
+  bootFinished();
   syncQueue();
+  startPullToRefresh(() => location.reload());
 })();

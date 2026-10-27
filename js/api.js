@@ -1,9 +1,20 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm';
 import { SUPABASE_URL, SUPABASE_KEY, FUNCTIONS_URL, VAPID_PUBLIC_KEY } from './config.js';
 
+// A request that never answers (a phone waking up with a dead socket) must fail, not hang the page:
+// 20 s for ordinary calls, longer for uploads, which can legitimately be slow.
+function fetchWithTimeout(input, init = {}) {
+  if (init.signal || typeof AbortController === 'undefined') return fetch(input, init);
+  const body = init.body;
+  const upload = body && (typeof Blob !== 'undefined' && body instanceof Blob || typeof FormData !== 'undefined' && body instanceof FormData || body instanceof ArrayBuffer);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), upload ? 180000 : 20000);
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+
 // No cross-tab lock around auth: on iPhone home-screen apps the system lock can be left held after a suspend and
 // getSession() then waits forever. This app is one person on one device at a time, so the lock buys nothing.
-export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { lock: async (_name, _timeout, fn) => fn(), persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { lock: async (_name, _timeout, fn) => fn(), persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }, global: { fetch: fetchWithTimeout } });
 
 export const state = {
   session: null,
@@ -53,7 +64,8 @@ export function unwrap({ data, error }) {
 export function cleanError(error) {
   let m = error?.message || String(error);
   if (/JWT|token|session/i.test(m) && /expired|invalid/i.test(m)) m = 'Your session has expired. Sign in again.';
-  if (/Failed to fetch|NetworkError/i.test(m)) m = 'No connection. Check your internet and try again.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) m = 'No connection. Check your internet and try again.';
+  if (/abort|timed out/i.test(m) || error?.name === 'AbortError') m = 'The server did not answer in time. Pull down to refresh and try again.';
   return m;
 }
 

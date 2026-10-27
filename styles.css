@@ -472,3 +472,10 @@ html[data-pointer="coarse"] .linkish { min-height: 40px; display: inline-flex; a
 html[data-pointer="coarse"] input[type="checkbox"] { width: 24px; height: 24px; }
 label.tap { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; cursor: pointer; }
 html[data-pointer="coarse"] .more-body a, html[data-pointer="coarse"] .banner a { display: inline-flex; align-items: center; min-height: 40px; }
+
+/* ---------- pull to refresh (installed app only) ---------- */
+.ptr { position: fixed; top: 0; left: 50%; transform: translateY(-52px); opacity: 0; z-index: 70; margin-left: -80px; width: 160px; text-align: center;
+  padding: 8px 12px; border-radius: 999px; background: var(--sheet); color: var(--ink-2); font-size: .85rem; box-shadow: var(--shadow); border: 1px solid var(--rule);
+  transition: opacity .12s; pointer-events: none; top: max(8px, env(safe-area-inset-top)); }
+.ptr.armed { color: var(--ink); font-weight: 600; }
+@media (display-mode: standalone) { html, body { overscroll-behavior-y: contain; } }

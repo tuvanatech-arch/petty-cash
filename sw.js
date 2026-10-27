@@ -1,7 +1,7 @@
 // App shell cache: the pages open without signal; data always comes from the server when it can.
 const CACHE = 'pcs-shell-__BUILD__';
 const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png',
-  './js/app.js', './js/api.js', './js/ui.js', './js/adapt.js', './js/charts.js', './js/config.js', './js/pack.js',
+  './js/app.js', './js/api.js', './js/ui.js', './js/adapt.js', './js/diag.js', './js/charts.js', './js/config.js', './js/pack.js',
   './js/pages/auth.js', './js/pages/home.js', './js/pages/requests.js', './js/pages/stock.js', './js/pages/cash.js',
   './js/pages/reports.js', './js/pages/admin.js', './js/pages/account.js', './js/pages/notifications.js', './js/pages/snap.js', './js/pages/install.js'];
 
@@ -18,7 +18,9 @@ self.addEventListener('fetch', (e) => {
   // after a deploy; the shell cache is only the fallback when offline
   // a navigation request cannot be re-built with options (the browser throws); files can
   const fresh = e.request.mode === 'navigate' ? e.request : new Request(e.request, { cache: 'no-cache' });
-  e.respondWith(fetch(fresh).then((res) => { if (res.ok) caches.open(CACHE).then((c) => c.put(e.request, res.clone())); return res; })
+  // a request that never answers (phone just woke up, dead socket) must not hold the page: after 6 s the cached copy is used
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000));
+  e.respondWith(Promise.race([fetch(fresh), timeout]).then((res) => { if (res.ok) caches.open(CACHE).then((c) => c.put(e.request, res.clone())); return res; })
     .catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html'))));
 });
 

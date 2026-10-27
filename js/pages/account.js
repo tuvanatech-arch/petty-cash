@@ -1,6 +1,7 @@
 import { sb, state, unwrap, ROLE_LABEL, cleanError, personName, pushStatus, enablePush, disablePush, testPush } from '../api.js';
 import { h, mount, toast, busy, field, fmtDate, today, confirmDialog, refresh, more } from '../ui.js';
 import { standinDialog, endDelegation } from './admin.js';
+import { BUILD, log } from '../diag.js';
 
 export async function accountPage() {
   const me = state.me;
@@ -71,6 +72,14 @@ export async function accountPage() {
   drawPush(ps);
 
   const passForm = h('form', {}, field('New password', p1), field('Repeat it', p2), err, h('div', { class: 'form-actions' }, savePass));
+
+  // the app itself: which build this phone runs, a reload, and a way to tell the admin what went wrong
+  const note = h('textarea', { class: 'input', rows: 2, placeholder: 'What happened? e.g. “Home page stuck after I opened it”' });
+  const send = h('button', { class: 'btn btn-sm' }, 'Send to the admin');
+  send.onclick = busy(send, async () => { if (!note.value.trim()) return; log('report', note.value.trim()); note.value = ''; toast('Sent – thank you.'); });
+  const appSheet = more('About this app', h('p', { class: 'hint' }, `Build ${BUILD}${standalone ? ' · installed' : ''}. If a page sticks, pull down to refresh${standalone ? '' : ' or reload the browser'}.`),
+    h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, h('button', { class: 'btn btn-sm', onclick: () => location.reload() }, 'Reload now')),
+    field('Something went wrong?', note), h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, send));
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Account'), h('p', {}, `${me.email} · ${ROLE_LABEL[me.role]}`)), h('div', { class: 'page-actions' }, out)),
     recovery ? h('div', { class: 'banner banner-green' }, h('strong', {}, 'Set a new password'), 'You arrived from a reset link. Choose a new password below.') : null,
@@ -81,5 +90,5 @@ export async function accountPage() {
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'You')),
       h('form', {}, field('Your name, as shown on requests', name), h('div', { class: 'form-actions' }, saveName)),
       recovery ? passForm : more('Change password', passForm),
-      installSheet));
+      installSheet, appSheet));
 }
