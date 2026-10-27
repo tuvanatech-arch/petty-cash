@@ -1,7 +1,8 @@
 import { sb, state, can, role, personName, unwrap, rpc } from '../api.js';
 import { h, money, fmtDate, pill, emptyState, qty, toast, busy } from '../ui.js';
 import { requestRow, expenseOf } from './requests.js';
-import { floatStrip } from './cash.js';
+import { floatStrip, outlookBox } from './cash.js';
+import { reportDialog } from './stock.js';
 
 export async function homePage() {
   const me = state.me;
@@ -11,14 +12,18 @@ export async function homePage() {
   if (can('approve')) statuses.push('pending_approval');
   if (can('finance')) statuses.push('awaiting_disbursement', 'proof_review', 'physical_required');
 
-  const [queueRes, mineRes, cashRes, floatRes, lowRes, statsRes] = await Promise.all([
+  const [queueRes, mineRes, cashRes, floatRes, lowRes, statsRes, outlookRes, reportsRes] = await Promise.all([
     statuses.length ? sb.from('requests').select('*').in('status', statuses).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(8),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
     can('finance') ? sb.from('v_floats').select('*').eq('status', 'open').maybeSingle() : { data: null },
     can('manage_stock') ? sb.from('items').select('id,name,unit,qty_on_hand,reorder_level,recurring').eq('active', true).order('name') : { data: [] },
     can('manage_stock') ? sb.rpc('item_usage_stats') : { data: [] },
+    can('approve') || can('finance') ? sb.rpc('float_outlook') : { data: null },
+    sb.from('stock_reports').select('id, item_id, level, reported_by, created_at, item:items(name)').is('resolved_at', null).order('created_at', { ascending: false }),
   ]);
+  const reports = reportsRes.data || [];
+  const myReports = reports.filter((r) => r.reported_by === me.id);
   const stats = {}; for (const s of statsRes.data || []) stats[s.item_id] = s;
   const queue = unwrap(queueRes); const mine = unwrap(mineRes); const cash = unwrap(cashRes);
   const openFloat = floatRes.data;
@@ -42,6 +47,7 @@ export async function homePage() {
   }
 
   const actions = [h('a', { class: 'btn', href: '#/requests/new/claim' }, 'Claim back'), h('a', { class: 'btn btn-primary', href: '#/requests/new' }, 'New request')];
+  if (!can('manage_stock')) actions.unshift(h('button', { class: 'btn', onclick: () => reportDialog(null) }, 'Report low / out'));
   if (can('manage_stock')) {
     const b = h('button', { class: 'btn' }, 'Raise monthly restock');
     b.onclick = busy(b, async () => {
@@ -61,6 +67,12 @@ export async function homePage() {
         h('p', {}, groups.length ? `${groups.reduce((n, g) => n + g.n, 0)} item${groups.reduce((n, g) => n + g.n, 0) === 1 ? '' : 's'} waiting on you.` : 'Nothing is waiting on you.')),
       h('div', { class: 'page-actions' }, actions)),
     openFloat ? h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, `Petty cash – ${fmtMonth(openFloat.period)}`), h('a', { href: '#/cash' }, 'Manage float')), floatStrip(openFloat)) : null,
+    openFloat && outlookRes.data ? outlookBox(outlookRes.data) : null,
+    can('manage_stock') && reports.length ? h('div', { class: 'sheet' },
+      h('div', { class: 'sheet-head' }, h('h2', {}, 'Reported by the team'), h('a', { href: '#/stock/reports' }, 'All reports')),
+      h('ul', { class: 'ledger-list' }, Object.values(reports.reduce((m, r) => { (m[r.item_id] ||= { name: r.item?.name, out: false, n: 0, who: [] }); m[r.item_id].n++; m[r.item_id].out ||= r.level === 'out'; m[r.item_id].who.push(personName(r.reported_by)); return m; }, {})).map((g) =>
+        h('li', { class: 'click', onclick: () => { location.hash = '#/stock/reports'; } }, h('div', { class: 'what' }, h('strong', {}, g.name), h('span', {}, `reported by ${[...new Set(g.who)].join(', ')}`)), h('span', { class: `pill ${g.out ? 'pill-red' : 'pill-amber'}` }, g.out ? 'Out' : 'Running low'))))) : null,
+    !can('manage_stock') && myReports.length ? h('p', { class: 'hint', style: { marginBottom: '14px' } }, `You have ${myReports.length} open report${myReports.length === 1 ? '' : 's'} with the stock manager: ${myReports.map((r) => r.item?.name).join(', ')}. `, h('a', { href: '#/stock/reports' }, 'See them')) : null,
     can('finance') && !openFloat ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'No petty cash float is open'), 'Cash cannot be paid out until finance opens this month\'s float. ', h('a', { href: '#/cash' }, 'Open it now')) : null,
     groups.map((g) => g.el),
     low.length ? h('div', { class: 'sheet' },

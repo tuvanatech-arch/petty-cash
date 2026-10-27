@@ -1,13 +1,16 @@
 import { sb, state, can, personName, unwrap, rpc, queueOffline } from '../api.js';
-import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog } from '../ui.js';
 import { barChart } from '../charts.js';
 
 export async function stockPage(tab = 'items') {
   const manage = can('manage_stock');
-  const tabs = [['items', 'Items'], ['usage', 'Usage'], ['movements', 'Movements'], ['suppliers', 'Suppliers'], ['categories', 'Categories']];
+  const openReports = (await sb.from('stock_reports').select('id', { count: 'exact', head: true }).is('resolved_at', null)).count || 0;
+  const tabs = manage ? [['items', 'Items'], ['reports', openReports ? `Reported by the team (${openReports})` : 'Reported by the team'], ['usage', 'Usage'], ['movements', 'Movements'], ['suppliers', 'Suppliers'], ['categories', 'Categories']]
+    : [['items', 'Items'], ['reports', 'My reports'], ['usage', 'Usage']];
   const body = h('div', {});
   const tabBar = h('div', { class: 'tabs' }, tabs.map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { location.hash = `#/stock/${k}`; } }, l)));
   const actions = [];
+  if (!manage) actions.push(h('button', { class: 'btn btn-primary', onclick: () => reportDialog(null) }, 'Report low / out'));
   if (manage) {
     if (tab === 'items' || tab === 'usage') actions.push(h('button', { class: 'btn btn-primary', onclick: () => quickCountDialog() }, 'Quick count'));
     const restock = h('button', { class: 'btn' }, 'Raise monthly restock');
@@ -17,9 +20,9 @@ export async function stockPage(tab = 'items') {
     if (tab === 'suppliers') actions.push(h('button', { class: 'btn btn-primary', onclick: () => supplierDialog(null, () => refresh()) }, 'Add supplier'));
     if (tab === 'categories' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => categoryDialog(null, () => refresh()) }, 'Add category'));
   }
-  mount(body, await ({ items: itemsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
+  mount(body, await ({ items: itemsTab, reports: reportsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
   return h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Stock'), h('p', {}, manage ? 'What is in the store, how fast it goes, and when it will run out.' : 'What the store holds. Ask for items through a stock request.')),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Stock'), h('p', {}, manage ? 'What is in the store, how fast it goes, and when it will run out.' : 'What the store holds. Spotted something running low or finished? Report it and the stock manager takes it from there.')),
       h('div', { class: 'page-actions' }, actions)),
     tabBar, body);
 }
@@ -58,7 +61,7 @@ async function itemsTab(manage) {
       && (filter === 'all' || (filter === 'low' ? low(i) : filter === 'recurring' ? i.recurring : stats[i.id]?.pace === filter)));
     const totalValue = rows.reduce((s, i) => s + Number(i.qty_on_hand) * Number(i.last_unit_price || 0), 0);
     mount(wrap, rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
-      h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'On hand'), h('th', { class: 'num' }, 'Used / month'), h('th', { class: 'num' }, 'Runs out'), h('th', { class: 'num' }, 'Last price'), h('th', {}, 'Supplier'), manage ? h('th') : null)),
+      h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'On hand'), h('th', { class: 'num' }, 'Used / month'), h('th', { class: 'num' }, 'Runs out'), h('th', { class: 'num' }, 'Last price'), h('th', {}, 'Supplier'), h('th'))),
       h('tbody', {}, rows.map((i) => {
         const s = stats[i.id];
         return h('tr', { class: low(i) ? 'low' : '' },
@@ -73,9 +76,10 @@ async function itemsTab(manage) {
             h('button', { class: 'btn btn-sm', onclick: () => usageDialog(i, () => refresh()) }, 'Used'),
             ' ', h('button', { class: 'btn btn-sm', onclick: () => issueDialog(i, () => refresh()) }, 'Issue'),
             ' ', h('button', { class: 'btn btn-sm', onclick: () => receiveDialog(i, sups, () => refresh()) }, 'Receive'),
-            ' ', h('button', { class: 'btn btn-sm btn-quiet', onclick: () => itemDialog(i, () => refresh()) }, 'Edit')) : null);
+            ' ', h('button', { class: 'btn btn-sm btn-quiet', onclick: () => itemDialog(i, () => refresh()) }, 'Edit'))
+          : h('td', { class: 'num' }, h('button', { class: 'btn btn-sm', onclick: () => reportDialog(i) }, 'Report')));
       })),
-      h('tfoot', {}, h('tr', {}, h('td', { colspan: 4 }, `${rows.length} item${rows.length === 1 ? '' : 's'} · value at last price`), h('td', { class: 'num' }, money(totalValue)), h('td', { colspan: manage ? 2 : 1 })))))
+      h('tfoot', {}, h('tr', {}, h('td', { colspan: 4 }, `${rows.length} item${rows.length === 1 ? '' : 's'} · value at last price`), h('td', { class: 'num' }, money(totalValue)), h('td', { colspan: 2 })))))
       : emptyState('Nothing here', manage ? (items.length ? 'No items match this filter.' : 'Add the things you buy regularly – paper, cleaning supplies, toner.') : 'The stock manager has not added items yet.'));
   }
   draw();
@@ -89,6 +93,70 @@ async function itemsTab(manage) {
     chipBar,
     h('div', { class: 'sheet' }, wrap),
     manage ? h('p', { class: 'hint' }, 'Usage is measured from quick counts, “Used” entries and issues. “Runs out” projects the current rate over what is on hand.') : null);
+}
+
+/* ---------------- low-stock reports from the team ---------------- */
+export function reportDialog(item) {
+  modal(item ? `Report: ${item.name}` : 'Report low stock', async (close) => {
+    const items = item ? [item] : (await sb.from('items').select('id, name, unit, qty_on_hand').eq('active', true).order('name')).data || [];
+    const sel = select([['', 'Choose an item…'], ...items.map((i) => [i.id, `${i.name} (${qty(i.qty_on_hand)} ${i.unit} on the books)`])], item?.id || '', { disabled: !!item });
+    let level = 'low';
+    const lvl = h('div', { class: 'tabs', style: { marginBottom: '12px' } });
+    const drawLvl = () => mount(lvl, [['low', 'Running low'], ['out', 'Completely out']].map(([k, l]) => h('button', { type: 'button', class: k === level ? 'active' : '', onclick: () => { level = k; drawLvl(); } }, l)));
+    drawLvl();
+    const note = h('input', { class: 'input', placeholder: 'e.g. last box opened this morning (optional)' });
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Send to the stock manager');
+    const go = busy(b, async () => {
+      if (!sel.value) throw new Error('Choose the item.');
+      await rpc('report_stock', { p_item: sel.value, p_level: level, p_note: note.value });
+      toast('Reported – the stock manager has been told.'); close(); refresh();
+    });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      field('Item', sel), h('div', { class: 'field' }, h('label', {}, 'How bad is it?'), lvl), field('Note', note),
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
+async function reportsTab(manage) {
+  let q = sb.from('stock_reports').select('*, item:items(name, unit, qty_on_hand, recurring)').order('created_at', { ascending: false }).limit(300);
+  if (!manage) q = q.eq('reported_by', state.me.id);
+  const rows = unwrap(await q);
+  const open = rows.filter((r) => !r.resolved_at); const done = rows.filter((r) => r.resolved_at).slice(0, 30);
+  const chosen = new Set();
+  const list = h('div', {});
+  const toolbar = h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } });
+  function drawToolbar() {
+    const ids = [...chosen];
+    const add = h('button', { class: 'btn btn-primary', disabled: !ids.length }, ids.length ? `Add ${ids.length} to a restock order` : 'Add to a restock order');
+    add.onclick = busy(add, async () => { const r = await rpc('restock_from_reports', { p_reports: ids }); toast('Added to your draft restock order – check quantities, then submit.'); location.hash = `#/requests/${r.id}/edit`; });
+    const sorted = h('button', { class: 'btn', disabled: !ids.length }, 'Mark sorted');
+    sorted.onclick = busy(sorted, async () => {
+      const n = await confirmDialog('Mark as sorted', `${ids.length} report${ids.length === 1 ? '' : 's'}. The people who reported will be told.`, { ok: 'Mark sorted', note: { label: 'What was done', placeholder: 'e.g. issued from the store / already on order' } });
+      if (n === null) return; for (const id of ids) await rpc('resolve_report', { p_report: id, p_note: n }); toast('Marked sorted.'); refresh();
+    });
+    mount(toolbar, add, sorted);
+  }
+  // group open reports by item so three people reporting the same thing reads as one line
+  const byItem = {};
+  for (const r of open) (byItem[r.item_id] ||= { item: r.item, item_id: r.item_id, reports: [] }).reports.push(r);
+  const groups = Object.values(byItem).sort((a, b) => (b.reports.some((r) => r.level === 'out') ? 1 : 0) - (a.reports.some((r) => r.level === 'out') ? 1 : 0) || b.reports.length - a.reports.length);
+  function draw() {
+    mount(list, groups.length ? h('ul', { class: 'ledger-list' }, groups.map((g) => {
+      const out = g.reports.some((r) => r.level === 'out');
+      const cb = manage ? h('input', { type: 'checkbox', checked: g.reports.every((r) => chosen.has(r.id)), onchange: (e) => { for (const r of g.reports) e.target.checked ? chosen.add(r.id) : chosen.delete(r.id); drawToolbar(); } }) : null;
+      const onOrder = g.reports.find((r) => r.request_id);
+      return h('li', { style: { alignItems: 'flex-start' } }, cb,
+        h('div', { class: 'what' }, h('strong', {}, g.item?.name || 'Item', ' ', h('span', { class: `pill ${out ? 'pill-red' : 'pill-amber'}` }, out ? 'Out' : 'Running low'), onOrder ? h('a', { class: 'pill pill-blue', href: `#/requests/${onOrder.request_id}`, style: { marginLeft: '6px', textDecoration: 'none' } }, 'on a restock order') : null),
+          h('span', { style: { whiteSpace: 'normal' } }, `${g.item ? `${qty(g.item.qty_on_hand)} ${g.item.unit} on the books · ` : ''}${g.reports.map((r) => `${personName(r.reported_by)} ${fmtDate(r.created_at)}${r.note ? ` – “${r.note}”` : ''}`).join(' · ')}`)),
+        manage ? h('span', { class: 'amt' }, g.reports.length > 1 ? `${g.reports.length} reports` : '') : null);
+    })) : emptyState(manage ? 'Nothing reported' : 'No open reports', manage ? 'When someone on the team reports an item running low or out, it shows here.' : 'Use “Report low / out” when you notice something is finishing.'));
+  }
+  draw(); if (manage) drawToolbar();
+  return h('div', {},
+    manage ? h('p', { class: 'hint', style: { marginBottom: '12px' } }, 'The team reports; you decide. Tick the ones to buy and add them to a restock order (it goes to the approver, then finance), or mark them sorted if the store already covers it. A purchase into the store clears the report automatically.') : null,
+    h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, manage ? 'Open reports' : 'Open'), h('span', { class: 'sub' }, open.length)), list, manage && groups.length ? toolbar : null),
+    done.length ? h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Sorted recently')),
+      h('ul', { class: 'ledger-list' }, done.map((r) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, r.item?.name || 'Item'), h('span', {}, `${r.level === 'out' ? 'Out' : 'Low'} · reported by ${personName(r.reported_by)} ${fmtDate(r.created_at)} · ${r.resolution || 'sorted'} ${fmtDate(r.resolved_at)}${r.resolved_by ? ` by ${personName(r.resolved_by)}` : ''}`)))))) : null);
 }
 
 /* ---------------- usage ---------------- */

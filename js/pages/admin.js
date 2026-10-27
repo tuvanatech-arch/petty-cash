@@ -204,6 +204,7 @@ function settingsTab() {
   const budgetMode = select([['warn', 'Flag it, let it through'], ['require_approval', 'Send it to the approver'], ['block', 'Block it']], s.budget_mode || 'warn');
   const countDay = select([[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday'], [0, 'No reminder']], String(s.count_day ?? 5));
   const headcount = h('input', { class: 'input num', type: 'number', min: 1, step: 1, value: s.headcount ?? 8 });
+  const reserveBuf = h('input', { class: 'input num', type: 'number', min: 0, max: 100, step: 1, value: s.reserve_buffer_pct ?? 15 });
   const emailFrom = h('input', { class: 'input', value: s.email_from || '', placeholder: 'Petty Cash <petty@yourdomain>' });
   const appUrl = h('input', { class: 'input', type: 'url', value: s.app_url || '', placeholder: 'https://…' });
   const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save settings');
@@ -212,6 +213,7 @@ function settingsTab() {
       org_name: org.value.trim() || 'Petty cash', currency: currency.value.trim() || 'N$', approval_threshold: num(threshold.value), default_monthly_float: num(floatAmt.value), float_rollover: rollover.checked,
       advance_grace_days: Math.max(1, Math.round(num(grace.value) || 5)), block_with_outstanding: blockOutstanding.checked, budget_mode: budgetMode.value,
       count_day: Number(countDay.value), headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
+      reserve_buffer_pct: Math.min(100, Math.max(0, Math.round(num(reserveBuf.value)))),
       updated_at: new Date().toISOString(),
     }).eq('id', 1));
     state.settings = unwrap(await sb.from('settings').select('*').eq('id', 1).single());
@@ -226,7 +228,8 @@ function settingsTab() {
     block('Chasing cash that is out', h('div', { class: 'row' }, field('Days before a reminder', grace, 'Cash paid out with no receipt recorded after this many days gets a daily nudge; finance is told too.')),
       h('label', { class: 'check', style: { marginBottom: '8px' } }, blockOutstanding, 'Hold new pay-outs to someone who still owes a receipt'),
       h('p', { class: 'hint' }, 'Finance sees the outstanding advance on the pay-out screen either way.')),
-    block('Budgets', field('When a request goes over its budget', budgetMode, 'Budgets are set on the Budgets tab.')),
+    block('Budgets and the float', field('When a request goes over its budget', budgetMode, 'Budgets are set on the Budgets tab.'),
+      field('Safety buffer on the recommended minimum', reserveBuf, 'Percent added on top of what is usually spent for the rest of the month. The approver is cautioned when an approval would leave the float below that minimum.')),
     block('Counting and reports', h('div', { class: 'row' }, field('Weekly count reminder', countDay, 'The stock manager gets a nudge to do a quick count.'), field('People in the office', headcount, 'Used for cost per head in reports.'))),
     block('Email', h('div', { class: 'row' }, field('Send emails from', emailFrom, 'Must be an address on a domain verified with the email provider; blank uses the test sender.'), field('Link to the app', appUrl, 'Used in emails so people can open the thing that needs them.'))),
     h('div', { class: 'form-actions' }, b));

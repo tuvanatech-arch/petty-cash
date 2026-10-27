@@ -14,6 +14,36 @@ export function floatStrip(f) {
     cell(f.status === 'open' ? 'Balance in the box' : 'Closing balance', f.balance, `hero${Number(f.balance) < 0 ? ' neg' : ''}`));
 }
 
+/** Petty-cash outlook: what the float holds, what is already committed, and the minimum it should hold at this point in the month. */
+export function outlookBox(o, { request = null } = {}) {
+  if (!o) return null;
+  const row = (k, v, cls = '', title = '') => h('tr', { class: cls, title }, h('td', {}, k), h('td', { class: 'num' }, v));
+  const neg = (v) => (Number(v) > 0 ? `−${money(v)}` : money(0));
+  const tone = { ok: 'green', caution: 'amber', short: 'red', overdrawn: 'red', no_float: 'amber' }[o.status] || 'grey';
+  const after = Number(o.after_approval), expected = Number(o.expected_remaining), reserve = Number(o.reserve);
+  const verdict = {
+    no_float: ['No float is open', 'Finance cannot pay anything out until this month\'s float is opened, so approving now only queues it.'],
+    overdrawn: ['The float cannot cover this', `After what is already committed there is ${money(Math.max(after + Number(o.this_request), 0))} available${request ? `, and this request needs ${money(o.this_request)}` : ''}. Finance would need a top-up first.`],
+    short: ['Not enough left for the rest of the month', `This leaves ${money(after)}, but about ${money(expected)} is usually still spent before month-end – a shortfall of roughly ${money(expected - after)} unless the float is topped up.`],
+    caution: ['Tight', `This leaves ${money(after)}, below the recommended minimum of ${money(reserve)} for day ${o.days_in_month - o.days_left} of ${o.days_in_month}. It should just cover a normal rest of month, with no room for surprises.`],
+    ok: ['Comfortable', `This leaves ${money(after)} – ${money(after - reserve)} above the recommended minimum of ${money(reserve)} for this point in the month.`],
+  }[o.status] || ['', ''];
+  return h('div', { class: 'sheet', style: { borderColor: `var(--${tone === 'grey' ? 'rule' : tone})` } },
+    h('div', { class: 'sheet-head' }, h('h2', {}, request ? 'Impact on petty cash' : 'Petty cash outlook'), h('span', { class: 'sub' }, o.has_float ? `${o.days_left} day${o.days_left === 1 ? '' : 's'} left in the month` : 'no open float')),
+    h('div', { class: 'grid-2' },
+      h('table', { class: 'ledger', style: { fontSize: '.93rem' } }, h('tbody', {},
+        row('In the box now', money(o.balance), '', 'Funds received less what has been spent and what is out with people'),
+        Number(o.outstanding) > 0 ? row(h('span', { class: 'muted' }, 'of which out with people, unaccounted'), h('span', { class: 'muted' }, money(o.outstanding))) : null,
+        Number(o.awaiting) > 0 ? row('Approved, waiting for pay-out', neg(o.awaiting)) : null,
+        request ? row('This request', neg(o.this_request)) : null,
+        h('tr', { style: { fontWeight: 600 } }, h('td', {}, request ? 'Left if you approve' : 'Left after commitments'), h('td', { class: 'num', style: { color: after < 0 ? 'var(--red)' : '' } }, money(after))),
+        Number(o.pending_other) > 0 ? row(h('span', { class: 'muted' }, `${request ? 'Other requests' : 'Requests'} still awaiting your decision`), h('span', { class: 'muted' }, `${neg(o.pending_other)} → ${money(o.after_all_pending)}`)) : null)),
+      h('div', {},
+        h('div', { class: 'stat' }, h('span', { class: 'k' }, 'Recommended minimum today'), h('span', { class: 'v' }, money(reserve))),
+        h('p', { class: 'hint' }, `About ${money(expected)} is usually spent between now and month-end (${o.basis}${o.typical_month != null ? `, typically ${money(o.typical_month)} a month` : ''}), plus a ${o.buffer_pct}% buffer.`))),
+    h('div', { class: `banner banner-${tone}`, style: { marginTop: '12px', marginBottom: 0 } }, h('strong', {}, verdict[0]), verdict[1]));
+}
+
 export async function cashPage() {
   const floats = unwrap(await sb.from('v_floats').select('*').order('period', { ascending: false }));
   const open = floats.find((f) => f.status === 'open');

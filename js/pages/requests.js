@@ -1,5 +1,6 @@
 import { sb, state, can, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt } from '../api.js';
 import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today } from '../ui.js';
+import { outlookBox } from './cash.js';
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -427,17 +428,22 @@ function stockReviewPanel(q, lines, reload) {
 }
 
 /* ---- approver ---- */
-function approvalPanel(q, reload) {
-  const note = h('textarea', { class: 'input', placeholder: 'Note (optional)' });
-  const ok = h('button', { class: 'btn btn-purple' }, `Approve ${money(q.estimated_total)}`);
+async function approvalPanel(q, reload) {
+  const { data: outlook } = await sb.rpc('float_outlook', { p_request: q.id });
+  const tight = outlook && ['short', 'overdrawn'].includes(outlook.status);
+  const note = h('textarea', { class: 'input', placeholder: tight ? 'Say why you are approving despite the warning (optional)' : 'Note (optional)' });
+  const ok = h('button', { class: 'btn btn-purple' }, `${tight ? 'Approve anyway' : 'Approve'} ${money(q.estimated_total)}`);
   ok.onclick = busy(ok, async () => { await rpc('approve_request', { p_request: q.id, p_note: note.value }); toast('Approved – finance can pay out.'); reload(); });
   const rej = h('button', { class: 'btn btn-danger' }, 'Reject');
   rej.onclick = busy(rej, async () => { const n = await confirmDialog('Reject this request?', 'The requester will see your reason.', { ok: 'Reject', danger: true, note: { label: 'Reason', required: true } }); if (!n) return; await rpc('reject_request', { p_request: q.id, p_reason: n }); toast('Rejected.'); reload(); });
-  return h('div', { class: 'sheet', style: { borderColor: 'var(--purple)' } },
-    h('div', { class: 'sheet-head' }, h('h2', { class: 'threshold' }, 'Your approval is needed'), h('span', { class: 'sub' }, Number(q.estimated_total) > thr() ? `${money(q.estimated_total)} is above the ${money(thr())} threshold` : 'Sent to you because it goes over a budget')),
-    q.over_budget && q.budget_note ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'Over budget'), q.budget_note) : null,
-    q.stock_note ? h('p', { class: 'hint' }, `Stock manager: ${q.stock_note}`) : null,
-    h('div', { class: 'field' }, note), h('div', { class: 'form-actions' }, rej, ok));
+  return h('div', {},
+    h('div', { class: 'sheet', style: { borderColor: 'var(--purple)' } },
+      h('div', { class: 'sheet-head' }, h('h2', { class: 'threshold' }, 'Your approval is needed'), h('span', { class: 'sub' }, Number(q.estimated_total) > thr() ? `${money(q.estimated_total)} is above the ${money(thr())} threshold` : 'Sent to you because it goes over a budget')),
+      q.over_budget && q.budget_note ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'Over budget'), q.budget_note) : null,
+      q.stock_note ? h('p', { class: 'hint' }, `Stock manager: ${q.stock_note}`) : null,
+      q.for_store ? h('p', { class: 'hint' }, 'Restock order from the stock manager. Once approved it goes straight to finance to pay out.') : null,
+      h('div', { class: 'field' }, note), h('div', { class: 'form-actions' }, rej, ok)),
+    outlookBox(outlook, { request: q }));
 }
 
 /* ---- finance: pay out ---- */

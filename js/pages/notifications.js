@@ -2,7 +2,7 @@ import { sb, state, unwrap, rpc, refreshUnread } from '../api.js';
 import { h, mount, fmtDate, emptyState, toast, busy } from '../ui.js';
 
 const ICON = { approval: '✓', payout: 'N$', proof: '🧾', stock_review: '📦', cash_ready: 'N$', closed: '✓', rejected: '✕', returned: '↩', physical: '📄',
-  advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'N$', approved: '✓', in_progress: '…', cancelled: '✕' };
+  advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'N$', approved: '✓', in_progress: '…', cancelled: '✕', stock_report: '📦', stock_report_resolved: '✓', claim: 'N$' };
 
 export async function notificationsPage() {
   const rows = unwrap(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100));
