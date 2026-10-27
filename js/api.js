@@ -1,7 +1,9 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm';
 import { SUPABASE_URL, SUPABASE_KEY, FUNCTIONS_URL, VAPID_PUBLIC_KEY } from './config.js';
 
-export const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+// No cross-tab lock around auth: on iPhone home-screen apps the system lock can be left held after a suspend and
+// getSession() then waits forever. This app is one person on one device at a time, so the lock buys nothing.
+export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { lock: async (_name, _timeout, fn) => fn(), persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
 
 export const state = {
   session: null,

@@ -17,7 +17,15 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="app"><div class="auth"><div class="loading">Loading…</div></div></div>
+  <div id="app"><div class="auth"><div class="loading" id="boot">Loading…</div></div></div>
+  <script>
+    // if the app itself has not drawn within 12 s (file blocked, script error), offer a way out instead of a dead screen
+    setTimeout(function () {
+      var b = document.getElementById('boot'); if (!b || !b.isConnected) return;
+      b.innerHTML = 'Still loading… <br><br><button onclick="location.reload(true)" style="font:inherit;padding:10px 16px;border-radius:6px;border:1px solid #888;background:transparent;color:inherit">Reload</button>'
+        + '<p style="font-size:.85rem;opacity:.7;margin-top:14px">If this keeps happening, open the link in your browser once, then try the app icon again.</p>';
+    }, 12000);
+  </script>
   <div id="toast-root"></div>
   <div id="modal-root"></div>
   <div id="tip" class="tip"></div>

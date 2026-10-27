@@ -16,7 +16,8 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return; // API, storage and CDN calls go straight through
   // network first, always revalidated with the server ('no-cache'): the browser can never mix an old module with a new one
   // after a deploy; the shell cache is only the fallback when offline
-  const fresh = new Request(e.request, { cache: 'no-cache' });
+  // a navigation request cannot be re-built with options (the browser throws); files can
+  const fresh = e.request.mode === 'navigate' ? e.request : new Request(e.request, { cache: 'no-cache' });
   e.respondWith(fetch(fresh).then((res) => { if (res.ok) caches.open(CACHE).then((c) => c.put(e.request, res.clone())); return res; })
     .catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html'))));
 });

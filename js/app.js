@@ -170,8 +170,15 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 }
 
 (async () => {
+  // never sit on "Loading…": if the account check has not answered in 8 s, show the app anyway and keep trying
+  let settled = false;
+  const watchdog = new Promise((r) => setTimeout(() => r('timeout'), 8000));
   try {
-    await loadSessionContext();
+    const result = await Promise.race([loadSessionContext().then(() => { settled = true; return 'ok'; }), watchdog]);
+    if (result === 'timeout') {
+      toast('Taking longer than usual to connect…', { ms: 6000 });
+      loadSessionContext().then(() => { settled = true; render(); }).catch(() => {});
+    }
   } catch (e) {
     console.error(e);
     toast('Could not reach the server. Check your connection and reload.', { error: true, ms: 8000 });
