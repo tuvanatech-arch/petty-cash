@@ -35,6 +35,7 @@ const actions = [
   { role: 'approver', page: '/admin', name: 'add person', click: 'button:has-text("Add person")' },
   { role: 'approver', page: '/admin', name: 'invite', click: 'button:has-text("Invite")' },
   { role: 'approver', page: '/admin', name: 'devices dialog', click: 'button.dev-count' },
+  { role: 'requester', page: '/requests/new/cash', name: 'store item routed', script: async () => { const i = document.querySelector('input[placeholder^="e.g. Taxi"]'); i.value = '2 reams printer paper'; i.dispatchEvent(new Event('input')); await new Promise((r) => setTimeout(r, 450)); } },
   { role: 'approver', page: '/account', name: 'device sign-out armed', click: '.devices li:not(.this-device) button' },
   { role: 'approver', page: '/account', name: 'sign-in activity', click: '#devices summary' },
   { role: 'finance', page: '/cash', name: 'details open', click: 'summary' },

@@ -93,6 +93,7 @@ export async function newRequestPage(editId, presetType) {
   const stockAllowed = can('manage_stock');   // the team asks for stock by reporting it; only the stock manager raises stock purchases
   let type = existing?.type || (presetType === 'claim' ? 'claim' : presetType === 'cash' || !stockAllowed ? 'cash' : 'stock');
   const forStore = existing?.for_store || false;
+  let notStock = !!existing?.not_stock;   // the requester said a cash request that names a store item is not from the store
   if (!lines.length) lines = [blankLine()];
   function blankLine() { return { item_id: '', description: '', qty: 1, est_unit_price: 0 }; }
   const placeholders = { stock: 'e.g. Printer paper for reception', cash: 'e.g. Taxi to the bank', claim: 'e.g. Milk and sugar I paid for on Friday' };
@@ -120,7 +121,7 @@ export async function newRequestPage(editId, presetType) {
   const typeBtns = h('div', { class: 'tabs' });
   function drawType() {
     mount(typeBtns, [stockAllowed ? ['stock', 'Stock item'] : null, ['cash', 'Cash for an expense'], ['claim', 'I already paid – claim back']].filter(Boolean).map(([k, l]) =>
-      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); } }, l)));
+      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); } }, l)));
     category.closest('.field').style.display = type === 'stock' ? 'none' : '';
     needed.closest('.field').style.display = type === 'claim' ? 'none' : '';
     for (const el of [spentAt, supplier, notes]) el.closest('.field').style.display = type === 'claim' ? '' : 'none';
@@ -152,7 +153,7 @@ export async function newRequestPage(editId, presetType) {
           } });
         mount(hint, priceHint(prices, ln.item_id));
       } else {
-        first = h('input', { class: 'input', placeholder: type === 'claim' ? 'What you bought' : 'What is it for?', value: ln.description, oninput: (e) => { ln.description = e.target.value; } });
+        first = h('input', { class: 'input', placeholder: type === 'claim' ? 'What you bought' : 'What is it for?', value: ln.description, oninput: (e) => { ln.description = e.target.value; checkStore(); } });
       }
       return h('tr', {}, h('td', {}, first, hint), h('td', { class: 'num', style: { width: '90px' } }, qtyIn), h('td', { class: 'num', style: { width: '120px' } }, priceIn),
         h('td', { class: 'num', style: { width: '40px' } }, h('button', { type: 'button', class: 'btn btn-quiet btn-sm', title: 'Remove line', onclick: () => { lines.splice(i, 1); if (!lines.length) lines.push(blankLine()); drawLines(); } }, '✕')));
@@ -191,7 +192,7 @@ export async function newRequestPage(editId, presetType) {
       id = r.id;
       if (!existing) { existing = r; expense = (await sb.from('expenses').select('*, proofs:expense_proofs(*)').eq('request_id', id).maybeSingle()).data; }
     } else {
-      const head = { type, purpose: purpose.value.trim(), needed_by: needed.value || null, category_id: type === 'cash' ? (category.value || null) : null };
+      const head = { type, purpose: purpose.value.trim(), needed_by: needed.value || null, category_id: type === 'cash' ? (category.value || null) : null, not_stock: type === 'cash' && notStock };
       if (id) unwrap(await sb.from('requests').update(head).eq('id', id));
       else { const row = unwrap(await sb.from('requests').insert({ ...head, requester_id: state.me.id, for_store: forStore }).select().single()); id = row.id; existing = row; }
     }
@@ -250,25 +251,96 @@ export async function newRequestPage(editId, presetType) {
   saveBtn.onclick = busy(saveBtn, () => save(false));
   submitBtn.onclick = busy(submitBtn, () => save(true));
 
+  // A cash request for something the store keeps goes to the stock manager instead of finance.
+  const keeper = state.people.find((p) => p.active && p.role === 'stock_manager');
+  const keeperName = keeper ? (keeper.full_name || 'the stock manager').split(' ')[0] : 'the stock manager';
+  const storeBox = h('div', {});
+  let storeKey = null, pickId = null, pickQty = null, storeTimer = null, cashPart = null;
+  const routes = () => type === 'cash' && !forStore && state.me.role !== 'stock_manager';
+  const askText = () => [purpose.value, ...lines.map((l) => l.description)].join(' ');
+  function checkStore() { clearTimeout(storeTimer); storeTimer = setTimeout(drawStore, 250); }
+  function drawStore() {
+    const found = routes() ? storeMatches(askText(), items) : [];
+    const route = found.length && !notStock;
+    saveBtn.style.display = submitBtn.style.display = route ? 'none' : '';
+    if (cashPart) cashPart.style.display = route ? 'none' : '';   // amount, category and lines do not apply to a store item
+    if (!route) {
+      storeKey = null;
+      mount(storeBox, found.length && notStock ? h('p', { class: 'hint', style: { marginTop: '-6px' } }, `Sent as a cash request – ${keeperName} is told it is not from the store. `,
+        h('a', { href: '#', onclick: (e) => { e.preventDefault(); notStock = false; drawStore(); } }, 'Undo')) : null);
+      return;
+    }
+    const key = found.map((i) => i.id).join(',');
+    if (key === storeKey) return;   // same suggestion: leave what the person picked alone
+    storeKey = key;
+    if (!found.some((i) => i.id === pickId)) pickId = found[0].id;
+    if (pickQty == null) { const m = askText().match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(?:x\b|×)?/i); pickQty = m ? num(m[1].replace(',', '.')) : (lines.find((l) => l.description && num(l.qty) > 0) ? num(lines.find((l) => l.description).qty) : 1); }
+    const label = (i) => `${i.name} · ${qty(i.qty_on_hand)} in store`;
+    const sel = select([...found.map((i) => [i.id, label(i)]), ...items.filter((i) => !found.includes(i)).map((i) => [i.id, label(i)])], pickId, { onchange: (e) => { pickId = e.target.value; } });
+    const qIn = h('input', { class: 'input num', type: 'number', min: '0.01', step: 'any', inputmode: 'decimal', value: pickQty || 1, oninput: (e) => { pickQty = num(e.target.value); } });
+    const send = h('button', { type: 'button', class: 'btn btn-primary' }, `Send to ${keeperName}`);
+    send.onclick = busy(send, async () => {
+      if (num(qIn.value) <= 0) throw new Error('Enter how many you need.');
+      await rpc('ask_for_stock', { p_item: sel.value, p_qty: num(qIn.value), p_level: 'out', p_note: purpose.value.trim() || null });
+      if (existing?.id) await sb.from('requests').delete().eq('id', existing.id);   // the draft became an ask
+      toast(`Sent to ${keeperName}. You get an alert when it is sorted.`, { ms: 5000 });
+      location.hash = '#/stock/reports';
+    });
+    const notBtn = h('button', { type: 'button', class: 'btn btn-quiet' }, 'It isn’t from the store');
+    notBtn.onclick = () => { notStock = true; drawStore(); };
+    mount(storeBox, h('div', { class: 'banner banner-green store-route' },
+      h('strong', {}, 'This is kept in the store'),
+      `Store items go to ${keeperName}, not finance – ${keeperName} hands it over or buys more.`,
+      h('div', { class: 'row', style: { marginTop: '10px' } }, field('Item', sel), field('How many', qIn)),
+      h('div', { class: 'form-actions', style: { justifyContent: 'flex-start', marginTop: '4px' } }, send, notBtn)));
+  }
+  purpose.addEventListener('input', checkStore);
+
   const page = h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, existing ? `Edit draft #${existing.request_no}` : forStore ? 'Restock order' : type === 'claim' ? 'Claim back' : 'New request'), intro)),
     expense?.proof_status === 'returned' && expense.finance_note ? h('div', { class: 'banner banner-red' }, h('strong', {}, 'Finance returned this claim'), expense.finance_note) : null,
     h('div', { class: 'sheet' },
       typeBtns,
       field('What is it for?', purpose),
-      h('div', { class: 'row' }, field('Needed by', needed, 'Optional'), field('Category', category), field('Date you paid', spentAt), field('Shop / supplier', supplier)),
-      field('Notes for finance', notes),
-      amountBox,
-      h('div', { class: 'field' }, h('span', { class: 'label' }, 'Lines'), linesBox, budgetBox,
-        h('span', { class: 'hint' }, type === 'stock' ? 'The stock manager may issue part of this from the store instead of buying.' : type === 'claim' ? 'Enter exactly what the receipt says.' : 'Estimates are fine – the real amounts go on the receipt afterwards.')),
-      receiptBox,
+      storeBox,
+      cashPart = h('div', {},
+        h('div', { class: 'row' }, field('Needed by', needed, 'Optional'), field('Category', category), field('Date you paid', spentAt), field('Shop / supplier', supplier)),
+        field('Notes for finance', notes),
+        amountBox,
+        h('div', { class: 'field' }, h('span', { class: 'label' }, 'Lines'), linesBox, budgetBox,
+          h('span', { class: 'hint' }, type === 'stock' ? 'The stock manager may issue part of this from the store instead of buying.' : type === 'claim' ? 'Enter exactly what the receipt says.' : 'Estimates are fine – the real amounts go on the receipt afterwards.')),
+        receiptBox),
       err,
       h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-quiet', href: existing ? `#/requests/${existing.id}` : '#/requests' }, 'Cancel'), saveBtn, submitBtn)));
   mount(amountBox, h('div', { class: 'row' }, field('Amount', amountIn, 'The amount of cash you need.')),
     h('p', { class: 'hint', style: { marginTop: '-6px' } }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); simpleCash = false; if (num(amountIn.value) > 0 && lines.every((l) => !l.description.trim())) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }]; drawType(); drawLines(); } }, 'Several things? Add them as separate lines')));
   category.closest('.field').append(guessed);
-  drawType(); drawLines(); await drawReceipts();
+  drawType(); drawLines(); drawStore(); await drawReceipts();
   return page;
+}
+
+/**
+ * Store items named in a cash request: catalogue items whose name words appear in the text (best match first).
+ * Sizes, codes and pack words are ignored ("A4 paper (ream)" is matched by "paper"); a request that is clearly an
+ * outing or a service (client lunch, repair, taxi…) is left alone.
+ */
+const NOT_STORE = /\b(client|clients|meeting|restaurant|lunch|dinner|hotel|repair\w*|fix\w*|service|taxi|uber|fuel|petrol|courier|delivery|gift|birthday|farewell|catering|function)\b/i;
+// packaging, sizes and describing words say nothing about what the thing is ("Dishwashing liquid" is about dishwashing)
+const PACK_WORDS = new Set(['each', 'pack', 'packet', 'box', 'bag', 'roll', 'ream', 'tin', 'bottle', 'litre', 'liter', 'the', 'and', 'for', 'with', 'pcs', 'set', 'unit', 'carton', 'case',
+  'liquid', 'powder', 'spray', 'refill', 'small', 'large', 'medium', 'big', 'mini', 'white', 'black', 'blue', 'red', 'green', 'plain', 'assorted', 'heavy', 'duty', 'office', 'sheet', 'ply']);
+const stem = (w) => (w.length > 4 && w.endsWith('es') ? w.slice(0, -2) : w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w);
+const wordsOf = (t) => String(t || '').toLowerCase().replace(/\([^)]*\)/g, ' ').split(/[^a-z0-9]+/).filter(Boolean);
+export function storeMatches(text, items) {
+  if (!text || !text.trim() || !items?.length || NOT_STORE.test(text)) return [];
+  const have = new Set(wordsOf(text).map(stem));
+  const found = [];
+  for (const it of items) {
+    const toks = [...new Set(wordsOf(it.name).filter((w) => w.length >= 3 && !/\d/.test(w)).map(stem).filter((w) => !PACK_WORDS.has(w)))];
+    if (!toks.length) continue;
+    const hit = toks.filter((t) => have.has(t));
+    if (hit.length && hit.length / toks.length >= 0.5) found.push({ it, hits: hit.length, ratio: hit.length / toks.length });
+  }
+  return found.sort((a, b) => b.hits - a.hits || b.ratio - a.ratio).map((x) => x.it);
 }
 
 /** Guess a category from the purpose text: category names, a few Namibian-office synonyms, and the person's own past requests. */

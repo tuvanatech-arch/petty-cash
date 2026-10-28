@@ -168,11 +168,13 @@ async function reportsTab(manage) {
   function draw() {
     mount(list, groups.length ? h('ul', { class: 'ledger-list' }, groups.map((g) => {
       const out = g.reports.some((r) => r.level === 'out');
+      // asked for through a cash request: a quantity, for something the store has
+      const needed = g.reports.some((r) => r.qty) && Number(g.item?.qty_on_hand) > 0;
       const cb = manage ? h('label', { class: 'tap' }, h('input', { type: 'checkbox', checked: g.reports.every((r) => chosen.has(r.id)), onchange: (e) => { for (const r of g.reports) e.target.checked ? chosen.add(r.id) : chosen.delete(r.id); drawToolbar(); } })) : null;
       const onOrder = g.reports.find((r) => r.request_id);
       return h('li', { style: { alignItems: 'flex-start' } }, cb,
-        h('div', { class: 'what' }, h('strong', {}, g.item?.name || 'Item', ' ', h('span', { class: `pill ${out ? 'pill-red' : 'pill-amber'}` }, out ? 'Out' : 'Running low'), onOrder ? h('a', { class: 'pill pill-blue', href: `#/requests/${onOrder.request_id}`, style: { marginLeft: '6px', textDecoration: 'none' } }, 'on a restock order') : null),
-          h('span', { style: { whiteSpace: 'normal' } }, `${g.item ? `${qty(g.item.qty_on_hand)} ${g.item.unit} on the books · ` : ''}${g.reports.map((r) => `${personName(r.reported_by)} ${fmtDate(r.created_at)}${r.note ? ` – “${r.note}”` : ''}`).join(' · ')}`)),
+        h('div', { class: 'what' }, h('strong', {}, g.item?.name || 'Item', ' ', h('span', { class: `pill ${needed ? 'pill-blue' : out ? 'pill-red' : 'pill-amber'}` }, needed ? 'Needed' : out ? 'Out' : 'Running low'), onOrder ? h('a', { class: 'pill pill-blue', href: `#/requests/${onOrder.request_id}`, style: { marginLeft: '6px', textDecoration: 'none' } }, 'on a restock order') : null),
+          h('span', { style: { whiteSpace: 'normal' } }, `${g.item ? `${qty(g.item.qty_on_hand)} ${g.item.unit} on the books · ` : ''}${g.reports.map((r) => `${personName(r.reported_by)}${r.qty ? ` needs ${qty(r.qty)}` : ''} ${fmtDate(r.created_at)}${r.note ? ` – “${r.note}”` : ''}`).join(' · ')}`)),
         manage ? h('span', { class: 'amt' }, g.reports.length > 1 ? `${g.reports.length} reports` : '') : null);
     })) : emptyState(manage ? 'Nothing reported' : 'No open reports', manage ? 'When someone on the team reports an item running low or out, it shows here.' : 'Use “Report low / out” when you notice something is finishing.'));
   }
@@ -181,7 +183,7 @@ async function reportsTab(manage) {
     manage ? onceHint('stock-reports', 'The team reports; you decide. Tick what to buy and add it to a restock order (approver, then finance), or mark it sorted if the store covers it. Receiving stock clears the report automatically.') : null,
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, manage ? 'Open reports' : 'Open'), h('span', { class: 'sub' }, open.length)), list, manage && groups.length ? toolbar : null),
     done.length ? h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Sorted recently')),
-      h('ul', { class: 'ledger-list' }, done.map((r) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, r.item?.name || 'Item'), h('span', {}, `${r.level === 'out' ? 'Out' : 'Low'} · reported by ${personName(r.reported_by)} ${fmtDate(r.created_at)} · ${r.resolution || 'sorted'} ${fmtDate(r.resolved_at)}${r.resolved_by ? ` by ${personName(r.resolved_by)}` : ''}`)))))) : null);
+      h('ul', { class: 'ledger-list' }, done.map((r) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, r.item?.name || 'Item'), h('span', {}, `${r.qty ? `Needed ${qty(r.qty)}` : r.level === 'out' ? 'Out' : 'Low'} · reported by ${personName(r.reported_by)} ${fmtDate(r.created_at)} · ${r.resolution || 'sorted'} ${fmtDate(r.resolved_at)}${r.resolved_by ? ` by ${personName(r.resolved_by)}` : ''}`)))))) : null);
 }
 
 /* ---------------- usage ---------------- */

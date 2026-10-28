@@ -7,6 +7,8 @@ node --import ./hook.mjs smoke.mjs > /dev/null
 for r in approver finance stock_manager requester; do ROLE=$r node smoke-demo.mjs > /dev/null; done
 node --import ./hook.mjs signin-test.mjs | tail -1
 node --import ./hook.mjs devices-test.mjs | tail -1
+node --import ./hook.mjs store-route-test.mjs | tail -1
+(cd .. && node test/store-route-ui.mjs | tail -1)
 echo "smoke: PASS"
 node device-audit.mjs | tail -9
 node resume-test.mjs | tail -1

@@ -72,7 +72,7 @@ export function createClient() {
           { session_id: SID, label: 'iPhone · installed app', user_agent: 'iPhone', place: 'Windhoek, Namibia', country: 'NA', approx: false, ip: '1.1.1.1', tz: 'Africa/Windhoek', standalone: true, signed_in_at: '2026-10-20T10:00:00Z', last_active: new Date().toISOString(), alerts: true, reported: true },
           { session_id: '5e550002-0000-4000-8000-000000000000', label: null, user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/155', place: null, country: null, approx: false, ip: '2.2.2.2', tz: null, standalone: null, signed_in_at: '2026-10-21T10:00:00Z', last_active: '2026-10-21T10:00:00Z', alerts: false, reported: false }],
         device_counts: [{ user_id: ME.id, devices: 2, last_active: new Date().toISOString(), places: 'Windhoek, Namibia' }, { user_id: OTHER.id, devices: 1, last_active: new Date().toISOString(), places: 'Luanda, Angola' }],
-        sign_out_devices: 1,
+        sign_out_devices: 1, ask_for_stock: { id: 'sr9' },
         mark_tip: {}, setup_status: { company: true, people: false, finance_named: null, stock_manager_named: null, items: 1, float: false, alerts: false },
         claims_summary: [{ person_id: OTHER.id, person_name: 'Fin Person', claims: 1, claimed: 80, all_spend: 400, share: 20 }],
         expense_checks: [{ request_id: REQ.id, status: 'matches', note: 'Receipt reads N$250.00 – matches what was recorded', reading_total: 250 }],
