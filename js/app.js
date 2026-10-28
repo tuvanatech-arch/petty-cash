@@ -139,6 +139,7 @@ export async function render() {
     if (token === renderToken) page.replaceWith(el);
   } catch (err) {
     console.error(err);
+    log('error', `Page ${path} failed: ${err.message}`, err.stack);
     if (token === renderToken) page.replaceWith(h('div', { class: 'banner banner-red' }, h('strong', {}, 'Could not load this page'), err.message));
   }
 }
