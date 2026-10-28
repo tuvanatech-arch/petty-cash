@@ -1,6 +1,6 @@
 // App shell cache: the pages open without signal; data always comes from the server when it can.
 const CACHE = 'pcs-shell-__BUILD__';
-const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png',
+const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './badge-96.png',
   './js/app.js', './js/api.js', './js/ui.js', './js/adapt.js', './js/diag.js', './js/share.js', './js/charts.js', './js/config.js', './js/pack.js',
   './js/pages/auth.js', './js/pages/home.js', './js/pages/requests.js', './js/pages/stock.js', './js/pages/cash.js',
   './js/pages/reports.js', './js/pages/admin.js', './js/pages/account.js', './js/pages/notifications.js', './js/pages/snap.js', './js/pages/install.js'];
@@ -39,13 +39,23 @@ self.addEventListener('fetch', (e) => {
     .catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html'))));
 });
 
-// ---- push: buzz the phone, open the right page on tap ----
+// ---- push: buzz the phone, show the count on the icon, open the right page on tap ----
 self.addEventListener('push', (e) => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch { d = { title: 'Petty cash', body: e.data ? e.data.text() : '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'Petty cash', {
-    body: d.body || '', icon: './icon-192.png', badge: './icon-192.png', tag: d.tag || 'petty-cash', renotify: true,
+  const shown = self.registration.showNotification(d.title || 'Petty cash', {
+    body: d.body || '', icon: './icon-192.png', badge: './badge-96.png',
+    tag: d.tag || ('n-' + (d.id || Date.now())), renotify: true,   // one alert per request: a newer one replaces it and buzzes again
+    vibrate: [200, 100, 200, 100, 320], silent: false,              // Android vibrates; iPhone uses its own sound/haptic settings
+    requireInteraction: !!d.urgent, timestamp: d.at ? Date.parse(d.at) : Date.now(),
     data: { link: d.link || '#/notifications', id: d.id || null },
-  }));
+  });
+  // the number on the home-screen icon (iPhone 16.4+, installed desktop apps; Android shows its own dot)
+  const nav = self.navigator;
+  const badge = typeof d.unread === 'number' && nav && 'setAppBadge' in nav
+    ? (d.unread > 0 ? nav.setAppBadge(d.unread) : nav.clearAppBadge()).catch(() => {}) : Promise.resolve();
+  // an open copy of the app updates its bell straight away
+  const tell = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => list.forEach((c) => c.postMessage({ type: 'push', unread: d.unread })));
+  e.waitUntil(Promise.all([shown, badge, tell]));
 });
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();

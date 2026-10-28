@@ -160,6 +160,8 @@ async function verifyPage() {
 }
 
 window.addEventListener('hashchange', render);
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'push' && state.me) refreshUnread().catch(() => {}); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.me) refreshUnread().catch(() => {}); });
 
 // Auth events. The callback fires while the auth client is busy, so the work is deferred and never waits on the client itself.
 // Note: supabase emits SIGNED_IN again every time the app comes back from the background – that is not a new sign-in,

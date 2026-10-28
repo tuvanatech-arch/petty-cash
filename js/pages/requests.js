@@ -1,4 +1,4 @@
-import { sb, state, can, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt } from '../api.js';
+import { sb, state, can, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, markAlertsRead } from '../api.js';
 import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint } from '../ui.js';
 import { outlookBox } from './cash.js';
 
@@ -305,6 +305,8 @@ export async function requestDetailPage(id) {
   ]);
   const check = checkRes;
   q.docs = docs;
+  // opening a request deals with its alerts: they no longer count on the bell or the icon
+  sb.from('notifications').select('id').eq('request_id', id).is('read_at', null).then(({ data }) => markAlertsRead((data || []).map((n) => n.id))).catch(() => {});
   if (expense?.lines) expense.lines = expense.lines.filter((l) => !l.void);
   const me = state.me.id;
   const isRequester = q.requester_id === me;

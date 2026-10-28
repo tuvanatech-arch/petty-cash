@@ -1,5 +1,5 @@
-import { sb, state, unwrap, rpc, refreshUnread } from '../api.js';
-import { h, mount, fmtDate, emptyState, toast, busy } from '../ui.js';
+import { sb, state, unwrap, rpc, refreshUnread, markAlertsRead } from '../api.js';
+import { h, mount, fmtDate, emptyState } from '../ui.js';
 
 const ICON = { approval: '✓', payout: 'N$', document: '📎', payout_undone: '↩', proof: '🧾', stock_review: '📦', cash_ready: 'N$', closed: '✓', rejected: '✕', returned: '↩', physical: '📄',
   advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'N$', approved: '✓', in_progress: '…', cancelled: '✕', stock_report: '📦', stock_report_resolved: '✓', claim: 'N$', float_warning: '⚠', pack_review: '📑', pack_sent: '📤', month_close: '📅', message: '💬', stale: '⏳', stale_escalation: '⏳', weekly_digest: '📈' };
@@ -8,8 +8,6 @@ export async function notificationsPage() {
   const rows = unwrap(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100));
   const unread = rows.filter((r) => !r.read_at);
   const list = h('div', {});
-  const markAll = h('button', { class: 'btn' }, 'Mark all read');
-  markAll.onclick = busy(markAll, async () => { await rpc('mark_notifications_read'); rows.forEach((r) => { r.read_at = r.read_at || new Date().toISOString(); }); await refreshUnread(); draw(); });
 
   async function open(n) {
     if (!n.read_at) { n.read_at = new Date().toISOString(); rpc('mark_notifications_read', { p_ids: [n.id] }).then(refreshUnread).catch(() => {}); }
@@ -25,9 +23,11 @@ export async function notificationsPage() {
       : emptyState('Nothing yet', 'You will be told here when something needs you: an approval, cash ready to collect, a receipt to check.'));
   }
   draw();
+  // seen = read: the bell and the icon clear; this page still groups what was new until you leave it
+  if (unread.length) markAlertsRead().catch(() => {});
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Alerts'), h('p', {}, unread.length ? `${unread.length} new.` : 'You are up to date.')),
-      h('div', { class: 'page-actions' }, unread.length ? markAll : null)),
+      null),
     list,
     h('p', { class: 'hint' }, state.me.email_notifications ? 'These also go to your email. Change that under Account.' : 'Email copies are switched off. Change that under Account.'));
 }

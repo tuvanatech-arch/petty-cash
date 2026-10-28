@@ -76,7 +76,7 @@ export async function rpc(fn, args = {}) {
 export async function loadSessionContext() {
   const { data: { session } } = await sb.auth.getSession();
   state.session = session;
-  if (!session) { state.me = null; return null; }
+  if (!session) { state.me = null; syncAppBadge(0); return null; }
   const { data: me } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
   state.me = me;
   if (me && me.active) {
@@ -94,13 +94,30 @@ export async function loadSessionContext() {
     state.standingIn = deleg || [];
     state.unread = count || 0;
   }
+  syncAppBadge(me && me.active ? state.unread : 0);
   return me;
+}
+
+/** The number on the home-screen icon = unread alerts (iPhone 16.4+ and installed desktop apps; elsewhere a no-op). */
+export function syncAppBadge(n = state.unread) {
+  try {
+    if (!('setAppBadge' in navigator)) return;
+    (n > 0 ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+  } catch { /* not supported */ }
+}
+
+/** Mark alerts read (all of them, or just these) and bring the bell and the icon up to date. */
+export async function markAlertsRead(ids = null) {
+  if (ids && !ids.length) return state.unread;
+  await rpc('mark_notifications_read', ids ? { p_ids: ids } : {});
+  return refreshUnread();
 }
 
 export async function refreshUnread() {
   const { count } = await sb.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null);
   state.unread = count || 0;
   document.querySelectorAll('[data-unread]').forEach((el) => { el.textContent = state.unread; el.style.display = state.unread ? '' : 'none'; });
+  syncAppBadge();
   return state.unread;
 }
 
