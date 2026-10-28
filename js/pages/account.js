@@ -1,7 +1,8 @@
-import { sb, state, unwrap, ROLE_LABEL, cleanError, personName, pushStatus, enablePush, disablePush, testPush } from '../api.js';
+import { sb, state, unwrap, ROLE_LABEL, cleanError, personName, pushStatus, enablePush, disablePush, testPush, signOutHere } from '../api.js';
 import { h, mount, toast, busy, field, fmtDate, today, confirmDialog, refresh, more } from '../ui.js';
 import { standinDialog, endDelegation } from './admin.js';
 import { BUILD, log } from '../diag.js';
+import { devicesBlock } from '../devices.js';
 
 export async function accountPage() {
   const me = state.me;
@@ -27,7 +28,7 @@ export async function accountPage() {
     if (recovery) location.hash = '#/home';
   });
   const out = h('button', { class: 'btn btn-quiet btn-danger' }, 'Sign out');
-  out.onclick = busy(out, async () => { await sb.auth.signOut(); });
+  out.onclick = busy(out, async () => { await signOutHere(); });
 
   // email copies of alerts
   const emailToggle = h('input', { type: 'checkbox', checked: me.email_notifications !== false });
@@ -73,6 +74,12 @@ export async function accountPage() {
 
   const passForm = h('form', {}, field('New password', p1), field('Repeat it', p2), err, h('div', { class: 'form-actions' }, savePass));
 
+  // every device signed in to this account, with sign-out
+  const devCount = h('span', { class: 'sub' });
+  const devicesSheet = h('div', { class: 'sheet', id: 'devices' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Devices'), devCount),
+    devicesBlock(null, { onCount: (n) => { devCount.textContent = `${n} signed in`; } }));
+  if (/devices=1/.test(location.hash)) setTimeout(() => devicesSheet.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+
   // the app itself: which build this phone runs, a reload, and a way to tell the admin what went wrong
   const note = h('textarea', { class: 'input', rows: 2, placeholder: 'What happened? e.g. “Home page stuck after I opened it”' });
   const send = h('button', { class: 'btn btn-sm' }, 'Send to the admin');
@@ -86,6 +93,7 @@ export async function accountPage() {
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Alerts')),
       pushBox,
       h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me (bundled – one message, not ten)')),
+    devicesSheet,
     standinSheet,
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'You')),
       h('form', {}, field('Your name, as shown on requests', name), h('div', { class: 'form-actions' }, saveName)),

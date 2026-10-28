@@ -1,4 +1,4 @@
-import { sb, state, loadSessionContext, refreshUnread, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength } from './api.js';
+import { sb, state, loadSessionContext, refreshUnread, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength, checkIn, signOutHere, whenSignedOutElsewhere } from './api.js';
 import { h, mount, toast, fmtDate } from './ui.js';
 import { authPage } from './pages/auth.js';
 import { homePage } from './pages/home.js';
@@ -90,7 +90,7 @@ export async function render() {
   if (!me.active) {
     mount(app, h('div', { class: 'auth' }, h('div', { class: 'card' }, h('h1', {}, 'Account deactivated'),
       h('p', { class: 'lead' }, 'Your account has been deactivated. Ask the administrator if you think this is a mistake.'),
-      h('button', { class: 'btn btn-block', onclick: () => sb.auth.signOut() }, 'Sign out'))));
+      h('button', { class: 'btn btn-block', onclick: () => signOutHere() }, 'Sign out'))));
     return;
   }
   const [path] = hash.split('?');
@@ -162,7 +162,18 @@ async function verifyPage() {
 
 window.addEventListener('hashchange', render);
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'push' && state.me) refreshUnread().catch(() => {}); });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.me) refreshUnread().catch(() => {}); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.me) { refreshUnread().catch(() => {}); checkIn().catch(() => {}); } });
+
+// signed out from another device (or by the administrator): sign out here too and say why on the sign-in screen
+let signingOutElsewhere = false;
+whenSignedOutElsewhere(async () => {
+  if (signingOutElsewhere) return;
+  signingOutElsewhere = true;
+  try { sessionStorage.setItem('pcs_out', 'elsewhere'); } catch {}
+  log('info', 'Signed out from another device');
+  try { await sb.auth.signOut({ scope: 'local' }); } catch { /* already gone on the server */ }
+  setTimeout(() => { signingOutElsewhere = false; }, 5000);
+});
 
 // Auth events. The callback fires while the auth client is busy, so the work is deferred and never waits on the client itself.
 // Note: supabase emits SIGNED_IN again every time the app comes back from the background – that is not a new sign-in,
@@ -182,6 +193,8 @@ sb.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user?.id && session.user.id === state.me?.id) { state.session = session; refreshUnread().catch(() => {}); return; }
       if (booting && event !== 'SIGNED_OUT') return; // the boot below loads everything once
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        // a sign-out nobody pressed here: the sign-in was ended from another device, by the administrator, or expired
+        if (event === 'SIGNED_OUT' && state.me) { try { if (!sessionStorage.getItem('pcs_out')) sessionStorage.setItem('pcs_out', 'elsewhere'); } catch {} }
         await loadSessionContext();
         if (event === 'SIGNED_OUT') location.hash = '#/home';
         render();

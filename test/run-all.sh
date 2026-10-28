@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Every check in one go: page smoke tests (web + preview, every role) and the device audit (overflow, touch targets, text size).
+set -e
+cd "$(dirname "$0")"
+../demo/sync.sh > /dev/null
+node --import ./hook.mjs smoke.mjs > /dev/null
+for r in approver finance stock_manager requester; do ROLE=$r node smoke-demo.mjs > /dev/null; done
+node --import ./hook.mjs signin-test.mjs | tail -1
+node --import ./hook.mjs devices-test.mjs | tail -1
+echo "smoke: PASS"
+node device-audit.mjs | tail -9
+node resume-test.mjs | tail -1
+node push-test.mjs | tail -1

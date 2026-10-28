@@ -1,4 +1,5 @@
-import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, ROLE_LABEL, personName } from '../api.js';
+import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, rpc, ROLE_LABEL, personName } from '../api.js';
+import { devicesDialog } from '../devices.js';
 import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, today, isoDate, emptyState } from '../ui.js';
 
 export async function adminPage(tab = 'users') {
@@ -14,8 +15,17 @@ export async function adminPage(tab = 'users') {
 
 /* =============================================================== people */
 async function usersTab() {
-  await refreshPeople();
+  const [, counts] = await Promise.all([refreshPeople(), rpc('device_counts').catch(() => [])]);
   const people = state.people;
+  const devs = Object.fromEntries((counts || []).map((c) => [c.user_id, c]));
+  const devCell = (p) => {
+    const c = devs[p.id];
+    if (!c) return h('span', { class: 'muted dev-count' }, p.active ? 'Not signed in' : '—');
+    return h('button', { class: 'btn btn-sm btn-quiet dev-count', title: c.places || '', onclick: () => devicesDialog(p) }, `${c.devices} device${c.devices === 1 ? '' : 's'}`);
+  };
+  // an alert about someone's account links straight to their devices
+  const want = new URLSearchParams(location.hash.split('?')[1] || '').get('devices');
+  if (want) setTimeout(() => { const p = people.find((x) => x.id === want); if (p) devicesDialog(p); }, 50);
   const roleHelp = {
     requester: 'Raises requests and claims; records what they spent.',
     stock_manager: 'Reviews stock requests, keeps the store, raises the monthly restock.',
@@ -25,10 +35,10 @@ async function usersTab() {
   return h('div', {},
     h('div', { class: 'sheet' },
       h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), h('th'))),
+        h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), h('th', {}, 'Devices'), h('th'))),
         h('tbody', {}, people.map((p) => h('tr', { class: p.active ? '' : 'inactive' },
           h('td', {}, h('strong', {}, p.full_name || '—'), !p.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null, p.id === state.me.id ? h('span', { class: 'muted' }, ' (you)') : null),
-          h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]),
+          h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]), h('td', {}, devCell(p)),
           h('td', { class: 'num', style: { whiteSpace: 'nowrap' } },
             h('button', { class: 'btn btn-sm btn-quiet', onclick: () => userDialog(p) }, 'Edit'), ' ',
             p.active ? h('button', { class: 'btn btn-sm btn-quiet', onclick: () => inviteDialog(p) }, 'Invite') : null, ' ',

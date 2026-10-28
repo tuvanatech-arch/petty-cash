@@ -7,7 +7,11 @@ const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark' 
 export async function authPage() {
   let needsBootstrap = false;
   try { ({ needs_bootstrap: needsBootstrap } = await adminUsers({ action: 'status' })); } catch { /* show login anyway */ }
-  return h('div', { class: 'auth' }, h('div', { class: 'card' }, brand(), needsBootstrap ? bootstrapForm() : loginForm()));
+  let why = null;
+  try { why = sessionStorage.getItem('pcs_out'); sessionStorage.removeItem('pcs_out'); } catch {}
+  const note = why === 'elsewhere' ? h('div', { class: 'banner banner-amber', style: { marginBottom: '14px' } }, h('strong', {}, 'You were signed out on this device'),
+    'It was signed out from another device or by the administrator. Sign in again if that was meant – if it was not you, change your password after signing in.') : null;
+  return h('div', { class: 'auth' }, h('div', { class: 'card' }, brand(), note, needsBootstrap ? bootstrapForm() : loginForm()));
 }
 
 function loginForm() {

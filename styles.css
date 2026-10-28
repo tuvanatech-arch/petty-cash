@@ -578,3 +578,12 @@ tr.inactive td, tr.inactive td strong { color: var(--ink-3); }
   .ledger.compact tfoot td:empty { display: none; }
 }
 @media (max-width: 360px) { .ledger.compact .hide-xs { display: none; } }
+
+/* ---------- devices ---------- */
+.devices .ledger-list li .what span { white-space: normal; }
+.devices .ledger-list li.this-device .what strong { color: var(--ink); }
+.btn.armed { background: var(--red); border-color: var(--red); color: var(--on-red); }
+.plain-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.plain-list li { padding: 5px 0; border-bottom: 1px solid var(--rule); font-size: .9rem; line-height: 1.4; }
+.plain-list li:last-child { border-bottom: 0; }
+.dev-count { white-space: nowrap; }

@@ -10,7 +10,7 @@ const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 // alerts that need the person to act stay on screen until dealt with
-const URGENT = new Set(["approval", "payout", "cash_ready", "proof", "stock_review", "returned", "physical", "advance_overdue"]);
+const URGENT = new Set(["approval", "payout", "cash_ready", "proof", "stock_review", "returned", "physical", "advance_overdue", "security"]);
 async function unreadFor(userId: string) {
   const { count } = await admin.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", userId).is("read_at", null);
   return count ?? 0;

@@ -2,7 +2,7 @@ import { sb, state, unwrap, rpc, refreshUnread, markAlertsRead } from '../api.js
 import { h, mount, fmtDate, emptyState } from '../ui.js';
 
 const ICON = { approval: '✓', payout: 'N$', document: '📎', payout_undone: '↩', proof: '🧾', stock_review: '📦', cash_ready: 'N$', closed: '✓', rejected: '✕', returned: '↩', physical: '📄',
-  advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'N$', approved: '✓', in_progress: '…', cancelled: '✕', stock_report: '📦', stock_report_resolved: '✓', claim: 'N$', float_warning: '⚠', pack_review: '📑', pack_sent: '📤', month_close: '📅', message: '💬', stale: '⏳', stale_escalation: '⏳', weekly_digest: '📈' };
+  advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'N$', approved: '✓', in_progress: '…', cancelled: '✕', stock_report: '📦', stock_report_resolved: '✓', claim: 'N$', float_warning: '⚠', pack_review: '📑', pack_sent: '📤', month_close: '📅', message: '💬', stale: '⏳', stale_escalation: '⏳', weekly_digest: '📈', security: '🔒' };
 
 export async function notificationsPage() {
   const rows = unwrap(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100));

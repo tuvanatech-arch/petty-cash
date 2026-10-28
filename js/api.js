@@ -1,15 +1,27 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm';
 import { SUPABASE_URL, SUPABASE_KEY, FUNCTIONS_URL, VAPID_PUBLIC_KEY } from './config.js';
+import { thisDeviceLabel, isStandaloneApp } from './device-label.js';
 
 // A request that never answers (a phone waking up with a dead socket) must fail, not hang the page:
 // 20 s for ordinary calls, longer for uploads, which can legitimately be slow.
 function fetchWithTimeout(input, init = {}) {
-  if (init.signal || typeof AbortController === 'undefined') return fetch(input, init);
+  if (init.signal || typeof AbortController === 'undefined') return fetch(input, init).then((res) => noticeSignedOut(res, input));
   const body = init.body;
   const upload = body && (typeof Blob !== 'undefined' && body instanceof Blob || typeof FormData !== 'undefined' && body instanceof FormData || body instanceof ArrayBuffer);
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), upload ? 180000 : 20000);
-  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(t));
+  return fetch(input, { ...init, signal: ctrl.signal }).then((res) => noticeSignedOut(res, input)).finally(() => clearTimeout(t));
+}
+
+// This device was signed out from another one: the server refuses with "session_revoked" and the app signs out here too.
+let signedOutElsewhere = null;
+export function whenSignedOutElsewhere(fn) { signedOutElsewhere = fn; }
+function noticeSignedOut(res, input) {
+  if (res.status === 401 && signedOutElsewhere) {
+    const url = typeof input === 'string' ? input : input?.url || '';
+    if (/\/rest\/v1\//.test(url)) res.clone().text().then((t) => { if (/session_revoked/.test(t)) signedOutElsewhere(); }).catch(() => {});
+  }
+  return res;
 }
 
 // No cross-tab lock around auth: on iPhone home-screen apps the system lock can be left held after a suspend and
@@ -64,6 +76,8 @@ export function unwrap({ data, error }) {
 export function cleanError(error) {
   let m = error?.message || String(error);
   if (/JWT|token|session/i.test(m) && /expired|invalid/i.test(m)) m = 'Your session has expired. Sign in again.';
+  if (/session_revoked/.test(m)) m = 'This device was signed out from another device. Sign in again.';
+  if (/Could not find the function/i.test(m)) m = 'This part of the app is still being switched on. Try again in a few minutes.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) m = 'No connection. Check your internet and try again.';
   if (/abort|timed out/i.test(m) || error?.name === 'AbortError') m = 'The server did not answer in time. Pull down to refresh and try again.';
   return m;
@@ -95,7 +109,49 @@ export async function loadSessionContext() {
     state.unread = count || 0;
   }
   syncAppBadge(me && me.active ? state.unread : 0);
+  if (me && me.active) checkIn().catch(() => {});
   return me;
+}
+
+/* ---------- devices ---------- */
+/** The id of this device's sign-in, read from its access token (to mark "this device" and keep it when signing out others). */
+export function currentSessionId() {
+  try {
+    const p = (state.session?.access_token || '').split('.')[1];
+    return p ? JSON.parse(atob(p.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((p.length + 3) % 4))).session_id || null : null;
+  } catch { return null; }
+}
+
+/** Tell the server this device is open: which device, and (from its address) roughly where. At most every 15 minutes. */
+export async function checkIn(force = false) {
+  const sid = currentSessionId();
+  if (!sid || !state.me?.active) return null;
+  try { const last = JSON.parse(localStorage.getItem('pcs_checkin') || 'null'); if (!force && last?.sid === sid && Date.now() - last.at < 15 * 60e3) return null; } catch {}
+  relinkPush(sid).catch(() => {});
+  const label = await thisDeviceLabel();
+  let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+  const res = await fetch(`${FUNCTIONS_URL}/devices`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: `Bearer ${state.session.access_token}` }, body: JSON.stringify({ label, tz, standalone: isStandaloneApp() }) });
+  const json = await res.json().catch(() => ({}));
+  if (res.status === 401 && json.revoked && signedOutElsewhere) { signedOutElsewhere(); return null; }
+  if (res.ok) { try { localStorage.setItem('pcs_checkin', JSON.stringify({ sid, at: Date.now() })); } catch {} }
+  return json;
+}
+
+/** Alerts follow the sign-in: after signing in again on a phone that had alerts on, they come back on by themselves. */
+async function relinkPush(sid) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
+  try { if (localStorage.getItem('pcs_push_asked') === 'off') return; } catch {}
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager?.getSubscription();
+  if (!sub) return;
+  const j = sub.toJSON();
+  await sb.from('push_subscriptions').upsert({ user_id: state.me.id, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), session_id: sid }, { onConflict: 'endpoint' });
+}
+
+/** Sign out on this device only (the default in the auth library would sign out every device). */
+export async function signOutHere() {
+  try { sessionStorage.setItem('pcs_out', 'self'); } catch {}
+  await sb.auth.signOut({ scope: 'local' });
 }
 
 /** The number on the home-screen icon = unread alerts (iPhone 16.4+ and installed desktop apps; elsewhere a no-op). */
@@ -161,7 +217,7 @@ export async function enablePush() {
   let sub = await reg.pushManager.getSubscription();
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_PUBLIC_KEY) });
   const j = sub.toJSON();
-  unwrap(await sb.from('push_subscriptions').upsert({ user_id: state.me.id, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200) }, { onConflict: 'endpoint' }));
+  unwrap(await sb.from('push_subscriptions').upsert({ user_id: state.me.id, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), session_id: currentSessionId() }, { onConflict: 'endpoint' }));
   try { localStorage.setItem('pcs_push_asked', 'on'); } catch {}
   return true;
 }
