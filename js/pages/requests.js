@@ -681,7 +681,7 @@ async function expensePanel(q, lines, expense, reload) {
       h('div', { class: 'table-wrap lines-edit' }, h('table', { class: 'ledger' },
         h('thead', {}, h('tr', {}, h('th', {}, 'Line'), h('th', {}, 'Supplier'), h('th', { class: 'num' }, 'Qty'), h('th', { class: 'num' }, 'Unit price'), h('th'))), tbody,
         h('tfoot', {}, h('tr', {}, h('td', { colspan: 3 }, h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { exLines.push({ item_id: '', description: '', qty: 1, unit_price: 0, supplier_id: '', supplier_name: '' }); draw(); } }, '+ Add line')), h('td', { class: 'num muted' }, 'Spent'), totalEl)))), mismatch),
-    h('div', { class: 'row' }, field('Date of purchase', spentAt), field('Notes', notes)),
+    h('div', { class: 'row' }, field('Date of purchase', spentAt)), field('Notes', notes),
     h('div', { class: 'form-actions' }, submit));
 }
 

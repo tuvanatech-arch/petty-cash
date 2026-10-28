@@ -52,8 +52,20 @@ export function startAdapting() {
       if (!el.hasAttribute('tabindex')) { el.setAttribute('tabindex', '0'); if (!el.getAttribute('role')) el.setAttribute('role', 'button'); }
     }
   };
-  enhance();
-  if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { clearTimeout(enhance._t); enhance._t = setTimeout(enhance, 30); }).observe(document.body, { childList: true, subtree: true });
+  // tables that do not fit a phone become labelled cards (one card per row) instead of scrolling sideways
+  const stackTables = () => {
+    const narrow = window.innerWidth <= 600;
+    for (const t of document.querySelectorAll('.table-wrap > table.ledger')) {
+      const heads = [...t.querySelectorAll('thead th')].map((th) => (th.innerText || th.textContent || '').trim());
+      for (const tr of t.querySelectorAll('tbody tr')) [...tr.children].forEach((td, i) => { if (!td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i] || ''); });
+      t.classList.remove('stacked');
+      if (narrow && !t.closest('.lines-edit') && !t.classList.contains('compact') && t.scrollWidth > t.parentElement.clientWidth + 2) t.classList.add('stacked');
+    }
+  };
+  const tidy = () => { enhance(); stackTables(); };
+  tidy();
+  window.addEventListener('resize', () => { clearTimeout(tidy._r); tidy._r = setTimeout(stackTables, 150); });
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { clearTimeout(enhance._t); enhance._t = setTimeout(tidy, 30); }).observe(document.body, { childList: true, subtree: true });
   document.addEventListener('keydown', (e) => {
     const el = e.target;
     if (!(el instanceof HTMLElement)) return;

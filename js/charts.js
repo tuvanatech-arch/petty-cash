@@ -84,8 +84,8 @@ export function lineChart(container, { series, format = (v) => v, xLabel = (x) =
 /** Horizontal bars, labels on the left, values on the right. */
 export function hBars(rows, { format = (v) => v } = {}) {
   const max = Math.max(...rows.map((r) => r.value), 0) || 1;
-  return h('div', {}, rows.map((r) => h('div', { style: { display: 'grid', gridTemplateColumns: 'minmax(110px, 30%) 1fr auto', gap: '10px', alignItems: 'center', padding: '5px 0', fontSize: '.9rem' } },
-    h('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, title: r.label }, r.label),
+  return h('div', {}, rows.map((r) => h('div', { style: { display: 'grid', gridTemplateColumns: 'minmax(84px, 38%) 1fr auto', gap: '10px', alignItems: 'center', padding: '5px 0', fontSize: '.9rem' } },
+    h('span', { style: { overflowWrap: 'break-word', lineHeight: 1.25 }, title: r.label }, r.label),
     h('div', { style: { background: 'var(--paper)', height: '10px', borderRadius: '3px' } }, h('div', { style: { width: `${(r.value / max) * 100}%`, height: '100%', background: 'var(--chart-1)', borderRadius: '3px', minWidth: r.value > 0 ? '3px' : 0 } })),
     h('span', { class: 'amt', style: { whiteSpace: 'nowrap' } }, format(r.value)))));
 }

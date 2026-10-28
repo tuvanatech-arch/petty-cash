@@ -67,15 +67,15 @@ async function itemsTab(manage) {
     const rows = items.filter((i) => (showInactive ? !i.active : i.active) && (!search || `${i.name} ${i.sku || ''} ${catName(i.category_id)}`.toLowerCase().includes(search))
       && (filter === 'all' || filter === 'inactive' || (filter === 'low' ? low(i) : filter === 'recurring' ? i.recurring : stats[i.id]?.pace === filter)));
     const totalValue = rows.reduce((s, i) => s + Number(i.qty_on_hand) * Number(i.last_unit_price || 0), 0);
-    mount(wrap, rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
-      h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'On hand'), manage ? h('th', { class: 'num' }, 'Used / month') : null, h('th', { class: 'num' }, 'Runs out'), h('th'))),
+    mount(wrap, rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger compact' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'On hand'), manage ? h('th', { class: 'num hide-xs' }, 'Per month') : null, h('th', { class: 'num' }, 'Runs out'), h('th'))),
       h('tbody', {}, rows.map((i) => {
         const s = stats[i.id];
         return h('tr', { class: `item-row${low(i) ? ' low' : ''}`, onclick: () => (manage ? itemSheet(i, s, { catName, supName, sups }) : reportDialog(i)) },
           h('td', {}, h('strong', {}, i.name), paceBadge(s), !i.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null,
             manage ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, [catName(i.category_id), i.recurring ? 'monthly' : null].filter((x) => x && x !== '—').join(' · ')) : null),
           h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`),
-          manage ? h('td', { class: 'num' }, s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : h('span', { class: 'muted' }, '—')) : null,
+          manage ? h('td', { class: 'num hide-xs' }, s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : h('span', { class: 'muted' }, '—')) : null,
           runoutCell(i, s),
           h('td', { class: 'num chev' }, manage ? '›' : 'Report ›'));
       })),
