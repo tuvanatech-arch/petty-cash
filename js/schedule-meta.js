@@ -3,6 +3,7 @@
 import { personName } from './api.js';
 import { money, fmtDate } from './ui.js';
 
+export const EVERY = [[0, 'Off'], [1, 'Every day'], [3, 'Every 3 days'], [7, 'Every week'], [14, 'Every two weeks'], [30, 'Every 30 days']];
 export const WEEKDAYS = [[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday'], [0, 'No reminder']];
 export const BUDGET_MODES = [['warn', 'Flag it, let it through'], ['require_approval', 'Send it for approval'], ['block', 'Block it']];
 
@@ -16,6 +17,8 @@ export const ITEMS = {
   block_with_outstanding: { label: 'Hold new pay-outs to someone who owes a receipt', kind: 'bool', hint: 'Finance sees the outstanding advance on the pay-out screen either way.' },
   default_monthly_float: { label: 'Usual monthly float', kind: 'money', hint: 'Pre-filled when finance opens a month.' },
   float_rollover: { label: 'Unspent balance carries into the next month', kind: 'bool', hint: 'No: a quiet month shows as a saving and finance receives the full float again. Yes: the float resets to the usual amount plus whatever was left.' },
+  cash_variance_limit: { label: 'Cash difference allowed at a count', kind: 'money', hint: 'A count further out than this needs a reason from finance and a resolution from the GM. N$0 means every difference is explained.' },
+  cash_count_days: { label: 'Cash count reminder', kind: 'every', hint: 'Finance is reminded to count the box when it has not been counted for this long.' },
   advance_grace_days: { label: 'Receipt reminder after', kind: 'days', min: 1, max: 60, hint: 'Cash out with no receipt recorded after this many days gets a reminder every few days.' },
   advance_escalate_days: { label: 'Overdue: GM and finance told after', kind: 'days', min: 1, max: 90, hint: 'From then on the GM and finance are told each week until it is settled.' },
   count_day: { label: 'Weekly stock count reminder', kind: 'weekday', hint: 'The stock controller gets a nudge to do a quick count.' },
@@ -27,17 +30,17 @@ export const ITEMS = {
 
 export const SECTIONS = [
   { title: 'Who approves what', md: true, keys: ['approval_threshold', 'gm_limit', 'split_window_days', 'change_tolerance_pct', 'claims_need_approval', 'budget_mode', 'block_with_outstanding'] },
-  { title: 'The float', md: true, keys: ['default_monthly_float', 'float_rollover'] },
-  { title: 'Reminders and warnings', md: false, keys: ['advance_grace_days', 'advance_escalate_days', 'count_day', 'reserve_buffer_pct'] },
+  { title: 'The float and cash counts', md: true, keys: ['default_monthly_float', 'float_rollover', 'cash_variance_limit'] },
+  { title: 'Reminders and warnings', md: false, keys: ['advance_grace_days', 'advance_escalate_days', 'cash_count_days', 'count_day', 'reserve_buffer_pct'] },
   { title: 'Documents', md: false, keys: ['schedule_ref', 'policy_ref', 'policy_url'] },
 ];
 
 export const AREA_LABEL = { start: 'Starting schedule', rules: 'Limits, rules and reminders', budgets: 'Budgets', positions: 'Who holds each position' };
 
 export const POSITIONS = [
-  { role: 'finance', label: 'Finance – custodian of the float', duty: (s) => `Holds the cash and pays out. Pays alone up to ${money(s.approval_threshold)}; checks every receipt.` },
-  { role: 'approver', label: 'General Manager', duty: (s) => `Approves above ${money(s.approval_threshold)} up to ${money(s.gm_limit)}, and finance’s own requests. Administers the app.` },
-  { role: 'managing_director', label: 'Managing Director', duty: (s) => `Approves above ${money(s.gm_limit)} and the GM’s own requests; approves changes to limits, rules and the float.` },
+  { role: 'finance', label: 'Finance – custodian of the float', duty: (s) => `Holds the cash and pays out. Pays alone up to ${money(s.approval_threshold)}; checks every receipt; counts the box and requests top-ups.` },
+  { role: 'approver', label: 'General Manager', duty: (s) => `Approves above ${money(s.approval_threshold)} up to ${money(s.gm_limit)}, and finance’s own requests. Signs off cash counts and authorises top-ups up to ${money(s.gm_limit)}. Administers the app.` },
+  { role: 'managing_director', label: 'Managing Director', duty: (s) => `Approves above ${money(s.gm_limit)}, the GM’s own requests and top-ups above ${money(s.gm_limit)}; approves changes to limits, rules and the float.` },
   { role: 'stock_manager', label: 'Stock controller', duty: () => 'Keeps the store and the catalogue; reviews stock requests and raises restock orders.' },
 ];
 
@@ -53,6 +56,7 @@ export function fmtValue(key, v) {
     case 'bool': return v === true || v === 'true' ? 'Yes' : 'No';
     case 'mode': return (BUDGET_MODES.find(([k]) => k === v) || [null, String(v)])[1];
     case 'weekday': return (WEEKDAYS.find(([k]) => String(k) === String(v)) || [null, String(v)])[1];
+    case 'every': return (EVERY.find(([k]) => String(k) === String(v)) || [null, `Every ${Number(v)} days`])[1];
     default: return String(v);
   }
 }

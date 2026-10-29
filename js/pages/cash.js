@@ -1,4 +1,4 @@
-import { sb, state, can, personName, unwrap, rpc, uploadPack, packUrl, sendPack } from '../api.js';
+import { sb, state, can, has, personName, unwrap, rpc, uploadPack, packUrl, sendPack, mdInPlace } from '../api.js';
 import { buildMonthEndPack } from '../pack.js';
 import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog } from '../ui.js';
 
@@ -45,45 +45,54 @@ export function outlookBox(o, { request = null } = {}) {
 }
 
 export async function cashPage() {
-  const [floats, packs] = await Promise.all([
+  const [floats, packs, counts, topUps] = await Promise.all([
     unwrap(await sb.from('v_floats').select('*').order('period', { ascending: false })),
     unwrap(await sb.from('packs').select('*')),
+    unwrap(await sb.from('cash_counts').select('*').order('counted_at', { ascending: false }).limit(300)),
+    unwrap(await sb.from('top_ups').select('*').order('requested_at', { ascending: false }).limit(60)),
   ]);
   const packOf = (f) => packs.find((p) => p.float_id === f.id);
   const open = floats.find((f) => f.status === 'open');
+  const custodian = has('finance');   // finance holds the cash: counts it and asks for top-ups; the GM signs off
   const page = h('div', {});
 
+  const openTopUp = open ? topUps.find((t) => t.float_id === open.id && ['requested', 'authorised'].includes(t.status)) : null;
   const actions = [];
   if (!open) actions.push(h('button', { class: 'btn btn-primary', onclick: () => openFloatDialog(floats) }, 'Open this month\'s float'));
   else {
     actions.push(packButton(open));
     actions.push(h('button', { class: 'btn', onclick: () => payoutNowDialog(open) }, 'Pay out now'));
-    actions.push(h('button', { class: 'btn', onclick: () => txDialog(open, 'top_up') }, 'Top up'));
-    actions.push(h('button', { class: 'btn', onclick: () => txDialog(open, 'return') }, 'Return cash'));
+    if (custodian) actions.push(h('button', { class: 'btn', onclick: () => countDialog(open) }, 'Count cash'));
+    if (custodian && !openTopUp) actions.push(h('button', { class: 'btn', onclick: () => topUpDialog(open) }, 'Request top-up'));
+    actions.push(h('button', { class: 'btn', onclick: () => txDialog(open) }, 'Return cash'));
     actions.push(h('button', { class: 'btn btn-primary', onclick: () => closeDialog(open) }, 'Close & reconcile'));
   }
 
   let current = null;
   if (open) {
-    const [{ data: txs }, { data: reqs }] = await Promise.all([
-      sb.from('float_transactions').select('*').eq('float_id', open.id).order('created_at'),
+    const [{ data: ledger }, { data: reqs }] = await Promise.all([
+      sb.rpc('cash_ledger', { p_float: open.id }),
       sb.from('requests').select('*, expense:expenses(total, proof_status)').eq('float_id', open.id).order('disbursed_at'),
     ]);
+    const floatCounts = counts.filter((c) => c.float_id === open.id);
     current = h('div', {},
       h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, `${monthLabel(open.period)} – open`), h('span', { class: 'sub' }, `opened ${fmtDate(open.opened_at)} by ${personName(open.opened_by)}`)), floatStrip(open),
-        Number(open.balance) < 0 ? h('div', { class: 'banner banner-red', style: { marginTop: '14px' } }, h('strong', {}, 'The float is overdrawn'), 'More was spent than was in the box. Top it up or check the overspent expenses.') : null),
+        lastCountLine(floatCounts[0], open),
+        Number(open.balance) < 0 ? h('div', { class: 'banner banner-red', style: { marginTop: '14px' } }, h('strong', {}, 'The float is overdrawn'), 'More was spent than was in the box. Request a top-up or check the overspent expenses.') : null),
+      topUpSheet(topUps.filter((t) => t.float_id === open.id).slice(0, 3), counts),
+      countsSheet(floatCounts, open),
+      ledgerSheet(ledger || [], open),
       h('div', { class: 'grid-2' },
-        h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h3', {}, 'Money in and out of the box')),
-          h('table', { class: 'ledger' }, h('tbody', {}, (txs || []).map((t) => h('tr', {}, h('td', { class: 'muted', style: { whiteSpace: 'nowrap' } }, fmtDate(t.created_at)), h('td', {}, { allocation: 'Monthly allocation', top_up: 'Top-up', carry_over: 'Carry-over', return: 'Returned to finance' }[t.kind], t.note ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, t.note) : null),
-            h('td', { class: 'num amt' }, money(t.kind === 'return' ? -t.amount : t.amount, { sign: true })))),
-            (reqs || []).map((r) => h('tr', { class: 'click', onclick: () => { location.hash = `#/requests/${r.id}`; } }, h('td', { class: 'muted', style: { whiteSpace: 'nowrap' } }, fmtDate(r.disbursed_at)),
-              h('td', {}, `#${r.request_no} ${r.purpose}`, h('div', { class: 'muted', style: { fontSize: '.8rem' } }, `to ${personName(r.disbursed_to)} · `, pill(r.status))),
-              h('td', { class: 'num amt' }, money(-(r.status === 'disbursed' ? r.disbursed_amount : (expenseTotal(r) ?? r.disbursed_amount)), { sign: true }))))))),
         h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h3', {}, 'Advances not yet recorded')),
           (reqs || []).filter((r) => r.status === 'disbursed').length
             ? h('ul', { class: 'ledger-list' }, (reqs || []).filter((r) => r.status === 'disbursed').map((r) => h('li', { class: 'click', onclick: () => { location.hash = `#/requests/${r.id}`; } },
               h('div', { class: 'what' }, h('strong', {}, `#${r.request_no} ${r.purpose}`), h('span', {}, `${personName(r.disbursed_to)} · ${daysAgo(r.disbursed_at)}`)), h('span', { class: 'amt' }, money(r.disbursed_amount)))))
-            : emptyState('All advances recorded', 'Everyone who received cash has accounted for it.'))));
+            : emptyState('All advances recorded', 'Everyone who received cash has accounted for it.')),
+        h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h3', {}, 'How the box is checked')),
+          h('ul', { class: 'plain-list' },
+            h('li', {}, `Finance counts the cash ${Number(state.settings.cash_count_days) > 0 ? `at least every ${Number(state.settings.cash_count_days) === 7 ? 'week' : `${state.settings.cash_count_days} days`}` : 'regularly'} and at month-end; the General Manager signs each count off.`),
+            h('li', {}, `A difference above ${money(state.settings.cash_variance_limit || 0)} needs a reason from finance and a resolution from the GM, who can write it off.`),
+            h('li', {}, `Top-ups are requested with a count, authorised by the GM (the MD above ${money(state.settings.gm_limit)}) and recorded when the cash arrives.`)))));
   }
 
   const past = floats.filter((f) => f.status === 'closed');
@@ -93,9 +102,9 @@ export async function cashPage() {
     current,
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Past months')),
       past.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Month'), h('th', { class: 'num' }, 'Allocated'), h('th', { class: 'num' }, 'Top-ups'), h('th', { class: 'num' }, 'Spent'), h('th', { class: 'num' }, 'Closing balance'), h('th', { class: 'num' }, 'Counted'), h('th', { class: 'num' }, 'Difference'), h('th', {}, 'Pack'))),
+        h('thead', {}, h('tr', {}, h('th', {}, 'Month'), h('th', { class: 'num' }, 'Allocated'), h('th', { class: 'num' }, 'Top-ups'), h('th', { class: 'num' }, 'Spent'), h('th', { class: 'num' }, 'Closing balance'), h('th', { class: 'num' }, 'Counted'), h('th', { class: 'num' }, 'Difference'), h('th', {}, 'Count'), h('th', {}, 'Pack'))),
         h('tbody', {}, past.map((f) => h('tr', {}, h('td', {}, monthLabel(f.period), f.notes ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, f.notes) : null), h('td', { class: 'num' }, money(f.allocated)), h('td', { class: 'num' }, money(Number(f.topped_up) + Number(f.carried_over))), h('td', { class: 'num' }, money(f.spent)), h('td', { class: 'num amt' }, money(f.balance)),
-          h('td', { class: 'num' }, f.counted_cash != null ? money(f.counted_cash) : '—'), h('td', { class: 'num', style: { color: f.counted_cash != null && Math.abs(Number(f.counted_cash) - Number(f.balance)) > 0.005 ? 'var(--red)' : '' } }, f.counted_cash != null ? money(Number(f.counted_cash) - Number(f.balance), { sign: true }) : '—'), h('td', { style: { whiteSpace: 'nowrap' } }, packCell(f, packOf(f))))))))
+          h('td', { class: 'num' }, f.counted_cash != null ? money(f.counted_cash) : '—'), h('td', { class: 'num', style: { color: f.counted_cash != null && Math.abs(Number(f.counted_cash) - Number(f.balance)) > 0.005 ? 'var(--red)' : '' } }, f.counted_cash != null ? money(Number(f.counted_cash) - Number(f.balance), { sign: true }) : '—'), h('td', { style: { whiteSpace: 'nowrap' } }, monthEndCell(counts.find((c) => c.float_id === f.id && c.kind === 'month_end' && c.status !== 'superseded'))), h('td', { style: { whiteSpace: 'nowrap' } }, packCell(f, packOf(f))))))))
         : emptyState('No closed months yet', 'Closed floats appear here with their reconciliation.')));
   const awaitingPacks = floats.filter((f) => f.status === 'closed' && packOf(f)?.status !== 'sent');
   if (awaitingPacks.length) page.prepend(h('div', { class: 'banner banner-amber' }, h('strong', {}, `${awaitingPacks.length === 1 ? 'A month-end pack is' : `${awaitingPacks.length} month-end packs are`} not yet with the accountant`),
@@ -119,6 +128,7 @@ export async function buildAndStorePack(f, onProgress = () => {}) {
 export async function packPage(floatId) {
   const f = unwrap(await sb.from('v_floats').select('*').eq('id', floatId).single());
   let pack = (await sb.from('packs').select('*').eq('float_id', floatId).maybeSingle()).data;
+  const monthEnd = (await sb.from('cash_counts').select('*').eq('float_id', floatId).eq('kind', 'month_end').neq('status', 'superseded').maybeSingle()).data;
   const page = h('div', {});
   const progress = h('p', { class: 'hint' });
 
@@ -149,6 +159,7 @@ export async function packPage(floatId) {
     check(Number(s.outstanding || 0) === 0, 'Every advance accounted for', Number(s.outstanding || 0) ? `${money(s.outstanding)} still out` : null),
     check(!s.missing_proofs, 'Every voucher has a scanned receipt', s.missing_proofs ? `${s.missing_proofs} without` : `${s.vouchers} vouchers`),
     check(diff != null && Math.abs(diff) < 0.005, 'Cash counted matches the book', diff == null ? 'not counted' : Math.abs(diff) < 0.005 ? 'matches' : `${diff > 0 ? 'surplus' : 'shortfall'} of ${money(Math.abs(diff))}${f.notes ? ` – ${f.notes}` : ''}`),
+    check(monthEnd?.status === 'accepted', 'Month-end count signed off by the GM', monthEnd ? (monthEnd.status === 'accepted' ? `${personName(monthEnd.reviewed_by)}, ${fmtDate(monthEnd.reviewed_at)}` : monthEnd.status === 'queried' ? 'the GM has a question' : 'waiting for the GM') : 'no month-end count recorded'),
     check(!!acct, 'Accountant email set', acct || 'add it under Admin → Settings'));
 
   const download = h('a', { class: 'btn', href: url || '#', target: '_blank', rel: 'noopener', download: pack.file_name }, 'Download PDF');
@@ -185,6 +196,7 @@ export async function packPage(floatId) {
           Number(s.topped_up) > 0 ? [h('dt', {}, 'Top-ups'), h('dd', {}, money(s.topped_up))] : null,
           Number(s.carried_over) > 0 ? [h('dt', {}, 'Carried over'), h('dd', {}, money(s.carried_over))] : null,
           h('dt', {}, 'Spent'), h('dd', {}, money(s.spent)),
+          Number(s.adjusted || 0) ? [h('dt', {}, Number(s.adjusted) < 0 ? 'Cash short, written off' : 'Cash over, taken in'), h('dd', {}, money(s.adjusted, { sign: true }))] : null,
           h('dt', {}, 'Book balance'), h('dd', {}, h('strong', {}, money(s.balance))),
           s.counted_cash != null ? [h('dt', {}, 'Counted'), h('dd', {}, money(s.counted_cash)), h('dt', {}, 'Difference'), h('dd', { style: { color: diff && Math.abs(diff) > 0.005 ? 'var(--red)' : '' } }, money(diff, { sign: true }))] : null)),
       h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Summary')),
@@ -254,28 +266,26 @@ function openFloatDialog(floats) {
   });
 }
 
-function txDialog(f, kind) {
-  modal(kind === 'top_up' ? 'Top up the float' : 'Return cash to finance', (close) => {
+function txDialog(f) {
+  modal('Return cash to finance', (close) => {
     const amount = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01' });
-    const note = h('input', { class: 'input', placeholder: kind === 'top_up' ? 'e.g. extra for the year-end function' : 'e.g. surplus returned to main account' });
-    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, kind === 'top_up' ? 'Add to float' : 'Record return');
-    const go = busy(b, async () => { await rpc('float_transaction', { p_float: f.id, p_kind: kind, p_amount: num(amount.value), p_note: note.value }); toast('Recorded.'); close(); refresh(); });
-    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, h('p', { class: 'hint' }, `Balance now ${money(f.balance)}.`), field('Amount', amount), field('Note', note),
+    const note = h('input', { class: 'input', placeholder: 'e.g. surplus returned to main account' });
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Record return');
+    const go = busy(b, async () => { await rpc('float_transaction', { p_float: f.id, p_kind: 'return', p_amount: num(amount.value), p_note: note.value }); toast('Recorded.'); close(); refresh(); });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, h('p', { class: 'hint' }, `Balance now ${money(f.balance)}. Top-ups are requested under “Request top-up” and authorised by the GM.`), field('Amount', amount), field('Note', note),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
 
 function closeDialog(f) {
   modal(`Close ${monthLabel(f.period)}`, (close) => {
-    const counted = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', value: Number(f.balance).toFixed(2) });
-    const notes = h('textarea', { class: 'input', placeholder: 'Reconciliation notes' });
-    const diff = h('div', { class: 'hint' });
-    const upd = () => { const d = num(counted.value) - Number(f.balance); diff.textContent = Math.abs(d) < 0.005 ? 'Matches the book balance.' : `${d > 0 ? 'Surplus' : 'Shortfall'} of ${money(Math.abs(d))} against the book balance.`; diff.style.color = Math.abs(d) < 0.005 ? 'var(--green-ink)' : 'var(--red)'; };
-    counted.oninput = upd; upd();
+    const { counted, el } = countField(f);
+    const notes = h('textarea', { class: 'input', placeholder: 'Reconciliation notes – needed if the count does not match' });
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Close month');
     const go = busy(b, async () => {
+      if (counted.value === '') throw new Error('Count the cash first – the close is a count.');
       await rpc('close_float', { p_float: f.id, p_counted_cash: num(counted.value), p_notes: notes.value });
-      toast('Month closed – building the pack…', { ms: 6000 });
+      toast('Month closed – the count went to the GM to sign off. Building the pack…', { ms: 6000 });
       try {
         const closed = unwrap(await sb.from('v_floats').select('*').eq('id', f.id).single());
         await buildAndStorePack(closed, (m) => { b.textContent = m; });
@@ -283,8 +293,247 @@ function closeDialog(f) {
       } catch (e) { toast(`Closed, but the pack could not be built: ${e.message}. Open the month under Past months to build it.`, { error: true, ms: 8000 }); close(); refresh(); }
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      h('p', { class: 'hint' }, `Book balance is ${money(f.balance)}${Number(f.outstanding) > 0 ? `, with ${money(f.outstanding)} still out with people – those expenses must be recorded first` : ''}.`),
-      field('Cash counted in the box', counted, diff), field('Notes', notes),
+      h('p', { class: 'hint' }, `Book balance is ${money(f.balance)}${Number(f.outstanding) > 0 ? `, with ${money(f.outstanding)} still out with people – those expenses must be recorded first` : ''}. The month-end count goes to the General Manager to sign off, like any other count.`),
+      el, field('Notes', notes),
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
+/* ================================================================ cash counts, top-ups and the ledger */
+const diffText = (d) => (Math.abs(Number(d)) < 0.005 ? 'matches the book' : Number(d) < 0 ? `${money(-d)} short` : `${money(d)} over`);
+const diffPill = (d, exc) => h('span', { class: `pill ${Math.abs(Number(d)) < 0.005 ? 'pill-green' : exc ? 'pill-red' : 'pill-amber'}` }, diffText(d));
+const COUNT_STATUS = {
+  to_review: ['Waiting for the GM', 'pill-amber'], queried: ['Question from the GM', 'pill-purple'],
+  accepted: ['Signed off', 'pill-green'], superseded: ['Replaced by a later count', 'pill-grey'],
+};
+const countStatusPill = (c) => { const [l, cls] = COUNT_STATUS[c.status] || [c.status, 'pill-grey']; return h('span', { class: `pill ${cls}` }, c.status === 'accepted' && c.reviewed_by ? `Signed off by ${personName(c.reviewed_by)}` : l); };
+const KIND_LABEL = { spot: 'Cash count', month_end: 'Month-end count', top_up: 'Count with a top-up request' };
+
+function lastCountLine(c, f) {
+  const days = c ? Math.floor((Date.now() - new Date(c.counted_at)) / 86400000) : Math.floor((Date.now() - new Date(f.opened_at)) / 86400000);
+  const due = Number(state.settings.cash_count_days || 0);
+  const late = due > 0 && days >= due;
+  return h('p', { class: 'hint', style: { marginTop: '10px', color: late ? 'var(--amber)' : '' } },
+    c ? `Last counted ${fmtDate(c.counted_at, { time: true })} by ${personName(c.counted_by)}: ${diffText(c.difference)} · ${{ to_review: 'waiting for the GM', queried: 'the GM has a question', accepted: 'signed off', superseded: 'replaced' }[c.status] || ''}.` : 'Not counted yet this month.',
+    late ? ` A count is due (every ${due === 7 ? 'week' : `${due} days`}).` : '');
+}
+
+function countActions(c) {
+  const out = [];
+  if (['to_review', 'queried'].includes(c.status) && has('approver') && c.counted_by !== state.me.id) out.push(h('button', { class: 'btn btn-sm btn-primary', onclick: () => reviewCountDialog(c) }, 'Sign off'));
+  if (c.status === 'queried' && has('finance')) out.push(h('button', { class: 'btn btn-sm', onclick: () => answerCountDialog(c) }, 'Answer'));
+  return out;
+}
+
+function countRow(c) {
+  return h('li', {}, h('div', { class: 'what' },
+    h('strong', {}, `${KIND_LABEL[c.kind] || 'Count'} · ${fmtDate(c.counted_at, { time: true })}`),
+    h('span', {}, `${personName(c.counted_by)} counted ${money(c.counted)} against a book balance of ${money(c.expected)}${c.note ? ` – “${c.note}”` : ''}`),
+    c.review_note ? h('span', { style: { display: 'block' } }, `${c.status === 'queried' || c.answer_note ? 'GM asked' : 'GM'}: “${c.review_note}”${c.answer_note ? ` · finance: “${c.answer_note}”` : ''}`) : null,
+    c.written_off != null ? h('span', { style: { display: 'block' } }, `${money(Math.abs(c.written_off))} written off as cash ${Number(c.written_off) < 0 ? 'short' : 'over'}.`) : null),
+    h('div', { class: 'row-actions' }, diffPill(c.difference, c.exception), countStatusPill(c), ...countActions(c)));
+}
+
+function countsSheet(list, f) {
+  const shown = list.filter((c) => c.status !== 'superseded' || list.indexOf(c) < 3).slice(0, 6);
+  return h('div', { class: 'sheet' },
+    h('div', { class: 'sheet-head' }, h('h3', {}, 'Cash counts'), h('span', { class: 'sub' }, list.length ? `${list.length} this month` : 'none yet')),
+    list.length ? h('ul', { class: 'ledger-list' }, shown.map(countRow))
+      : h('p', { class: 'hint' }, has('finance') ? 'Count the cash in the box with “Count cash”. The General Manager signs each count off.' : 'Finance has not counted the box this month yet.'));
+}
+
+function topUpSheet(list, counts) {
+  if (!list.length) return null;
+  const STATUS = { requested: ['Waiting for authorisation', 'pill-amber'], authorised: ['Authorised – waiting for the cash', 'pill-purple'], received: ['Received', 'pill-green'], rejected: ['Turned down', 'pill-red'], cancelled: ['Cancelled', 'pill-grey'] };
+  return h('div', { class: 'sheet' },
+    h('div', { class: 'sheet-head' }, h('h3', {}, 'Top-ups'), h('span', { class: 'sub' }, 'one open at a time')),
+    h('ul', { class: 'ledger-list' }, list.map((t) => {
+      const c = counts.find((x) => x.id === t.count_id);
+      const [label, cls] = STATUS[t.status] || [t.status, 'pill-grey'];
+      const acts = [];
+      const mine = t.requested_by === state.me.id;
+      const canDecide = t.status === 'requested' && !mine && (t.level === 'md' ? has('managing_director') : has('approver'));
+      if (canDecide) acts.push(h('button', { class: 'btn btn-sm btn-primary', onclick: () => decideTopUpDialog(t, c) }, 'Decide'));
+      if (t.status === 'authorised' && has('finance')) acts.push(h('button', { class: 'btn btn-sm btn-primary', onclick: () => receiveTopUpDialog(t) }, 'Record the cash'));
+      if (['requested', 'authorised'].includes(t.status) && has('finance')) {
+        const x = h('button', { class: 'btn btn-sm btn-quiet' }, 'Cancel');
+        x.onclick = busy(x, async () => { if (!(await confirmDialog('Cancel this top-up?', 'Nothing is added to the float.', { ok: 'Cancel it', danger: true }))) return; await rpc('cancel_top_up', { p_id: t.id }); toast('Cancelled.'); refresh(); });
+        acts.push(x);
+      }
+      return h('li', {}, h('div', { class: 'what' },
+        h('strong', {}, `${money(t.amount)} · ${t.reason}`),
+        h('span', {}, `Requested by ${personName(t.requested_by)}, ${fmtDate(t.requested_at)} · ${t.level === 'md' ? 'the MD authorises' : 'the GM authorises'}${c ? ` · count: ${diffText(c.difference)}` : ''}`),
+        t.route_note ? h('span', { style: { display: 'block' } }, t.route_note) : null,
+        t.decided_by && t.status !== 'cancelled' ? h('span', { style: { display: 'block' } }, `${t.status === 'rejected' ? 'Turned down' : 'Authorised'} by ${personName(t.decided_by)}, ${fmtDate(t.decided_at)}${t.decision_note ? ` – “${t.decision_note}”` : ''}`) : null,
+        t.status === 'received' ? h('span', { style: { display: 'block' } }, `${money(t.received_amount)} received ${fmtDate(t.received_at)} by ${personName(t.received_by)}`) : null),
+        h('div', { class: 'row-actions' }, h('span', { class: `pill ${cls}` }, label), ...acts));
+    })));
+}
+
+const LEDGER_KIND = { allocation: 'In', carry_over: 'In', top_up: 'In', change: 'In', surplus: 'In', payout: 'Out', claim: 'Out', paid_back: 'Out', return: 'Out', shortage: 'Out' };
+function ledgerSheet(rows, f) {
+  const csv = h('button', { class: 'btn btn-sm', type: 'button' }, 'Download CSV');
+  csv.onclick = () => downloadLedgerCsv(rows, f);
+  const last = rows[rows.length - 1];
+  return h('div', { class: 'sheet' },
+    h('div', { class: 'sheet-head' }, h('h3', {}, 'Petty cash ledger'), rows.length ? csv : null),
+    rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger cash-ledger' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Date'), h('th', {}, 'What'), h('th', { class: 'num' }, 'In / out'), h('th', { class: 'num' }, 'Balance'))),
+      h('tbody', {}, rows.map((r) => h('tr', { class: r.request_id ? 'click' : '', onclick: r.request_id ? () => { location.hash = `#/requests/${r.request_id}`; } : null },
+        h('td', { class: 'muted', style: { whiteSpace: 'nowrap' } }, fmtDate(r.at)),
+        h('td', {}, r.ref ? `${r.ref} ` : '', r.description, r.person && r.request_id ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, personName(r.person)) : null),
+        h('td', { class: 'num amt', style: { color: Number(r.cash_out) > 0 ? '' : 'var(--green-ink)' } }, Number(r.cash_in) > 0 ? money(r.cash_in, { sign: true }) : money(-r.cash_out)),
+        h('td', { class: 'num' }, money(r.balance))))),
+      h('tfoot', {}, h('tr', {}, h('td', { colspan: 3 }, 'Book balance'), h('td', { class: 'num' }, h('strong', {}, money(last?.balance ?? 0)))))))
+      : emptyState('Nothing yet', 'Money in and out of the box appears here as it happens.'));
+}
+
+function downloadLedgerCsv(rows, f) {
+  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [['Date', 'Reference', 'Description', 'Person', 'In', 'Out', 'Balance'].map(q).join(',')];
+  for (const r of rows) lines.push([isoDate(new Date(r.at)), r.ref || '', r.description, r.person ? personName(r.person) : '', Number(r.cash_in).toFixed(2), Number(r.cash_out).toFixed(2), Number(r.balance).toFixed(2)].map(q).join(','));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = `petty-cash-ledger-${String(f.period).slice(0, 7)}.csv`;
+  document.body.append(a); a.click(); a.remove();
+}
+
+function monthEndCell(c) {
+  if (!c) return h('span', { class: 'muted' }, '—');
+  const [label, cls] = { to_review: ['Waiting', 'pill-amber'], queried: ['Question', 'pill-purple'], accepted: ['Signed off', 'pill-green'] }[c.status] || [c.status, 'pill-grey'];
+  return h('span', { class: `pill ${cls}`, title: c.status === 'accepted' ? `Signed off by ${personName(c.reviewed_by)}, ${fmtDate(c.reviewed_at)}${c.review_note ? ` – ${c.review_note}` : ''}` : c.review_note || '' }, label);
+}
+
+/** The cash field and its live comparison with the book, shared by the count, top-up and close forms. */
+function countField(f, label = 'Cash counted in the box') {
+  const counted = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', inputmode: 'decimal', placeholder: 'Count it, then enter the total', required: true });
+  const diff = h('div', { class: 'hint' });
+  const limit = Number(state.settings.cash_variance_limit || 0);
+  const upd = () => {
+    if (counted.value === '') { diff.textContent = `Book balance ${money(f.balance)}. Count notes and coins before you look.`; diff.style.color = ''; return; }
+    const d = Math.round((num(counted.value) - Number(f.balance)) * 100) / 100;
+    diff.textContent = Math.abs(d) < 0.005 ? 'Matches the book balance.' : `${d > 0 ? 'Over' : 'Short'} by ${money(Math.abs(d))} against the book balance of ${money(f.balance)}${Math.abs(d) > limit ? ' – say what caused it below.' : ` (within the ${money(limit)} allowed).`}`;
+    diff.style.color = Math.abs(d) < 0.005 ? 'var(--green-ink)' : Math.abs(d) > limit ? 'var(--red)' : 'var(--amber)';
+  };
+  counted.oninput = upd; upd();
+  return { counted, el: field(label, counted, diff) };
+}
+
+function countDialog(f) {
+  modal('Count the cash', (close) => {
+    const { counted, el } = countField(f);
+    const note = h('textarea', { class: 'input', rows: 2, placeholder: 'Only needed if it does not match – what do you think caused it?' });
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Record the count');
+    const go = busy(b, async () => {
+      if (counted.value === '') throw new Error('Enter the cash counted.');
+      const c = await rpc('count_cash', { p_counted: num(counted.value), p_note: note.value });
+      toast(Math.abs(Number(c.difference)) < 0.005 ? 'Counted – matches the book. The GM signs it off.' : `Counted – ${diffText(c.difference)}. The GM has been told.`); close(); refresh();
+    });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      h('p', { class: 'hint' }, 'Count every note and coin in the box. Cash out with people is already off the book balance, so do not add it.'),
+      el, field('Note', note),
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
+export function reviewCountDialog(c) {
+  modal(`Sign off the ${KIND_LABEL[c.kind]?.toLowerCase() || 'count'}`, (close) => {
+    const off = Math.abs(Number(c.difference)) >= 0.005;
+    const note = h('textarea', { class: 'input', rows: 2, placeholder: c.exception ? 'How was it resolved? (needed – the difference is above the limit)' : 'Optional note, or your question for finance' });
+    const writeOff = off ? h('input', { type: 'checkbox', checked: !!c.exception }) : null;
+    const err = h('div', { class: 'error' });
+    const ask = h('button', { class: 'btn', type: 'button' }, 'Ask finance a question');
+    ask.onclick = busy(ask, async () => {
+      err.textContent = '';
+      if (!note.value.trim()) { err.textContent = 'Write the question for finance.'; return; }
+      try { await rpc('review_cash_count', { p_id: c.id, p_accept: false, p_note: note.value.trim() }); toast('Sent to finance.'); close(); refresh(); } catch (e) { err.textContent = e.message; }
+    });
+    const ok = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Sign off');
+    const go = busy(ok, async () => {
+      err.textContent = '';
+      if (c.exception && !note.value.trim()) { err.textContent = 'The difference is above the limit: say how it was resolved.'; return; }
+      try { await rpc('review_cash_count', { p_id: c.id, p_accept: true, p_note: note.value.trim() || null, p_write_off: !!writeOff?.checked }); toast(writeOff?.checked ? 'Signed off – the difference was written off.' : 'Signed off.'); close(); refresh(); } catch (e) { err.textContent = e.message; }
+    });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      h('dl', { class: 'kv' },
+        h('dt', {}, 'Counted'), h('dd', {}, `${money(c.counted)} by ${personName(c.counted_by)}, ${fmtDate(c.counted_at, { time: true })}`),
+        h('dt', {}, 'Book balance'), h('dd', {}, money(c.expected)),
+        Number(c.outstanding) > 0 ? [h('dt', {}, 'Out with people'), h('dd', {}, `${money(c.outstanding)} (already off the book)`)] : null,
+        h('dt', {}, 'Difference'), h('dd', {}, diffPill(c.difference, c.exception)),
+        c.note ? [h('dt', {}, 'Finance says'), h('dd', {}, `“${c.note}”`)] : null,
+        c.review_note && c.answer_note ? [h('dt', {}, 'You asked'), h('dd', {}, `“${c.review_note}”`), h('dt', {}, 'Answer'), h('dd', {}, `“${c.answer_note}”`)] : null),
+      field('Note', note),
+      writeOff ? h('label', { class: 'check', style: { marginBottom: '6px' } }, writeOff, `Write the ${money(Math.abs(c.difference))} off as cash ${Number(c.difference) < 0 ? 'short' : 'over'}, so the book matches the box`) : null,
+      writeOff ? h('p', { class: 'hint' }, 'Leave it unticked if the difference will be found (a pay-out not yet recorded, change still to come back).') : null,
+      err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn btn-quiet', onclick: close }, 'Cancel'), ask, ok));
+  });
+}
+
+export function answerCountDialog(c) {
+  modal('Answer the GM', (close) => {
+    const note = h('textarea', { class: 'input', rows: 3 });
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Send answer');
+    const go = busy(b, async () => { await rpc('answer_cash_count', { p_id: c.id, p_note: note.value }); toast('Answer sent.'); close(); refresh(); });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      h('p', {}, h('strong', {}, 'The GM asks: '), `“${c.review_note}”`),
+      h('p', { class: 'hint' }, `Your count of ${fmtDate(c.counted_at, { time: true })}: ${money(c.counted)}, ${diffText(c.difference)}. If you have found the difference, record it (or count again) and answer here.`),
+      field('Your answer', note),
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
+function topUpDialog(f) {
+  modal('Request a top-up', (close) => {
+    const amount = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01', inputmode: 'decimal', required: true });
+    const reason = h('input', { class: 'input', placeholder: 'e.g. Busy month – three site visits still to pay for', maxlength: 200, required: true });
+    const who = h('div', { class: 'hint' });
+    amount.oninput = () => { const a = num(amount.value); who.textContent = a > Number(state.settings.gm_limit) && mdInPlace() ? 'Above the GM limit: the Managing Director authorises it.' : 'The General Manager authorises it.'; };
+    amount.oninput();
+    const { counted, el } = countField(f, 'Cash in the box now');
+    const note = h('input', { class: 'input', placeholder: 'Only if the count does not match' });
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Send for authorisation');
+    const go = busy(b, async () => {
+      if (counted.value === '') throw new Error('Count the cash first – the request carries the count.');
+      await rpc('request_top_up', { p_amount: num(amount.value), p_reason: reason.value.trim(), p_counted: num(counted.value), p_count_note: note.value });
+      toast('Sent for authorisation.'); close(); refresh();
+    });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      h('p', { class: 'hint' }, 'A top-up rests on a count: the cash in the box now is recorded with the request. Nothing is added until it is authorised and the cash arrives.'),
+      h('div', { class: 'row' }, field('Amount needed', amount, who), field('Why', reason)),
+      el, field('Note on the count', note),
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
+export function decideTopUpDialog(t, c) {
+  modal(`Top-up of ${money(t.amount)}`, (close) => {
+    const note = h('textarea', { class: 'input', rows: 2, placeholder: c?.exception ? 'The count is out – say how that was resolved (needed)' : 'Optional; needed to turn it down' });
+    const err = h('div', { class: 'error' });
+    const no = h('button', { class: 'btn btn-danger', type: 'button' }, 'Turn down');
+    no.onclick = busy(no, async () => { err.textContent = ''; if (!note.value.trim()) { err.textContent = 'Say why it is turned down.'; return; } try { await rpc('decide_top_up', { p_id: t.id, p_approve: false, p_note: note.value.trim() }); toast('Turned down – finance has been told.'); close(); refresh(); } catch (e) { err.textContent = e.message; } });
+    const ok = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Authorise');
+    const go = busy(ok, async () => { err.textContent = ''; try { await rpc('decide_top_up', { p_id: t.id, p_approve: true, p_note: note.value.trim() || null }); toast('Authorised – finance records it when the cash arrives.'); close(); refresh(); } catch (e) { err.textContent = e.message; } });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      h('dl', { class: 'kv' },
+        h('dt', {}, 'Amount'), h('dd', {}, money(t.amount)),
+        h('dt', {}, 'Why'), h('dd', {}, t.reason),
+        h('dt', {}, 'Requested'), h('dd', {}, `${personName(t.requested_by)}, ${fmtDate(t.requested_at, { time: true })}`),
+        c ? [h('dt', {}, 'Count with it'), h('dd', {}, `${money(c.counted)} counted, book ${money(c.expected)} · `, diffPill(c.difference, c.exception), c.note ? ` “${c.note}”` : '')] : null,
+        t.route_note ? [h('dt', {}, 'Routing'), h('dd', {}, t.route_note)] : null),
+      h('p', { class: 'hint' }, 'Authorising also signs off the count it rests on.'),
+      field('Note', note),
+      err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn btn-quiet', onclick: close }, 'Cancel'), no, ok));
+  });
+}
+
+export function receiveTopUpDialog(t) {
+  modal('Record the top-up cash', (close) => {
+    const amount = h('input', { class: 'input num', type: 'number', min: '0.01', max: Number(t.amount).toFixed(2), step: '0.01', value: Number(t.amount).toFixed(2) });
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Add to the float');
+    const go = busy(b, async () => { await rpc('receive_top_up', { p_id: t.id, p_amount: num(amount.value) }); toast(`${money(num(amount.value))} added to the float.`); close(); refresh(); });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      h('p', { class: 'hint' }, `Authorised by ${personName(t.decided_by)} on ${fmtDate(t.decided_at)}: ${money(t.amount)} – ${t.reason}. Count what actually arrived; it cannot be more than was authorised.`),
+      field('Cash received', amount),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }

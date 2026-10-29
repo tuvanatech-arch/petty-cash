@@ -81,6 +81,7 @@ export async function snapPage() {
     let ib;
     try { ib = await uploadToInbox(file); }
     catch (e) { toast(e.message, { error: true }); drawStart(); return; }
+    if (ib.used_on) toast(`This photo is already on #${ib.used_on}. If it is a different purchase, take a new photo; otherwise finance will ask about it.`, { error: true, ms: 7000 });
     await resume(ib);
   }
 

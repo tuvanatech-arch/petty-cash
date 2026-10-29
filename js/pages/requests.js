@@ -226,7 +226,7 @@ export async function newRequestPage(editId, presetType) {
       mount(receiptBox, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Receipt'),
         h('label', { class: 'upload' }, h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, onchange: async (e) => {
           const files = Array.from(e.target.files || []); if (!files.length) return;
-          try { await saveHead(false); for (const f of files) { const row = await uploadProof(existing.id, expense.id, f); expense.proofs = [...(expense.proofs || []), row]; } toast('Receipt attached.'); }
+          try { await saveHead(false); let dup = null; for (const f of files) { const row = await uploadProof(existing.id, expense.id, f); dup = dup || row.used_on; expense.proofs = [...(expense.proofs || []), row]; } toast(dup ? `Attached – but this photo is already on #${dup}. Finance will ask about it.` : 'Receipt attached.', { error: !!dup }); }
           catch (ex) { toast(ex.message, { error: true }); }
           drawReceipts();
         } }), '📷 Take a photo or upload the receipt'),
@@ -532,7 +532,7 @@ async function stagePanel(q, lines, expense, reload, check = null) {
 
     case 'awaiting_disbursement':
       if (isClaim) {
-        if (can('finance')) return claimPanel(q, expense, reload);
+        if (can('finance')) return claimPanel(q, expense, reload, check);
         return banner('amber', 'Waiting for finance to reimburse you', expense?.proof_status === 'physical_required' && !expense.physical_received_at ? `Finance needs the paper receipt first${expense.finance_note ? `: ${expense.finance_note}` : '.'}` : 'Finance checks the receipt and pays you from the float.');
       }
       if (can('finance') && !(q.requester_id === me && (!q.approved_by || q.approved_by === me))) return disbursePanel(q, reload);
@@ -670,8 +670,19 @@ function disbursePanel(q, reload) {
     h('div', { class: 'form-actions' }, rej, esc, pay));
 }
 
+/** A receipt already used on another request: finance writes why it is right before accepting it. */
+async function explainIfDuplicate(q, check) {
+  if (check?.status !== 'duplicate' || !/needs an explanation/.test(check.note || '')) return true;
+  const why = await confirmDialog('This receipt was used before', `${check.note.replace(' · accepting it needs an explanation', '')}. Write why it is right to accept it – the note stays on the request and in the pack.`,
+    { ok: 'Accept with this note', note: { label: 'Why it is right', required: true } });
+  if (why === null) return false;
+  await rpc('explain_duplicate', { p_request: q.id, p_note: why });
+  return true;
+}
+const checkLineFor = (check) => (check ? h('p', { class: 'hint', style: { color: { matches: 'var(--green-ink)', mismatch: 'var(--amber)', duplicate: 'var(--red)', no_proof: 'var(--amber)' }[check.status] || '' } }, `${{ matches: '✓ ', duplicate: '⚠ ', mismatch: '! ' }[check.status] || ''}${check.note}`) : null);
+
 /* ---- finance: reimburse a claim ---- */
-async function claimPanel(q, expense, reload) {
+async function claimPanel(q, expense, reload, check = null) {
   const note = h('textarea', { class: 'input', placeholder: 'Note to the claimant / for the record' });
   const act = (label, action, cls, needNote) => {
     const b = h('button', { class: `btn ${cls}` }, label);
@@ -683,11 +694,12 @@ async function claimPanel(q, expense, reload) {
     return b;
   };
   const pay = h('button', { class: 'btn btn-primary' }, `Reimburse ${money(expense?.total)}`);
-  pay.onclick = busy(pay, async () => { await rpc('disburse_request', { p_request: q.id, p_amount: Number(expense.total), p_note: note.value }); toast(`Reimbursed ${money(expense.total)}.`); reload(); });
+  pay.onclick = busy(pay, async () => { if (!(await explainIfDuplicate(q, check))) return; await rpc('disburse_request', { p_request: q.id, p_amount: Number(expense.total), p_note: note.value }); toast(`Reimbursed ${money(expense.total)}.`); reload(); });
   const physicalPending = expense?.proof_status === 'physical_required' && !expense.physical_received_at;
   return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
     h('div', { class: 'sheet-head' }, h('h2', {}, 'Reimburse from petty cash'), h('span', { class: 'sub' }, `${money(expense?.total)} claimed by ${personName(q.requester_id)}${q.approved_by ? ` · approved by ${personName(q.approved_by)}` : ''}`)),
     q.over_budget && q.budget_note ? h('p', { class: 'hint', style: { color: 'var(--amber)' } }, q.budget_note) : null,
+    check?.status === 'duplicate' ? checkLineFor(check) : null,
     physicalPending ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'Paper receipt requested'), expense.finance_note || 'Waiting for the original to be handed in.') : null,
     expense?.physical_received_at ? h('p', { class: 'hint' }, `Paper receipt received ${fmtDate(expense.physical_received_at)}.`) : null,
     h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' }, h('thead', {}, h('tr', {}, h('th', {}, 'Line'), h('th', { class: 'num' }, 'Qty'), h('th', { class: 'num' }, 'Unit price'), h('th', { class: 'num' }, 'Total'))),
@@ -817,12 +829,14 @@ async function proofGallery(expense, q, canEdit, reload, redraw, { onExtract = n
       if (!files.length) return;
       label.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`;
       try {
+        let dup = null;
         for (const f of files) {
           if (f.size > 10 * 1024 * 1024) throw new Error(`${f.name} is larger than 10 MB.`);
           const row = await uploadProof(q.id, expense.id, f);
+          dup = dup || row.used_on;
           expense.proofs = [...(expense.proofs || []), row];
         }
-        toast('Uploaded.');
+        toast(dup ? `Uploaded – but this photo is already on #${dup}. Finance will ask about it.` : 'Uploaded.', { error: !!dup });
       } catch (e) { toast(e.message, { error: true }); }
       redraw ? redraw() : reload();
     };
@@ -838,13 +852,14 @@ function financeReviewPanel(q, expense, reload, check = null) {
     const b = h('button', { class: `btn ${cls}` }, label);
     b.onclick = busy(b, async () => {
       if (needNote && !note.value.trim()) throw new Error('Add a note first so the spender knows what to do.');
+      if (['confirm', 'physical_received'].includes(action) && !(await explainIfDuplicate(q, check))) return;
       await rpc('finance_review_expense', { p_request: q.id, p_action: action, p_note: note.value });
       toast({ confirm: 'Proof confirmed – request closed.', require_physical: 'The spender has been asked for the physical receipt.', physical_received: 'Physical receipt recorded – request closed.', return: 'Returned to the spender.' }[action]); reload();
     });
     return b;
   };
   const physical = q.status === 'physical_required';
-  const checkLine = check ? h('p', { class: 'hint', style: { color: { matches: 'var(--green-ink)', mismatch: 'var(--amber)', duplicate: 'var(--red)', no_proof: 'var(--amber)' }[check.status] || '' } }, `${{ matches: '✓ ', duplicate: '⚠ ', mismatch: '! ' }[check.status] || ''}${check.note}`) : null;
+  const checkLine = checkLineFor(check);
   return h('div', { class: 'sheet', style: { borderColor: 'var(--blue)' } },
     h('div', { class: 'sheet-head' }, h('h2', {}, physical ? 'Waiting for the physical receipt' : 'Check the receipt'),
       h('span', { class: 'sub' }, `${money(expense?.total)} spent of ${money(q.disbursed_amount)} · ${expense?.proofs?.length || 0} file${expense?.proofs?.length === 1 ? '' : 's'} uploaded`)),

@@ -52,6 +52,7 @@ export async function packSummary(float, requests) {
   return {
     period: float.period, allocated: Number(float.allocated), topped_up: Number(float.topped_up), carried_over: Number(float.carried_over), returned: Number(float.returned),
     spent: Number(float.spent), outstanding: Number(float.outstanding), balance: Number(float.balance), counted_cash: float.counted_cash != null ? Number(float.counted_cash) : null,
+    adjusted: Number(float.adjusted || 0),
     vouchers, missing_proofs: missing, physical_receipts: physical,
     months: months.map((m) => ({ month: m, spent: Math.round(byMonth[m].spent * 100) / 100, vouchers: byMonth[m].vouchers.size })),
     by_category: Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([name, v]) => ({ name, amount: Math.round(v * 100) / 100, previous: Math.round((byCatPrev[name] || 0) * 100) / 100 })),
@@ -64,9 +65,10 @@ export async function packSummary(float, requests) {
 
 export async function buildMonthEndPack(float, { onProgress = () => {}, save = true } = {}) {
   onProgress('Collecting vouchers…');
-  const [requests, txs] = await Promise.all([
+  const [requests, ledger, counts] = await Promise.all([
     unwrap(await sb.from('requests').select('*, expense:expenses(*, lines:expense_lines(*), proofs:expense_proofs(*))').eq('float_id', float.id).order('disbursed_at')),
-    unwrap(await sb.from('float_transactions').select('*').eq('float_id', float.id).order('created_at')),
+    unwrap(await sb.rpc('cash_ledger', { p_float: float.id })) || [],
+    unwrap(await sb.from('cash_counts').select('*').eq('float_id', float.id).order('counted_at')) || [],
   ]);
   const summary = await packSummary(float, requests);
   const org = state.settings?.org_name || 'Petty cash';
@@ -113,6 +115,8 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
     Number(float.topped_up) > 0 ? ['Top-ups', money(float.topped_up)] : null,
     Number(float.returned) > 0 ? ['Returned to finance', `-${money(float.returned)}`] : null,
     ['Spent (receipts recorded)', `-${money(float.spent)}`],
+    Number(float.adjusted || 0) < 0 ? ['Cash short at a count, written off by the GM', money(float.adjusted)] : null,
+    Number(float.adjusted || 0) > 0 ? ['Cash over at a count, taken in by the GM', `+${money(float.adjusted)}`] : null,
     Number(float.outstanding) > 0 ? ['Out with people, not yet accounted for', `-${money(float.outstanding)}`] : null,
     ['Book balance', money(float.balance), true],
     float.counted_cash != null ? ['Cash counted at close', money(float.counted_cash)] : null,
@@ -120,10 +124,22 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   ].filter(Boolean));
   if (float.notes) { y += 2; text(`Notes: ${float.notes}`, { size: 9 }); }
   y += 5;
-  if (txs.length) {
-    heading('Money in and out of the box');
-    table([{ label: 'Date', w: 28 }, { label: 'What', w: 110 }, { label: 'Amount', w: 40, align: 'right' }],
-      txs.map((t) => [fmtDate(t.created_at), `${{ allocation: 'Monthly allocation', top_up: 'Top-up', carry_over: 'Carry-over', return: 'Returned to finance' }[t.kind]}${t.note ? ` – ${t.note}` : ''}`, money(t.kind === 'return' ? -t.amount : t.amount, { sign: true })]));
+  const shown = counts.filter((c) => c.status !== 'superseded');
+  if (shown.length) {
+    heading('Cash counts and sign-off');
+    const st = { to_review: 'waiting for the GM', queried: 'GM has a question', accepted: 'signed off' };
+    table([{ label: 'Counted', w: 30 }, { label: 'By', w: 30 }, { label: 'Book', w: 22, align: 'right' }, { label: 'Cash', w: 22, align: 'right' }, { label: 'Difference', w: 22, align: 'right' }, { label: 'Sign-off', w: 52 }],
+      shown.map((c) => [`${fmtDate(c.counted_at)}${c.kind === 'month_end' ? ' (month-end)' : ''}`, personName(c.counted_by), money(c.expected), money(c.counted), money(c.difference, { sign: true }),
+        `${c.status === 'accepted' ? `${personName(c.reviewed_by)}, ${fmtDate(c.reviewed_at)}` : st[c.status] || c.status}${c.note ? `\nfinance: ${c.note}` : ''}${c.review_note ? `\nGM: ${c.review_note}` : ''}${c.written_off != null ? `\n${money(Math.abs(c.written_off))} written off` : ''}`]), { size: 8.5 });
+    y += 5;
+  }
+
+  /* ---- the petty cash ledger: every movement of cash, with a running balance ---- */
+  if (ledger.length) {
+    newPage();
+    heading('Petty cash ledger');
+    table([{ label: 'Date', w: 22 }, { label: 'Ref', w: 14 }, { label: 'What', w: 86 }, { label: 'In', w: 18, align: 'right' }, { label: 'Out', w: 18, align: 'right' }, { label: 'Balance', w: 20, align: 'right' }],
+      ledger.map((r) => [fmtDate(r.at), r.ref || '', `${r.description}${r.person && r.request_id ? ` – ${personName(r.person)}` : ''}`, Number(r.cash_in) ? money(r.cash_in) : '', Number(r.cash_out) ? money(r.cash_out) : '', money(r.balance)]), { size: 8 });
     y += 5;
   }
 

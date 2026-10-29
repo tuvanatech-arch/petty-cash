@@ -252,13 +252,28 @@ export async function testPush() {
   return json;
 }
 
+/** A file's fingerprint, so the same receipt photo is recognised wherever it is attached again. */
+export async function fileSha256(file) {
+  try {
+    const d = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch { return null; }
+}
+/** The request this photo is already attached to, if any (shown as a warning; finance must explain before accepting it). */
+async function usedOn(sha, requestId = null) {
+  if (!sha) return null;
+  try { const r = await rpc('proof_used', { p_sha256: sha, p_request: requestId }); return r?.request_no || null; } catch { return null; }
+}
+
 /* ---------- snapped receipts (inbox) ---------- */
 export async function uploadToInbox(file) {
   const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80) || 'receipt.jpg';
   const path = `inbox/${state.me.id}/${crypto.randomUUID()}-${safe}`;
+  const sha256 = await fileSha256(file);
   const { error } = await sb.storage.from('proofs').upload(path, file, { contentType: file.type || 'application/octet-stream' });
   if (error) throw new Error(cleanError(error));
-  return unwrap(await sb.from('receipt_inbox').insert({ user_id: state.me.id, storage_path: path, file_name: file.name || safe, mime: file.type }).select().single());
+  const row = unwrap(await sb.from('receipt_inbox').insert({ user_id: state.me.id, storage_path: path, file_name: file.name || safe, mime: file.type, sha256 }).select().single());
+  return { ...row, used_on: await usedOn(sha256) };
 }
 /** Move the snapped file into the request's folder and attach it as a proof. */
 export async function fileInboxReceipt(inbox, requestId) {
@@ -357,11 +372,13 @@ export async function accountMail(body) {
 export async function uploadProof(requestId, expenseId, file) {
   const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
   const path = `${requestId}/${crypto.randomUUID()}-${safe}`;
+  const sha256 = await fileSha256(file);
   const { error } = await sb.storage.from('proofs').upload(path, file, { contentType: file.type || 'application/octet-stream' });
   if (error) throw new Error(cleanError(error));
-  return unwrap(await sb.from('expense_proofs').insert({
-    expense_id: expenseId, storage_path: path, file_name: file.name, mime: file.type, uploaded_by: state.me.id,
+  const row = unwrap(await sb.from('expense_proofs').insert({
+    expense_id: expenseId, storage_path: path, file_name: file.name, mime: file.type, uploaded_by: state.me.id, sha256,
   }).select().single());
+  return { ...row, used_on: await usedOn(sha256, requestId) };
 }
 
 export async function proofUrl(path) {

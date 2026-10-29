@@ -1,7 +1,7 @@
 import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush, canApproveReq, canReviewReq } from '../api.js';
 import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more } from '../ui.js';
 import { requestRow, expenseOf } from './requests.js';
-import { floatStrip } from './cash.js';
+import { floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
 import { reportDialog } from './stock.js';
 import { setupCard, welcomeStrip } from '../learn.js';
 
@@ -15,7 +15,7 @@ const oversight = () => duty('approver') || duty('managing_director');
 export async function homePage() {
   const me = state.me;
   const staff = isStaff();
-  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes] = await Promise.all([
+  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes] = await Promise.all([
     staff ? sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(staff ? 20 : 6),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
@@ -28,6 +28,8 @@ export async function homePage() {
     duty('finance') ? sb.rpc('expense_checks') : { data: [] },
     oversight() ? sb.from('requests').select('*').not('review_reason', 'is', null).is('reviewed_at', null).order('submitted_at') : { data: [] },
     oversight() ? sb.from('schedule_versions').select('id, status, md_status, area, version_no, changes, reason, proposed_by, proposed_at').or('status.eq.pending,and(status.eq.applied,md_status.eq.no_md)') : { data: [] },
+    duty('finance') || oversight() ? sb.from('cash_counts').select('*').in('status', ['to_review', 'queried']).order('counted_at') : { data: [] },
+    duty('finance') || oversight() ? sb.from('top_ups').select('*').in('status', ['requested', 'authorised']).order('requested_at') : { data: [] },
   ]);
   const open = openRes.data || [];
   const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
@@ -74,6 +76,31 @@ export async function homePage() {
   if (role() === 'managing_director' && schedUnseen.length) {
     cards.push(card('Schedule to review', schedUnseen.length, h('p', { class: 'hint' }, 'Versions made before you were set up in the app. Look through them and mark them reviewed.'),
       h('a', { class: 'btn btn-sm', href: '#/schedule' }, 'Open the schedule')));
+  }
+  // the cash box: counts to sign off or answer, top-ups to authorise or receive
+  const counts = countsRes.data || []; const topUps = topUpsRes.data || [];
+  const diffWords = (d) => (Math.abs(Number(d)) < 0.005 ? 'matches the book' : Number(d) < 0 ? `${money(-d)} short` : `${money(d)} over`);
+  const cashRow = (title, sub, amt, btnLabel, onClick, tone = '') => h('li', {}, h('div', { class: 'what' }, h('strong', {}, title), h('span', {}, sub)),
+    amt ? h('span', { class: 'amt', style: { color: tone } }, amt) : null, h('div', { class: 'row-actions' }, h('button', { class: 'btn btn-sm btn-primary', onclick: onClick }, btnLabel)));
+  const heldByTopUp = (c) => topUps.some((t) => t.count_id === c.id && t.status === 'requested');
+  if (duty('approver')) {
+    const toSign = counts.filter((c) => c.status === 'to_review' && c.counted_by !== me.id && !heldByTopUp(c));
+    if (toSign.length) cards.push(card('Cash counts to sign off', toSign.length, null, h('ul', { class: 'ledger-list' }, toSign.map((c) =>
+      cashRow(`${c.kind === 'month_end' ? 'Month-end count' : 'Cash count'} · ${fmtDate(c.counted_at)}`, `${personName(c.counted_by)} counted ${money(c.counted)}${c.note ? ` – “${c.note}”` : ''}${c.answer_note ? ` · answered: “${c.answer_note}”` : ''}`,
+        diffWords(c.difference), 'Sign off', () => reviewCountDialog(c), Math.abs(Number(c.difference)) < 0.005 ? '' : c.exception ? 'var(--red)' : 'var(--amber)')))));
+  }
+  const toDecide = topUps.filter((t) => t.status === 'requested' && t.requested_by !== me.id && (t.level === 'md' ? duty('managing_director') : duty('approver')));
+  if (toDecide.length) cards.push(card('Top-ups to authorise', toDecide.length, null, h('ul', { class: 'ledger-list' }, toDecide.map((t) => {
+    const c = counts.find((x) => x.id === t.count_id);
+    return cashRow(t.reason, `${personName(t.requested_by)}, ${fmtDate(t.requested_at)}${c ? ` · count: ${diffWords(c.difference)}` : ''}`, money(t.amount), 'Decide', () => decideTopUpDialog(t, c));
+  })), null, 'purple'));
+  if (duty('finance')) {
+    const asked = counts.filter((c) => c.status === 'queried');
+    if (asked.length) cards.push(card('Questions on your cash count', asked.length, null, h('ul', { class: 'ledger-list' }, asked.map((c) =>
+      cashRow(`“${c.review_note}”`, `${personName(c.reviewed_by)} on your count of ${fmtDate(c.counted_at)} (${diffWords(c.difference)})`, null, 'Answer', () => answerCountDialog(c))))));
+    const arrived = topUps.filter((t) => t.status === 'authorised');
+    if (arrived.length) cards.push(card('Top-up authorised', arrived.length, h('p', { class: 'hint' }, 'Record it when the cash is in the box.'), h('ul', { class: 'ledger-list' }, arrived.map((t) =>
+      cashRow(t.reason, `Authorised by ${personName(t.decided_by)}, ${fmtDate(t.decided_at)}`, money(t.amount), 'Record the cash', () => receiveTopUpDialog(t))))));
   }
   if (duty('stock_manager')) {
     if (byStatus('stock_review').length) cards.push(card('Stock requests to review', byStatus('stock_review').length, null, list(byStatus('stock_review'))));

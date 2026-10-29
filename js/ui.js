@@ -77,7 +77,7 @@ export const EVENT_LABEL = {
   escalated: 'Sent for approval', referred_to_md: 'Sent to the Managing Director', reviewed: 'Reviewed after payment', disbursed: 'Cash paid out', expense_recorded: 'Expense recorded', proof_confirmed: 'Proof confirmed – closed',
   physical_required: 'Physical receipt requested', physical_received: 'Physical receipt received', expense_returned: 'Returned for correction',
   reimbursed: 'Reimbursed – closed', float_warning: 'Finance warned about the float', document_attached: 'Invoice / quote attached', payout_undone: 'Pay-out undone',
-};
+  duplicate_explained: 'Reused receipt explained' };
 export const MOVEMENT_LABEL = { purchase_in: 'Bought', issue_out: 'Issued', usage: 'Used', adjustment: 'Adjusted', count: 'Count correction', reversal: 'Reversed' };
 export const PACE = { fast: { label: 'Fast mover', pill: 'pill-amber', hint: 'a month\'s order lasts under two weeks' }, slow: { label: 'Slow mover', pill: 'pill-blue', hint: 'a month\'s order lasts over four months, or nothing used in 60 days' }, dormant: { label: 'Never used', pill: 'pill-grey', hint: 'no usage recorded yet' }, normal: { label: 'Steady', pill: 'pill-green', hint: '' } };
 

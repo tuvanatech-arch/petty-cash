@@ -2,7 +2,7 @@
 // in one versioned place. The administrator changes it; the Managing Director approves what needs approving.
 import { sb, state, unwrap, rpc, role, has, personName, ROLE_LABEL, mdInPlace } from '../api.js';
 import { h, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today } from '../ui.js';
-import { ITEMS, SECTIONS, WEEKDAYS, BUDGET_MODES, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText } from '../schedule-meta.js';
+import { ITEMS, SECTIONS, WEEKDAYS, EVERY, BUDGET_MODES, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText } from '../schedule-meta.js';
 import { downloadSchedulePdf } from '../schedule-pdf.js';
 
 async function load() {
@@ -136,13 +136,13 @@ function readInput(k, el) {
   if (kind === 'money') return Math.round(num(el.value) * 100) / 100;
   if (kind === 'days') return Math.round(num(el.value));
   if (kind === 'pct') return num(el.value);
-  if (kind === 'weekday') return Number(el.value);
+  if (kind === 'weekday' || kind === 'every') return Number(el.value);
   if (kind === 'url') return el.value.trim() || null;
   return el.value.trim();
 }
 const same = (k, a, b) => {
   const kind = ITEMS[k].kind;
-  if (['money', 'days', 'pct', 'weekday'].includes(kind)) return Number(a) === Number(b);
+  if (['money', 'days', 'pct', 'weekday', 'every'].includes(kind)) return Number(a) === Number(b);
   if (kind === 'bool') return !!a === !!b;
   return (a ?? '') === (b ?? '');
 };
@@ -155,6 +155,7 @@ function inputFor(k, v) {
     case 'bool': return h('input', { type: 'checkbox', checked: !!v });
     case 'mode': return select(BUDGET_MODES, v || 'warn');
     case 'weekday': return select(WEEKDAYS, String(v ?? 5));
+    case 'every': return select(EVERY.some(([k]) => String(k) === String(v ?? 7)) ? EVERY : [...EVERY, [Number(v), `Every ${Number(v)} days`]], String(v ?? 7));
     case 'url': return h('input', { class: 'input', type: 'url', value: v || '', placeholder: 'https://…' });
     default: return h('input', { class: 'input', value: v || '', maxlength: 40 });
   }

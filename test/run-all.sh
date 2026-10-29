@@ -11,7 +11,9 @@ node --import ./hook.mjs store-route-test.mjs | tail -1
 (cd .. && node test/store-route-ui.mjs | tail -1)
 (cd .. && node test/authority-ui.mjs | tail -1)
 (cd .. && node test/schedule-ui.mjs | tail -1)
+(cd .. && node test/cash-ui.mjs | tail -1)
 OUT=/tmp/schedule-test.pdf node schedule-pdf-test.mjs 2>/dev/null | tail -1
+node pack-test.mjs 2>/dev/null | tail -1
 echo "smoke: PASS"
 node device-audit.mjs | tail -9
 node resume-test.mjs | tail -1

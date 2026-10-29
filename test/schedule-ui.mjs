@@ -31,7 +31,7 @@ check(/Version 3/.test(t) && /Not approved by Paulus/.test(t), 'GM: version hist
 
 // change one approval limit and one reminder: the review shows which waits and which applies now; a reason is required
 await page.locator('.schedule input.num').nth(1).fill('6000');
-await page.locator('.schedule select').nth(1).selectOption('3');
+await page.locator('.schedule .field', { hasText: 'Weekly stock count reminder' }).locator('select').selectOption('3');
 await page.locator('button:has-text("Review and save")').click(); await page.waitForTimeout(300);
 t = await modalText();
 check(/General Manager approves up to/.test(t) && /N\$6,000\.00/.test(t) && /waits for the MD/.test(t), 'review: the GM limit waits for the MD');
