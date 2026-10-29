@@ -44,10 +44,10 @@ check(await page.locator('nav a[href="#/reports"]').count() > 0, 'MD: Reports');
 await as('managing_director', `/requests/${uid(116)}`);
 check(/Your approval is needed/.test(await text()) && /Managing Director level/.test(await text()), 'MD: can approve an MD-level request');
 
-await as('approver', '/admin/settings');
+await as('approver', '/admin/schedule');
 t = await text();
 const vals = await page.evaluate(() => [...document.querySelectorAll('input.num')].map((i) => i.value));
-check(/Who approves what/.test(t) && /General Manager approves up to/.test(t) && vals.includes('5000.00') && vals.includes('7') && vals.includes('10'), `Settings: finance limit, GM limit, split window, tolerance (${vals.join(', ')})`);
+check(/Who approves what/.test(t) && /General Manager approves up to/.test(t) && vals.includes('5000.00') && vals.includes('7') && vals.includes('10'), `Schedule: finance limit, GM limit, split window, tolerance (${vals.join(', ')})`);
 await as('approver', '/admin');
 check(/Managing Director/.test(await text()) && /Paulus/.test(await text()), 'People lists the Managing Director');
 

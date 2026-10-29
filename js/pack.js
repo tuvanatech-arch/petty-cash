@@ -2,6 +2,7 @@
 // and the receipts (photos embedded, PDF invoices merged in as pages).
 import { sb, state, personName, unwrap, proofUrl } from './api.js';
 import { money, qty, fmtDate, monthLabel, STATUS, isoDate } from './ui.js';
+import { drawSchedule } from './schedule-pdf.js';
 
 let jsPDFCtor = null; let pdfLib = null;
 async function loadJsPDF() { if (!jsPDFCtor) jsPDFCtor = (await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/+esm')).jsPDF; return jsPDFCtor; }
@@ -164,6 +165,17 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
     table([{ label: 'Item', w: 130 }, { label: 'Amount', w: 48, align: 'right' }], s.top_lines.map((t) => [t.name, money(t.amount)]));
   }
 
+  /* ---- the authority schedule in force for the month, and any change to it during the month ---- */
+  onProgress('Adding the authority schedule…');
+  const monthEnd = new Date(String(float.period).slice(0, 10) + 'T00:00:00'); monthEnd.setMonth(monthEnd.getMonth() + 1);
+  const until = new Date(Math.min(monthEnd.getTime(), float.closed_at ? new Date(float.closed_at).getTime() : Date.now()));
+  const versions = unwrap(await sb.from('schedule_versions').select('*').eq('status', 'applied').order('version_no', { ascending: false })) || [];
+  const inForce = versions.find((v) => new Date(v.effective_at) <= until) || versions[versions.length - 1];
+  if (inForce?.snapshot) {
+    const monthChanges = versions.filter((v) => new Date(v.effective_at) >= new Date(String(float.period).slice(0, 10) + 'T00:00:00') && new Date(v.effective_at) <= until).reverse();
+    drawSchedule(doc, inForce, { inPack: true, monthChanges });
+  }
+
   /* ---- vouchers list ---- */
   newPage();
   const ex = (r) => (Array.isArray(r.expense) ? r.expense[0] : r.expense);
@@ -190,6 +202,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
       ['Requested by', `${personName(r.requester_id)} on ${fmtDate(r.submitted_at || r.created_at)}`],
       r.stock_reviewed_by ? ['Stock review', `${personName(r.stock_reviewed_by)}, ${fmtDate(r.stock_reviewed_at)}${r.stock_note ? ` – ${r.stock_note}` : ''}`] : null,
       r.approved_by ? ['Approved', `${personName(r.approved_by)}, ${fmtDate(r.approved_at)}${r.approval_note ? ` – ${r.approval_note}` : ''}`] : null,
+      r.schedule_version ? ['Schedule', `${state.settings?.schedule_ref || 'MGP-SCH-PC-001'} version ${r.schedule_version}`] : null,
       [r.type === 'claim' ? 'Reimbursed' : 'Cash paid', `${money(r.disbursed_amount)} to ${personName(r.disbursed_to)} by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`],
       e && Number(e.total) > 0 ? ['Spent', `${money(e.total)} on ${fmtDate(e.spent_at)}${e.supplier_name ? ` at ${e.supplier_name}` : ''}${r.type !== 'claim' ? ` · change ${money(e.change_returned)}` : ''}`] : ['Spent', 'Not yet recorded'],
       e?.confirmed_by ? ['Receipt confirmed', `${personName(e.confirmed_by)}, ${fmtDate(e.confirmed_at)}${e.physical_received_at ? ` · paper original received ${fmtDate(e.physical_received_at)}` : ''}`] : null,

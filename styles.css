@@ -587,3 +587,17 @@ tr.inactive td, tr.inactive td strong { color: var(--ink-3); }
 .plain-list li { padding: 5px 0; border-bottom: 1px solid var(--rule); font-size: .9rem; line-height: 1.4; }
 .plain-list li:last-child { border-bottom: 0; }
 .dev-count { white-space: nowrap; }
+/* authority schedule */
+.head-title { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+.sched-grid { display: grid; gap: 4px 20px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.sched-grid .field { margin-bottom: 10px; }
+.sched-kv { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
+.sched-kv dd { font-weight: 500; overflow-wrap: anywhere; }
+.pending-val { display: inline-block; margin-top: 2px; font-size: .8rem; font-weight: 600; color: var(--purple); }
+.changes li s { color: var(--ink-3); }
+.changes li .pill { margin-left: 4px; }
+.sched-save { justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+@media (min-width: 861px) { .sched-save { position: sticky; bottom: 0; background: var(--paper); padding: 10px 0; z-index: 2; } }
+.sched-version > summary { color: var(--ink); font-weight: 400; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.ledger-list li > details.sched-version { flex: 1 1 100%; margin-top: 0; min-width: 0; }
+@media (max-width: 860px) { .sched-kv { grid-template-columns: 1fr; gap: 2px 0; } .sched-kv dd { margin-bottom: 8px; } }

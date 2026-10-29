@@ -7,6 +7,7 @@
 //   reset_password  -> set a new temporary password                       (approver only)
 //   set_active      -> deactivate / reactivate (blocks sign-in)           (approver only)
 //   delete          -> remove an account that never did anything           (approver only)
+// After any change to people, the authority schedule records who now holds each position.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -39,6 +40,11 @@ async function caller(req: Request) {
   if (error || !data.user) return null;
   const { data: profile } = await admin.from("profiles").select("*").eq("id", data.user.id).single();
   return profile;
+}
+
+// who holds each position is part of the authority schedule: record a new version when it changes (no-op otherwise)
+async function syncPositions(by: string) {
+  try { await admin.rpc("schedule_positions_sync", { p_by: by }); } catch { /* the next schedule version picks it up */ }
 }
 
 function checkPassword(p: unknown) {
@@ -108,6 +114,7 @@ Deno.serve(async (req) => {
         await admin.from("invitations").delete().eq("id", inv.id);
         throw new Error(/already/i.test(error.message) ? "That email already has an account" : error.message);
       }
+      await syncPositions(me.id);
       return json({ ok: true, user_id: data.user.id });
     }
 
@@ -164,6 +171,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
       if (patch.role) await admin.auth.admin.updateUserById(user_id, { app_metadata: { invited: true, role: patch.role } });
       if (patch.full_name !== undefined) await admin.auth.admin.updateUserById(user_id, { user_metadata: { full_name: patch.full_name } });
+      await syncPositions(me.id);
       return json({ ok: true });
     }
 
@@ -183,6 +191,7 @@ Deno.serve(async (req) => {
       const { error: e2 } = await admin.auth.admin.updateUserById(user_id, { ban_duration: active ? "none" : "876000h" });
       if (e2) throw e2;
       // profiles.active = false also makes my_role() return null, so every policy and function denies at once
+      await syncPositions(me.id);
       return json({ ok: true });
     }
 
@@ -197,6 +206,7 @@ Deno.serve(async (req) => {
       await admin.from("receipt_inbox").delete().eq("user_id", user_id);
       const { error } = await admin.auth.admin.deleteUser(user_id);
       if (error) throw error;
+      await syncPositions(me.id);
       return json({ ok: true });
     }
 

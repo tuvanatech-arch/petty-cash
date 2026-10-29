@@ -7,6 +7,7 @@ import { stockPage } from './pages/stock.js';
 import { cashPage, packPage } from './pages/cash.js';
 import { reportsPage } from './pages/reports.js';
 import { adminPage } from './pages/admin.js';
+import { schedulePage } from './pages/schedule.js';
 import { accountPage } from './pages/account.js';
 import { notificationsPage } from './pages/notifications.js';
 import { snapPage } from './pages/snap.js';
@@ -31,6 +32,7 @@ const ROUTES = [
   { path: /^\/cash\/pack\/([0-9a-f-]{36})$/, page: (m) => packPage(m[1]), guard: 'finance' },
   { path: /^\/reports$/, page: () => reportsPage(), guard: 'reports' },
   { path: /^\/admin(?:\/(\w+))?$/, page: (m) => adminPage(m[1]), guard: 'admin' },
+  { path: /^\/schedule$/, page: () => (can('admin') ? adminPage('schedule') : schedulePage()), guard: 'schedule' },
   { path: /^\/account$/, page: () => accountPage() },
   { path: /^\/notifications$/, page: () => notificationsPage() },
   { path: /^\/snap$/, page: () => snapPage() },
@@ -52,6 +54,7 @@ function navItems() {
   if (can('finance')) items.push({ href: '#/cash', label: 'Petty cash', key: 'cash' });
   if (can('reports')) items.push({ href: '#/reports', label: 'Reports', key: 'reports' });
   if (can('admin')) items.push({ href: '#/admin', label: 'Admin', key: 'admin' });
+  else if (has('managing_director') || role() === 'finance') items.push({ href: '#/schedule', label: 'Schedule', key: 'schedule' });
   items.push({ href: '#/account', label: 'Account', key: 'account' });
   return items;
 }
@@ -77,8 +80,12 @@ async function actionCounts() {
   if (duty('managing_director')) { or.push('and(status.eq.pending_approval,approval_level.eq.md)'); or.push('and(reviewed_at.is.null,review_role.eq.managing_director)'); }
   if (duty('finance')) { or.push('status.eq.awaiting_disbursement'); or.push('status.eq.proof_review'); or.push('status.eq.physical_required'); }
   or.push(`and(status.eq.disbursed,disbursed_to.eq.${me})`);
-  const { count } = await sb.from('requests').select('id', { count: 'exact', head: true }).or(or.join(','));
-  return count || 0;
+  const [{ count }, sched] = await Promise.all([
+    sb.from('requests').select('id', { count: 'exact', head: true }).or(or.join(',')),
+    // a schedule change waiting for the MD counts as one of the MD's things to do
+    duty('managing_director') ? sb.from('schedule_versions').select('id', { count: 'exact', head: true }).eq('status', 'pending').neq('proposed_by', me) : { count: 0 },
+  ]);
+  return (count || 0) + (sched.count || 0);
 }
 
 let renderToken = 0;

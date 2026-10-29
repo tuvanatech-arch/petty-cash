@@ -24,9 +24,9 @@ const common = ['/home', '/requests', '/requests/new', '/requests/new/claim', '/
 const pages = {
   requester: [...common],
   stock_manager: [...common, '/stock/usage', '/stock/movements', '/stock/suppliers', '/stock/categories', `/requests/${id(101)}`, `/requests/${id(105)}`],
-  finance: [...common, '/cash', '/reports', `/requests/${id(102)}`, `/requests/${id(104)}`, `/requests/${id(106)}`, `/requests/${id(107)}`, `/requests/${id(113)}`, `/cash/pack/${id(42)}`],
-  approver: [...common, '/cash', '/reports', '/admin', '/admin/standins', '/admin/budgets', '/admin/settings', `/requests/${id(103)}`, `/requests/${id(108)}`, `/requests/${id(112)}`, `/requests/${id(115)}`, `/requests/${id(116)}`, `/requests/${id(117)}`, `/requests/${id(118)}`, '/requests/new/cash'],
-  managing_director: ['/home', '/requests', '/reports', '/cash', '/account', `/requests/${id(116)}`, `/requests/${id(117)}`],
+  finance: [...common, '/cash', '/reports', '/schedule', `/requests/${id(102)}`, `/requests/${id(104)}`, `/requests/${id(106)}`, `/requests/${id(107)}`, `/requests/${id(113)}`, `/cash/pack/${id(42)}`],
+  approver: [...common, '/cash', '/reports', '/admin', '/admin/standins', '/admin/schedule', '/admin/settings', `/requests/${id(103)}`, `/requests/${id(108)}`, `/requests/${id(112)}`, `/requests/${id(115)}`, `/requests/${id(116)}`, `/requests/${id(117)}`, `/requests/${id(118)}`, '/requests/new/cash'],
+  managing_director: ['/home', '/requests', '/reports', '/cash', '/account', '/schedule', `/requests/${id(116)}`, `/requests/${id(117)}`],
 };
 // dialogs and expanded states, opened by clicking
 const actions = [
@@ -40,6 +40,10 @@ const actions = [
   { role: 'approver', page: '/account', name: 'device sign-out armed', click: '.devices li:not(.this-device) button' },
   { role: 'approver', page: '/account', name: 'sign-in activity', click: '#devices summary' },
   { role: 'finance', page: '/cash', name: 'details open', click: 'summary' },
+  { role: 'approver', page: '/admin/schedule', name: 'schedule review', script: async () => { const i = document.querySelectorAll('.schedule input.num')[1]; i.value = '6000'; [...document.querySelectorAll('button')].find((b) => /Review and save/.test(b.textContent)).click(); await new Promise((r) => setTimeout(r, 300)); } },
+  { role: 'approver', page: '/admin/schedule', name: 'budget dialog', click: '.schedule button:has-text("Edit")' },
+  { role: 'approver', page: '/admin/schedule', name: 'version open', click: '.sched-version summary' },
+  { role: 'managing_director', page: '/schedule', name: 'approve dialog', click: 'button:has-text("Approve")' },
   { role: 'approver', page: '/reports', name: 'controls tab', click: '.tabs button:has-text("Controls")' },
   { role: 'approver', page: '/reports', name: 'prices tab', click: '.tabs button:has-text("Prices")' },
   { role: 'requester', page: '/home', name: 'toast', script: () => { const t = document.createElement('div'); t.className = 'toast'; t.textContent = 'Saved.'; document.body.append(t); const e = document.createElement('div'); e.className = 'toast err'; e.style.bottom = '90px'; e.textContent = 'Something went wrong.'; document.body.append(e); } },

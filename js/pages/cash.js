@@ -248,7 +248,7 @@ function openFloatDialog(floats) {
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Open float');
     const go = busy(b, async () => { await rpc('open_float', { p_period: period.value, p_amount: num(amount.value), p_note: note.value }); toast('Float opened.'); close(); refresh(); });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      h('p', { class: 'hint' }, state.settings.float_rollover ? 'Any balance left in the previous closed month is carried over automatically.' : 'Unspent balance from the previous month is not carried over (change this under Admin → Settings).'),
+      h('p', { class: 'hint' }, state.settings.float_rollover ? 'Any balance left in the previous closed month is carried over automatically.' : 'Unspent balance from the previous month is not carried over (set in the authority schedule).'),
       field('Month', period), field('Amount received from finance', amount), field('Note', note),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });

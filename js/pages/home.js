@@ -15,7 +15,7 @@ const oversight = () => duty('approver') || duty('managing_director');
 export async function homePage() {
   const me = state.me;
   const staff = isStaff();
-  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes] = await Promise.all([
+  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes] = await Promise.all([
     staff ? sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(staff ? 20 : 6),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
@@ -27,6 +27,7 @@ export async function homePage() {
     sb.from('receipt_inbox').select('id, file_name, extracted, created_at').eq('status', 'unfiled').order('created_at', { ascending: false }),
     duty('finance') ? sb.rpc('expense_checks') : { data: [] },
     oversight() ? sb.from('requests').select('*').not('review_reason', 'is', null).is('reviewed_at', null).order('submitted_at') : { data: [] },
+    oversight() ? sb.from('schedule_versions').select('id, status, md_status, area, version_no, changes, reason, proposed_by, proposed_at').or('status.eq.pending,and(status.eq.applied,md_status.eq.no_md)') : { data: [] },
   ]);
   const open = openRes.data || [];
   const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
@@ -61,6 +62,19 @@ export async function homePage() {
     cards.push(card('To review after payment', toReview.length, null,
       list(toReview, (q) => h('div', { class: 'row-actions' }, h('span', { class: 'note' }, q.review_reason)))));
   }
+  // the authority schedule: a change waiting for the MD, and what was changed before there was an MD
+  const sched = schedRes.data || [];
+  const schedPending = sched.find((v) => v.status === 'pending' && v.proposed_by !== me.id);
+  const schedUnseen = sched.filter((v) => v.status === 'applied' && v.proposed_by !== me.id);
+  if (duty('managing_director') && schedPending) {
+    cards.push(card('Schedule change to approve', 1, null,
+      h('ul', { class: 'plain-list changes' }, (schedPending.changes || []).map((c) => h('li', {}, `${c.label}: `, h('s', {}, c.from), ' → ', h('strong', {}, c.to)))),
+      h('p', { class: 'hint' }, `From ${personName(schedPending.proposed_by)}${schedPending.reason ? ` – “${schedPending.reason}”` : ''}`, ' ', h('a', { class: 'btn btn-sm btn-primary', href: '#/schedule' }, 'Open to approve')), 'purple'));
+  }
+  if (role() === 'managing_director' && schedUnseen.length) {
+    cards.push(card('Schedule to review', schedUnseen.length, h('p', { class: 'hint' }, 'Versions made before you were set up in the app. Look through them and mark them reviewed.'),
+      h('a', { class: 'btn btn-sm', href: '#/schedule' }, 'Open the schedule')));
+  }
   if (duty('stock_manager')) {
     if (byStatus('stock_review').length) cards.push(card('Stock requests to review', byStatus('stock_review').length, null, list(byStatus('stock_review'))));
     const stockRows = stockToAct(itemsRes.data || [], statsRes.data || [], reports);
@@ -94,6 +108,8 @@ export async function homePage() {
     const stuck = open.filter((q) => q.status !== 'disbursed' && Date.now() - new Date(q.updated_at) > 48 * 3600e3).length;
     const parts = Object.entries(counts).map(([k, c]) => h('a', { href: `#/requests?status=${statuses[k]}` }, h('strong', {}, c), ` ${label[k]}`));
     const othersReports = !duty('stock_manager') && reports.length ? h('a', { href: '#/stock/reports' }, h('strong', {}, new Set(reports.map((r) => r.item_id)).size), ' stock item' + (new Set(reports.map((r) => r.item_id)).size === 1 ? '' : 's') + ' reported') : null;
+    const schedWait = !duty('managing_director') && sched.some((v) => v.status === 'pending') ? h('a', { href: can('admin') ? '#/admin/schedule' : '#/schedule' }, h('strong', {}, 1), ' schedule change with the MD') : null;
+    if (schedWait) parts.push(schedWait);
     if (parts.length || stuck || othersReports) elsewhere = h('div', { class: 'elsewhere' }, h('span', {}, 'Elsewhere:'), parts, othersReports, stuck ? h('a', { href: '#/requests?view=open', style: { color: 'var(--amber)' } }, h('strong', {}, stuck), ' stuck 2+ days') : null);
   }
 

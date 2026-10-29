@@ -1,9 +1,9 @@
 // App shell cache: the pages open without signal; data always comes from the server when it can.
 const CACHE = 'pcs-shell-__BUILD__';
 const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './badge-96.png',
-  './js/app.js', './js/api.js', './js/ui.js', './js/adapt.js', './js/diag.js', './js/share.js', './js/charts.js', './js/config.js', './js/pack.js', './js/learn.js', './js/devices.js', './js/device-label.js',
+  './js/app.js', './js/api.js', './js/ui.js', './js/adapt.js', './js/diag.js', './js/share.js', './js/charts.js', './js/config.js', './js/pack.js', './js/learn.js', './js/devices.js', './js/device-label.js', './js/schedule-meta.js', './js/schedule-pdf.js',
   './js/pages/auth.js', './js/pages/home.js', './js/pages/requests.js', './js/pages/stock.js', './js/pages/cash.js',
-  './js/pages/reports.js', './js/pages/admin.js', './js/pages/account.js', './js/pages/notifications.js', './js/pages/snap.js', './js/pages/install.js'];
+  './js/pages/reports.js', './js/pages/admin.js', './js/pages/schedule.js', './js/pages/account.js', './js/pages/notifications.js', './js/pages/snap.js', './js/pages/install.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));

@@ -479,7 +479,8 @@ export async function requestDetailPage(id) {
     q.review_reason ? [h('dt', {}, 'Review'), h('dd', {}, `${q.review_reason} ${q.reviewed_at ? `Reviewed by ${personName(q.reviewed_by)}, ${fmtDate(q.reviewed_at)}${q.review_note ? ' – ' + q.review_note : ''}.` : 'Not reviewed yet.'}`)] : null,
     q.rejected_at ? [h('dt', {}, 'Rejected'), h('dd', {}, `${personName(q.rejected_by)}, ${fmtDate(q.rejected_at)} – ${q.rejection_reason}`)] : null,
     q.disbursed_at ? [h('dt', {}, isClaim ? 'Reimbursed' : 'Cash paid out'), h('dd', {}, `${money(q.disbursed_amount)} to ${personName(q.disbursed_to)} by ${personName(q.disbursed_by)}, ${fmtDate(q.disbursed_at)}`)] : null,
-    q.closed_at ? [h('dt', {}, 'Closed'), h('dd', {}, `${personName(q.closed_by)}, ${fmtDate(q.closed_at)}`)] : null);
+    q.closed_at ? [h('dt', {}, 'Closed'), h('dd', {}, `${personName(q.closed_by)}, ${fmtDate(q.closed_at)}`)] : null,
+    q.schedule_version ? [h('dt', {}, 'Rules'), h('dd', {}, `${q.approved_at ? 'Approved' : 'Routed'} under ${state.settings?.schedule_ref || 'the schedule'} version ${q.schedule_version}`)] : null);
 
   const record = h('div', { class: 'sheet flat' }, timeline, movementsSheet);
   // an invoice or quote attached before the money moved

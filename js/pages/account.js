@@ -1,4 +1,4 @@
-import { sb, state, unwrap, ROLE_LABEL, cleanError, personName, pushStatus, enablePush, disablePush, testPush, signOutHere } from '../api.js';
+import { sb, state, unwrap, ROLE_LABEL, cleanError, personName, pushStatus, enablePush, disablePush, testPush, signOutHere, can } from '../api.js';
 import { h, mount, toast, busy, field, fmtDate, today, confirmDialog, refresh, more } from '../ui.js';
 import { standinDialog, endDelegation } from './admin.js';
 import { BUILD, log } from '../diag.js';
@@ -95,8 +95,19 @@ export async function accountPage() {
       h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me (bundled – one message, not ten)')),
     devicesSheet,
     standinSheet,
+    rulesSheet(),
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'You')),
       h('form', {}, field('Your name, as shown on requests', name), h('div', { class: 'form-actions' }, saveName)),
       recovery ? passForm : more('Change password', passForm),
       installSheet, appSheet));
+}
+
+/** The policy and the authority schedule: everyone can open the policy; anyone with a position can read the schedule. */
+function rulesSheet() {
+  const s = state.settings || {};
+  if (!s.policy_url && !can('schedule')) return null;
+  return h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'The rules')),
+    h('ul', { class: 'ledger-list' },
+      s.policy_url ? h('li', { class: 'click', onclick: () => window.open(s.policy_url, '_blank', 'noopener') }, h('div', { class: 'what' }, h('strong', {}, 'Petty cash policy'), h('span', {}, `${s.policy_ref} · opens the current version`)), h('span', { class: 'amt' }, '↗')) : null,
+      can('schedule') ? h('li', { class: 'click', onclick: () => { location.hash = can('admin') ? '#/admin/schedule' : '#/schedule'; } }, h('div', { class: 'what' }, h('strong', {}, 'Authority schedule'), h('span', {}, `${s.schedule_ref} · limits, the float, budgets and who approves what`)), h('span', { class: 'amt' }, '→')) : null));
 }
