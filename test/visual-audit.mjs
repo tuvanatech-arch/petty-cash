@@ -25,7 +25,8 @@ const pages = {
   requester: [...common],
   stock_manager: [...common, '/stock/usage', '/stock/movements', '/stock/suppliers', '/stock/categories', `/requests/${id(101)}`, `/requests/${id(105)}`],
   finance: [...common, '/cash', '/reports', `/requests/${id(102)}`, `/requests/${id(104)}`, `/requests/${id(106)}`, `/requests/${id(107)}`, `/requests/${id(113)}`, `/cash/pack/${id(42)}`],
-  approver: [...common, '/cash', '/reports', '/admin', '/admin/standins', '/admin/budgets', '/admin/settings', `/requests/${id(103)}`, `/requests/${id(108)}`, `/requests/${id(112)}`, `/requests/${id(115)}`, '/requests/new/cash'],
+  approver: [...common, '/cash', '/reports', '/admin', '/admin/standins', '/admin/budgets', '/admin/settings', `/requests/${id(103)}`, `/requests/${id(108)}`, `/requests/${id(112)}`, `/requests/${id(115)}`, `/requests/${id(116)}`, `/requests/${id(117)}`, `/requests/${id(118)}`, '/requests/new/cash'],
+  managing_director: ['/home', '/requests', '/reports', '/cash', '/account', `/requests/${id(116)}`, `/requests/${id(117)}`],
 };
 // dialogs and expanded states, opened by clicking
 const actions = [

@@ -30,7 +30,8 @@ async function usersTab() {
     requester: 'Raises requests and claims; records what they spent.',
     stock_manager: 'Reviews stock requests, keeps the store, raises the monthly restock.',
     finance: 'Opens the float, pays out, checks receipts, closes the month.',
-    approver: 'Signs off anything above the threshold or over budget; administers the system.',
+    approver: 'General Manager: approves above the finance limit up to the GM limit (never their own); administers the system.',
+    managing_director: 'Approves above the GM limit and the GM’s own requests; sees everything; no administration. Their own requests are paid, then reviewed by the GM.',
   };
   return h('div', {},
     h('div', { class: 'sheet' },
@@ -242,12 +243,15 @@ function settingsTab() {
   const org = h('input', { class: 'input', value: s.org_name });
   const currency = h('input', { class: 'input', value: s.currency, maxlength: 6 });
   const threshold = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', value: Number(s.approval_threshold).toFixed(2) });
+  const gmLimit = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', value: Number(s.gm_limit ?? 5000).toFixed(2) });
+  const splitDays = h('input', { class: 'input num', type: 'number', min: 1, max: 31, step: 1, value: s.split_window_days ?? 7 });
+  const tolerance = h('input', { class: 'input num', type: 'number', min: 0, max: 50, step: 1, value: s.change_tolerance_pct ?? 10 });
   const floatAmt = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', value: Number(s.default_monthly_float).toFixed(2) });
   const rollover = h('input', { type: 'checkbox', checked: !!s.float_rollover });
   const grace = h('input', { class: 'input num', type: 'number', min: 1, max: 60, step: 1, value: s.advance_grace_days ?? 5 });
   const blockOutstanding = h('input', { type: 'checkbox', checked: !!s.block_with_outstanding });
   const claimsApprove = h('input', { type: 'checkbox', checked: s.claims_need_approval !== false });
-  const budgetMode = select([['warn', 'Flag it, let it through'], ['require_approval', 'Send it to the approver'], ['block', 'Block it']], s.budget_mode || 'warn');
+  const budgetMode = select([['warn', 'Flag it, let it through'], ['require_approval', 'Send it for approval'], ['block', 'Block it']], s.budget_mode || 'warn');
   const countDay = select([[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday'], [0, 'No reminder']], String(s.count_day ?? 5));
   const headcount = h('input', { class: 'input num', type: 'number', min: 1, step: 1, value: s.headcount ?? 8 });
   const reserveBuf = h('input', { class: 'input num', type: 'number', min: 0, max: 100, step: 1, value: s.reserve_buffer_pct ?? 15 });
@@ -259,6 +263,7 @@ function settingsTab() {
   const go = busy(b, async () => {
     unwrap(await sb.from('settings').update({
       org_name: org.value.trim() || 'Petty cash', currency: currency.value.trim() || 'N$', approval_threshold: num(threshold.value), default_monthly_float: num(floatAmt.value), float_rollover: rollover.checked,
+      gm_limit: Math.max(num(gmLimit.value), num(threshold.value)), split_window_days: Math.min(31, Math.max(1, Math.round(num(splitDays.value) || 7))), change_tolerance_pct: Math.min(50, Math.max(0, num(tolerance.value))),
       advance_grace_days: Math.max(1, Math.round(num(grace.value) || 5)), block_with_outstanding: blockOutstanding.checked, claims_need_approval: claimsApprove.checked, budget_mode: budgetMode.value,
       count_day: Number(countDay.value), headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
       reserve_buffer_pct: Math.min(100, Math.max(0, Math.round(num(reserveBuf.value)))),
@@ -270,14 +275,18 @@ function settingsTab() {
   });
   const block = (title, ...kids) => h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, title)), ...kids);
   return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-    block('Basics', field('Organisation name', org), h('div', { class: 'row' }, field('Currency symbol', currency), field('Approval threshold', threshold, 'Requests and claims above this go to the approver.')),
+    block('Basics', field('Organisation name', org), field('Currency symbol', currency),
       field('Usual monthly float', floatAmt, 'Pre-filled when finance opens a month.'),
       h('label', { class: 'check', style: { marginBottom: '8px' } }, rollover, 'Carry unspent balance into the next month'),
       h('p', { class: 'hint' }, 'Off: a quiet month shows as a saving and finance receives the full float again. On: the float resets to the usual amount plus whatever was left.')),
+    block('Who approves what',
+      h('div', { class: 'row' }, field('Finance pays alone up to', threshold, 'Above this the General Manager approves.'), field('General Manager approves up to', gmLimit, 'Above this the Managing Director approves instead.')),
+      h('div', { class: 'row' }, field('Count requests together over (days)', splitDays, 'One person’s small requests in this period are added up, so splitting cannot avoid approval.'), field('Pay-out tolerance (%)', tolerance, 'Paying or spending more than approved by more than this needs approval again or a review.')),
+      h('p', { class: 'hint' }, 'No one approves, pays out or confirms their own spending. The GM’s own requests go to the MD; finance’s own go to the GM; the MD’s own are paid, then reviewed by the GM.')),
     block('Chasing cash that is out', h('div', { class: 'row' }, field('Days before a reminder', grace, 'Cash paid out with no receipt recorded after this many days gets a daily nudge; finance is told too.')),
       h('label', { class: 'check', style: { marginBottom: '8px' } }, blockOutstanding, 'Hold new pay-outs to someone who still owes a receipt'),
       h('p', { class: 'hint' }, 'Finance sees the outstanding advance on the pay-out screen either way.')),
-    block('Money spent before approval', h('label', { class: 'check', style: { marginBottom: '8px' } }, claimsApprove, 'Every claim passes the approver, whatever the amount'),
+    block('Money spent before approval', h('label', { class: 'check', style: { marginBottom: '8px' } }, claimsApprove, 'Every claim needs approval, whatever the amount'),
       h('p', { class: 'hint' }, 'A claim is money someone paid out of pocket without a prior request. On: the approver signs off each one before finance pays it back. Off: claims under the threshold go straight to finance, like any other request. Reports show how much of each person’s spend went this way.')),
     block('Budgets and the float', field('When a request goes over its budget', budgetMode, 'Budgets are set on the Budgets tab.'),
       field('Safety buffer on the recommended minimum', reserveBuf, 'Percent added on top of what is usually spent for the rest of the month. The approver is cautioned when an approval would leave the float below that minimum.')),

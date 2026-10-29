@@ -60,7 +60,7 @@ function navItems() {
 function tabItems() {
   const all = Object.fromEntries(navItems().map((i) => [i.key, i]));
   const snap = { href: '#/snap', label: 'Snap', key: 'snap' };
-  const order = { approver: ['home', 'requests', 'reports', 'cash'], finance: ['home', 'requests', 'cash', 'stock'], stock_manager: ['home', 'stock', 'requests', 'snap'], requester: ['home', 'snap', 'requests', 'stock'] }[role()] || ['home', 'requests', 'stock', 'snap'];
+  const order = { approver: ['home', 'requests', 'reports', 'cash'], managing_director: ['home', 'requests', 'reports', 'cash'], finance: ['home', 'requests', 'cash', 'stock'], stock_manager: ['home', 'stock', 'requests', 'snap'], requester: ['home', 'snap', 'requests', 'stock'] }[role()] || ['home', 'requests', 'stock', 'snap'];
   const main = order.map((k) => (k === 'snap' ? snap : all[k])).filter(Boolean);
   const rest = navItems().filter((i) => i.key !== 'notifications' && !main.some((m) => m.key === i.key));
   return { main, rest };
@@ -73,7 +73,8 @@ async function actionCounts() {
   // same rule as Home: only the queues that are this person's duty (own role or standing in)
   const duty = (r) => role() === r || state.standingIn.some((d) => d.role === r);
   if (duty('stock_manager')) or.push('status.eq.stock_review');
-  if (duty('approver')) or.push('status.eq.pending_approval');
+  if (duty('approver')) { or.push('and(status.eq.pending_approval,or(approval_level.is.null,approval_level.eq.gm))'); or.push('and(reviewed_at.is.null,review_role.eq.approver)'); }
+  if (duty('managing_director')) { or.push('and(status.eq.pending_approval,approval_level.eq.md)'); or.push('and(reviewed_at.is.null,review_role.eq.managing_director)'); }
   if (duty('finance')) { or.push('status.eq.awaiting_disbursement'); or.push('status.eq.proof_review'); or.push('status.eq.physical_required'); }
   or.push(`and(status.eq.disbursed,disbursed_to.eq.${me})`);
   const { count } = await sb.from('requests').select('id', { count: 'exact', head: true }).or(or.join(','));

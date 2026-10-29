@@ -1,4 +1,4 @@
-import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush } from '../api.js';
+import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush, canApproveReq, canReviewReq } from '../api.js';
 import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more } from '../ui.js';
 import { requestRow, expenseOf } from './requests.js';
 import { floatStrip } from './cash.js';
@@ -9,21 +9,24 @@ import { setupCard, welcomeStrip } from '../learn.js';
 const duty = (r) => role() === r || state.standingIn.some((d) => d.role === r);
 const OPEN = ['stock_review', 'pending_approval', 'awaiting_disbursement', 'disbursed', 'proof_review', 'physical_required'];
 const HOLDER = { stock_review: 'stock_manager', pending_approval: 'approver', awaiting_disbursement: 'finance', proof_review: 'finance', physical_required: 'finance', disbursed: 'people' };
+const holderOf = (q) => (q.status === 'pending_approval' && q.approval_level === 'md' ? 'managing_director' : HOLDER[q.status]);
+const oversight = () => duty('approver') || duty('managing_director');
 
 export async function homePage() {
   const me = state.me;
   const staff = isStaff();
-  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes] = await Promise.all([
+  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes] = await Promise.all([
     staff ? sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(staff ? 20 : 6),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
-    duty('finance') || duty('approver') ? sb.from('v_floats').select('*').eq('status', 'open').maybeSingle() : { data: null },
+    duty('finance') || oversight() ? sb.from('v_floats').select('*').eq('status', 'open').maybeSingle() : { data: null },
     duty('stock_manager') ? sb.from('items').select('id,name,unit,qty_on_hand,reorder_level,recurring').eq('active', true).order('name') : { data: [] },
     duty('stock_manager') ? sb.rpc('item_usage_stats') : { data: [] },
-    duty('finance') || duty('approver') ? sb.rpc('float_outlook') : { data: null },
+    duty('finance') || oversight() ? sb.rpc('float_outlook') : { data: null },
     sb.from('stock_reports').select('id, item_id, level, reported_by, created_at, request_id, item:items(name, unit, qty_on_hand)').is('resolved_at', null).order('created_at', { ascending: false }),
     sb.from('receipt_inbox').select('id, file_name, extracted, created_at').eq('status', 'unfiled').order('created_at', { ascending: false }),
     duty('finance') ? sb.rpc('expense_checks') : { data: [] },
+    oversight() ? sb.from('requests').select('*').not('review_reason', 'is', null).is('reviewed_at', null).order('submitted_at') : { data: [] },
   ]);
   const open = openRes.data || [];
   const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
@@ -45,10 +48,18 @@ export async function homePage() {
         cash.map((q) => requestRow(q))),
       h('a', { class: 'btn btn-primary btn-sm', href: '#/snap', style: { marginTop: '10px' } }, '📷 Snap or upload')));
   }
-  if (duty('approver') && byStatus('pending_approval').length) {
-    cards.push(card('Needs your approval', byStatus('pending_approval').length,
+  // approvals: the GM's level for the GM, the MD's level for the MD, never one's own
+  const toApprove = byStatus('pending_approval').filter((q) => canApproveReq(q) && (q.approval_level === 'md' ? duty('managing_director') : duty('approver')));
+  if (toApprove.length) {
+    cards.push(card('Needs your approval', toApprove.length,
       onceHint('approve-inline', 'Approve or reject straight from here; the line under each shows what it leaves in the float. Tap a request for the full picture.'),
-      list(byStatus('pending_approval'), approveActions), null, 'purple'));
+      list(toApprove, approveActions), null, 'purple'));
+  }
+  // paid without approval (the MD's own) or spent over what was paid out: looked at afterwards
+  const toReview = (reviewRes.data || []).filter((q) => canReviewReq(q) && (q.review_role === 'managing_director' ? duty('managing_director') : duty('approver')));
+  if (toReview.length) {
+    cards.push(card('To review after payment', toReview.length, null,
+      list(toReview, (q) => h('div', { class: 'row-actions' }, h('span', { class: 'note' }, q.review_reason)))));
   }
   if (duty('stock_manager')) {
     if (byStatus('stock_review').length) cards.push(card('Stock requests to review', byStatus('stock_review').length, null, list(byStatus('stock_review'))));
@@ -64,7 +75,7 @@ export async function homePage() {
     if (payouts.length) cards.push(card('To pay out', payouts.length, null, list(payouts, (q) => (q.type === 'claim' ? h('div', { class: 'row-actions' }, h('span', { class: 'note' }, 'Claim – reimburse from the float')) : null))));
     const proofs = byStatus('proof_review');
     if (proofs.length) {
-      const matched = proofs.filter((q) => checks[q.id]?.status === 'matches');
+      const matched = proofs.filter((q) => checks[q.id]?.status === 'matches' && q.disbursed_to !== me.id && q.requester_id !== me.id);   // never your own receipt
       cards.push(card('Receipts to check', proofs.length, null, list(proofs, proofActions), null, null, matched.length > 1 ? confirmAllButton(matched) : null));
     }
     const physical = byStatus('physical_required');
@@ -75,11 +86,11 @@ export async function homePage() {
   /* ---------------- everything else, in one line ---------------- */
   let elsewhere = null;
   if (staff) {
-    const mineHolders = new Set(['approver', 'stock_manager', 'finance'].filter(duty));
+    const mineHolders = new Set(['approver', 'managing_director', 'stock_manager', 'finance'].filter(duty));
     const counts = {};
-    for (const q of open) { const hld = HOLDER[q.status]; if (mineHolders.has(hld)) continue; counts[hld] = (counts[hld] || 0) + 1; }
-    const label = { approver: 'with the approver', stock_manager: 'with the stock manager', finance: 'with finance', people: 'cash out with people' };
-    const statuses = { approver: 'pending_approval', stock_manager: 'stock_review', finance: 'awaiting_disbursement,proof_review,physical_required', people: 'disbursed' };
+    for (const q of open) { const hld = holderOf(q); if (mineHolders.has(hld)) continue; counts[hld] = (counts[hld] || 0) + 1; }
+    const label = { approver: 'with the GM', managing_director: 'with the MD', stock_manager: 'with the stock manager', finance: 'with finance', people: 'cash out with people' };
+    const statuses = { approver: 'pending_approval', managing_director: 'pending_approval', stock_manager: 'stock_review', finance: 'awaiting_disbursement,proof_review,physical_required', people: 'disbursed' };
     const stuck = open.filter((q) => q.status !== 'disbursed' && Date.now() - new Date(q.updated_at) > 48 * 3600e3).length;
     const parts = Object.entries(counts).map(([k, c]) => h('a', { href: `#/requests?status=${statuses[k]}` }, h('strong', {}, c), ` ${label[k]}`));
     const othersReports = !duty('stock_manager') && reports.length ? h('a', { href: '#/stock/reports' }, h('strong', {}, new Set(reports.map((r) => r.item_id)).size), ' stock item' + (new Set(reports.map((r) => r.item_id)).size === 1 ? '' : 's') + ' reported') : null;
@@ -87,7 +98,7 @@ export async function homePage() {
   }
 
   /* ---------------- the float, once ---------------- */
-  const floatCard = (duty('finance') || duty('approver')) ? floatSummary(floatRes.data, outlookRes.data) : null;
+  const floatCard = (duty('finance') || oversight()) ? floatSummary(floatRes.data, outlookRes.data) : null;
 
   /* ---------------- my own requests ---------------- */
   const myReports = reports.filter((r) => r.reported_by === me.id);
@@ -206,7 +217,8 @@ function proofActions(q) {
   if (!c) return null;
   const tone = { matches: 'pill-green', mismatch: 'pill-amber', duplicate: 'pill-red', unread: 'pill-grey', no_proof: 'pill-amber' }[c.status] || 'pill-grey';
   const label = { matches: 'Matches scan', mismatch: 'Scan differs', duplicate: 'Possible duplicate', unread: 'Scan not read', no_proof: 'No scan' }[c.status] || 'Not checked';
-  const ok = c.status === 'matches' ? h('button', { class: 'btn btn-sm btn-primary' }, 'Confirm & close') : null;
+  const own = q.disbursed_to === state.me.id || q.requester_id === state.me.id;
+  const ok = c.status === 'matches' && !own ? h('button', { class: 'btn btn-sm btn-primary' }, 'Confirm & close') : null;
   if (ok) ok.onclick = busy(ok, async (e) => { e.stopPropagation(); await rpc('finance_review_expense', { p_request: q.id, p_action: 'confirm', p_note: 'Matches the scanned receipt' }); toast(`#${q.request_no} closed.`); refresh(); });
   return h('div', { class: 'row-actions', onclick: (e) => e.stopPropagation() }, h('span', { class: `pill check-pill ${tone}`, title: c.note || '' }, label), c.status === 'matches' ? null : h('span', { class: `note${c.status === 'duplicate' ? ' bad' : c.status === 'mismatch' ? ' warn' : ''}` }, c.note || ''), ok);
 }

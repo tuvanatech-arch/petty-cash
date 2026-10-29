@@ -3,7 +3,7 @@
 //   status          -> { needs_bootstrap }            (no auth)
 //   bootstrap       -> create the first administrator (only while no users exist)
 //   create          -> create a user with a role and temporary password   (approver only)
-//   update          -> change full name / role / email                    (approver only)
+//   update          -> change full name / role / email                    (approver only; roles include managing_director)
 //   reset_password  -> set a new temporary password                       (approver only)
 //   set_active      -> deactivate / reactivate (blocks sign-in)           (approver only)
 //   delete          -> remove an account that never did anything           (approver only)
@@ -23,7 +23,7 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const ROLES = ["requester", "stock_manager", "finance", "approver"];
+const ROLES = ["requester", "stock_manager", "finance", "approver", "managing_director"];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function userCount() {

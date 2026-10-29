@@ -42,8 +42,11 @@ export const ROLE_LABEL = {
   requester: 'Requester',
   stock_manager: 'Stock manager',
   finance: 'Finance',
-  approver: 'Approver (admin)',
+  approver: 'General Manager (admin)',
+  managing_director: 'Managing Director',
 };
+/** Who approves at each level, in plain words. */
+export const LEVEL_LABEL = { gm: 'General Manager', md: 'Managing Director' };
 
 export function role() { return state.me?.role; }
 export function has(r) { return state.roles.includes(r); }
@@ -60,6 +63,19 @@ export function can(what) {
     default: return false;
   }
 }
+
+/** Can I approve this request? Never my own; the MD level only for the Managing Director (or their stand-in). */
+export function canApproveReq(q) {
+  if (!q || q.status !== 'pending_approval' || q.requester_id === state.me?.id) return false;
+  return q.approval_level === 'md' ? has('managing_director') : has('approver');
+}
+/** Can I review this request after the fact (an MD's own request, or spending over what was paid out)? */
+export function canReviewReq(q) {
+  if (!q?.review_reason || q.reviewed_at || q.requester_id === state.me?.id || q.disbursed_to === state.me?.id) return false;
+  return q.review_role === 'managing_director' ? has('managing_director') : has('approver');
+}
+/** Is the Managing Director position filled? (Until it is, the GM approves the larger amounts too.) */
+export function mdInPlace() { return state.people.some((p) => p.active && p.role === 'managing_director'); }
 
 export function personName(id) {
   if (!id) return '—';
@@ -105,6 +121,8 @@ export async function loadSessionContext() {
     state.settings = settings;
     state.people = people || [];
     state.roles = Array.isArray(roles) && roles.length ? roles : [me.role];
+    // the Managing Director holds every power of the General Manager except administration (same rule as the server)
+    if (state.roles.includes('managing_director') && !state.roles.includes('approver')) state.roles.push('approver');
     state.standingIn = deleg || [];
     state.unread = count || 0;
   }
