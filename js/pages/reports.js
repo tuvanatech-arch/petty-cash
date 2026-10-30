@@ -1,4 +1,4 @@
-import { sb, state, can, personName, unwrap } from '../api.js';
+import { sb, state, can, personName, unwrap, scoped, multiBranch, branchName } from '../api.js';
 import { h, mount, money, qty, fmtDate, monthLabel, pill, emptyState, select, field, isoDate, more } from '../ui.js';
 import { barChart, lineChart, hBars } from '../charts.js';
 
@@ -31,11 +31,11 @@ export async function reportsPage() {
   const since = months[0] + '-01';
   const since3 = months[months.length - 3] + '-01';
   const [lines, requests, prices, items, floats, events, { data: budgets }] = await Promise.all([
-    unwrap(await sb.from('v_spend_lines').select('*').gte('spent_at', since).order('spent_at')),
-    unwrap(await sb.from('requests').select('*, expense:expenses(total)').gte('created_at', since).order('created_at')),
+    unwrap(await scoped(sb.from('v_spend_lines').select('*')).gte('spent_at', since).order('spent_at')),
+    unwrap(await scoped(sb.from('requests').select('*, expense:expenses(total)')).gte('created_at', since).order('created_at')),
     unwrap(await sb.from('v_price_history').select('*').order('on_date')),
-    unwrap(await sb.from('items').select('*').eq('active', true).order('name')),
-    can('finance') ? unwrap(await sb.from('v_floats').select('*').order('period')) : [],
+    unwrap(await scoped(sb.from('items').select('*')).eq('active', true).order('name')),
+    can('finance') ? unwrap(await scoped(sb.from('v_floats').select('*')).order('period')) : [],
     unwrap(await sb.from('request_events').select('request_id, from_status, to_status, created_at').gte('created_at', since3).order('created_at').limit(5000)),
     sb.rpc('budget_status'),
   ]);
@@ -64,14 +64,17 @@ export async function reportsPage() {
     const thisMonth = byMonth[months[months.length - 1]]; const lastAvg = avg[avg.length - 1];
 
     /* --- float burn-down for the open month --- */
-    const open = floats.find((f) => f.status === 'open');
+    // the open month: one float, or every branch's open float added together when looking at all branches
+    const opens = floats.filter((f) => f.status === 'open');
+    const open = opens[0];
     let burn = null;
     if (open) {
-      const fl = lines.filter((l) => l.float_id === open.id).sort((a, b) => (a.spent_at < b.spent_at ? -1 : 1));
+      const ids = new Set(opens.map((f) => f.id));
+      const fl = lines.filter((l) => ids.has(l.float_id)).sort((a, b) => (a.spent_at < b.spent_at ? -1 : 1));
       let cum = 0; const pts = []; const seen = {};
       for (const l of fl) { cum += Number(l.line_total); seen[l.spent_at] = cum; }
       for (const [x, y] of Object.entries(seen)) pts.push({ x, y });
-      const funds = Number(open.allocated) + Number(open.topped_up) + Number(open.carried_over) - Number(open.returned);
+      const funds = opens.reduce((s, f) => s + Number(f.allocated) + Number(f.topped_up) + Number(f.carried_over) - Number(f.returned), 0);
       burn = { pts, funds, cum };
     }
 
@@ -151,7 +154,7 @@ export async function reportsPage() {
 
   draw();
   return h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Reports'), h('p', {}, 'The scorecard first; the detail when you want it.')),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, multiBranch() ? `Reports · ${state.view ? branchName(state.view) : 'all branches'}` : 'Reports'), h('p', {}, 'The scorecard first; the detail when you want it.')),
       h('div', { class: 'page-actions' }, rangeSel, exportButton(lines))),
     body);
 }

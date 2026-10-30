@@ -1,6 +1,6 @@
 // Month-end pack: one PDF with the reconciliation, a one-page monthly summary, every voucher paid from the float,
 // and the receipts (photos embedded, PDF invoices merged in as pages).
-import { sb, state, personName, unwrap, proofUrl } from './api.js';
+import { sb, state, personName, unwrap, proofUrl, multiBranch, branchName } from './api.js';
 import { money, qty, fmtDate, monthLabel, STATUS, isoDate } from './ui.js';
 import { drawSchedule } from './schedule-pdf.js';
 
@@ -34,7 +34,7 @@ export async function packSummary(float, requests) {
   const next = new Date(String(float.period).slice(0, 10) + 'T00:00:00'); next.setMonth(next.getMonth() + 1);
   const [lines, raised, budgets, cats] = await Promise.all([
     unwrap(await sb.from('v_spend_lines').select('*').gte('spent_at', from).lt('spent_at', isoDate(next))),
-    unwrap(await sb.from('requests').select('id, type, status, estimated_total, approval_required, approved_by, for_store, disbursed_amount').gte('submitted_at', float.period).lt('submitted_at', isoDate(next))),
+    unwrap(await sb.from('requests').select('id, type, status, estimated_total, approval_required, approved_by, for_store, disbursed_amount').eq('branch_id', float.branch_id).gte('submitted_at', float.period).lt('submitted_at', isoDate(next))),
     unwrap(await sb.from('budgets').select('category_id, person_id, monthly_limit').eq('active', true)),
     unwrap(await sb.from('categories').select('id, name')),
   ]);
@@ -105,7 +105,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   /* ---- page 1: reconciliation ---- */
   footer();
   text(org, { size: 11, color: [123, 133, 127] });
-  text(`Petty cash pack – ${monthLabel(float.period)}`, { size: 18, bold: true });
+  text(`Petty cash pack – ${monthLabel(float.period)}${multiBranch() ? ` – ${branchName(float.branch_id)}` : ''}`, { size: 18, bold: true });
   text(`${float.status === 'open' ? 'Open float (interim pack)' : `Closed ${fmtDate(float.closed_at)} by ${personName(float.closed_by)}`} · prepared ${fmtDate(new Date().toISOString(), { time: true })} by ${state.me.full_name || state.me.email}`, { size: 9, color: [123, 133, 127] });
   y += 4;
   heading('Reconciliation');

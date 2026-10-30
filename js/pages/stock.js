@@ -1,9 +1,13 @@
-import { sb, state, can, personName, unwrap, rpc, queueOffline } from '../api.js';
+import { sb, state, can, personName, unwrap, rpc, queueOffline, scoped, multiBranch, myBranch, branchName } from '../api.js';
+import { branchGate } from '../branch.js';
 import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint } from '../ui.js';
 import { barChart } from '../charts.js';
 
 export async function stockPage(tab = 'items') {
   const manage = can('manage_stock');
+  // one store at a time: looking at all branches, pick one first
+  const gate = branchGate('store');
+  if (gate) return h('div', {}, h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Stock'), h('p', {}, 'Each branch keeps its own store.'))), gate);
   const openReports = (await sb.from('stock_reports').select('id', { count: 'exact', head: true }).is('resolved_at', null)).count || 0;
   // daily work in the tab bar; catalogue setup (suppliers, categories) one tap away under "Catalogue"
   const setup = tab === 'suppliers' || tab === 'categories';
@@ -56,7 +60,7 @@ function runoutCell(i, s) {
 /* ---------------- items ---------------- */
 async function itemsTab(manage) {
   const [{ data: items }, { data: cats }, { data: sups }, stats] = await Promise.all([
-    sb.from('items').select('*').order('name'), sb.from('categories').select('*'), sb.from('suppliers').select('*'), loadStats(),
+    scoped(sb.from('items').select('*')).order('name'), sb.from('categories').select('*'), sb.from('suppliers').select('*'), loadStats(),
   ]);
   const catName = (id) => cats.find((c) => c.id === id)?.name || '—';
   const supName = (id) => sups.find((s) => s.id === id)?.name || '—';
@@ -122,7 +126,7 @@ function itemSheet(i, s, { catName, supName, sups }) {
 /* ---------------- low-stock reports from the team ---------------- */
 export function reportDialog(item) {
   modal(item ? `Report: ${item.name}` : 'Report low stock', async (close) => {
-    const items = item ? [item] : (await sb.from('items').select('id, name, unit, qty_on_hand').eq('active', true).order('name')).data || [];
+    const items = item ? [item] : (await scoped(sb.from('items').select('id, name, unit, qty_on_hand')).eq('active', true).order('name')).data || [];
     const sel = select([['', 'Choose an item…'], ...items.map((i) => [i.id, `${i.name} (${qty(i.qty_on_hand)} ${i.unit} on the books)`])], item?.id || '', { disabled: !!item });
     let level = 'low';
     const lvl = h('div', { class: 'tabs', style: { marginBottom: '12px' } });
@@ -143,7 +147,8 @@ export function reportDialog(item) {
 }
 
 async function reportsTab(manage) {
-  let q = sb.from('stock_reports').select('*, item:items(name, unit, qty_on_hand, recurring)').order('created_at', { ascending: false }).limit(300);
+  let q = sb.from('stock_reports').select('*, item:items!inner(name, unit, qty_on_hand, recurring, branch_id)').order('created_at', { ascending: false }).limit(300);
+  if (state.view) q = q.eq('item.branch_id', state.view);
   if (!manage) q = q.eq('reported_by', state.me.id);
   const rows = unwrap(await q);
   const open = rows.filter((r) => !r.resolved_at); const done = rows.filter((r) => r.resolved_at).slice(0, 30);
@@ -192,7 +197,7 @@ async function usageTab(manage) {
   for (let i = 5; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push(isoDate(d).slice(0, 7)); }
   const since = months[0] + '-01';
   const [{ data: items }, stats, { data: monthly }, { data: runouts }] = await Promise.all([
-    sb.from('items').select('*').eq('active', true).order('name'), loadStats(),
+    scoped(sb.from('items').select('*')).eq('active', true).order('name'), loadStats(),
     sb.from('v_item_monthly_usage').select('*').gte('month', since), sb.from('v_item_runouts').select('*').gte('ran_out_on', since),
   ]);
   const mk = (d) => String(d).slice(0, 7);
@@ -241,7 +246,7 @@ function quickCountDialog() {
     // works without signal: the item list is cached on the phone and the count is queued until there is a connection
     let items = null; let offline = !navigator.onLine;
     if (!offline) {
-      const { data, error } = await sb.from('items').select('id, name, unit, qty_on_hand, recurring, active').eq('active', true).order('name');
+      const { data, error } = await scoped(sb.from('items').select('id, name, unit, qty_on_hand, recurring, active')).eq('active', true).order('name');
       if (error && /No connection|Failed to fetch|NetworkError/i.test(error.message)) offline = true;
       else if (error) throw new Error(error.message);
       else { items = data; try { localStorage.setItem(ITEMS_CACHE, JSON.stringify({ at: new Date().toISOString(), items })); } catch {} }
@@ -334,7 +339,7 @@ function itemDialog(item, done) {
       try {
         if (item) unwrap(await sb.from('items').update(row).eq('id', item.id));
         else {
-          const created = unwrap(await sb.from('items').insert(row).select().single());
+          const created = unwrap(await sb.from('items').insert({ ...row, branch_id: myBranch() }).select().single());
           if (num(opening.value) > 0) await rpc('adjust_stock', { p_item: created.id, p_new_qty: num(opening.value), p_note: 'Opening stock' });
         }
         toast(item ? 'Item saved.' : 'Item added.'); close(); done();
@@ -372,7 +377,9 @@ function receiveDialog(item, sups, done) {
 
 /* ---------------- movements ---------------- */
 async function movementsTab() {
-  const { data } = await sb.from('stock_movements').select('*, item:items(name, unit)').eq('void', false).order('occurred_on', { ascending: false }).order('created_at', { ascending: false }).limit(200);
+  let mq = sb.from('stock_movements').select('*, item:items!inner(name, unit, branch_id)').eq('void', false).order('occurred_on', { ascending: false }).order('created_at', { ascending: false }).limit(200);
+  if (state.view) mq = mq.eq('item.branch_id', state.view);
+  const { data } = await mq;
   const rows = data || [];
   return h('div', { class: 'sheet' }, rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
     h('thead', {}, h('tr', {}, h('th', {}, 'When'), h('th', {}, 'Item'), h('th', {}, 'What'), h('th', { class: 'num' }, 'Change'), h('th', { class: 'num' }, 'Unit cost'), h('th', {}, 'By'))),

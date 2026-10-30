@@ -1,18 +1,74 @@
-import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, rpc, ROLE_LABEL, personName } from '../api.js';
+import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, rpc, ROLE_LABEL, personName, multiBranch, myBranch, branchName } from '../api.js';
 import { devicesDialog } from '../devices.js';
 import { schedulePage } from './schedule.js';
 import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, today, isoDate, emptyState } from '../ui.js';
 
 export async function adminPage(tab = 'users') {
   if (tab === 'budgets') tab = 'schedule';   // budgets live in the schedule now
-  const tabs = [['users', 'People'], ['signins', 'Sign-ins'], ['standins', 'Stand-ins'], ['schedule', 'Schedule'], ['settings', 'Settings']];
+  const tabs = [['users', 'People'], ['branches', 'Branches'], ['signins', 'Sign-ins'], ['standins', 'Stand-ins'], ['schedule', 'Schedule'], ['settings', 'Settings']];
   const bar = h('div', { class: 'tabs' }, tabs.map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { location.hash = `#/admin/${k}`; } }, l)));
-  const body = tab === 'settings' ? settingsTab() : tab === 'standins' ? await standinsTab() : tab === 'signins' ? await signInsTab() : tab === 'schedule' ? await schedulePage({ embedded: true }) : await usersTab();
-  const action = { users: ['Add person', () => userDialog(null)], standins: ['Add stand-in', () => standinDialog(null)] }[tab];
+  const body = tab === 'settings' ? settingsTab() : tab === 'standins' ? await standinsTab() : tab === 'signins' ? await signInsTab() : tab === 'branches' ? await branchesTab() : tab === 'schedule' ? await schedulePage({ embedded: true }) : await usersTab();
+  const action = { users: ['Add person', () => userDialog(null)], standins: ['Add stand-in', () => standinDialog(null)], branches: ['Add branch', () => branchDialog(null)] }[tab];
   return h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Admin'), h('p', {}, 'Who can sign in, who covers for whom, the authority schedule, and the organisation’s details.')),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Admin'), h('p', {}, 'Who can sign in, the branches, who covers for whom, the authority schedule, and the organisation’s details.')),
       action ? h('div', { class: 'page-actions' }, h('button', { class: 'btn btn-primary', onclick: action[1] }, action[0])) : null),
     bar, body);
+}
+
+/* =============================================================== branches */
+async function branchesTab() {
+  const [{ data: companies }, { data: branches }, { data: people }] = await Promise.all([
+    sb.from('companies').select('*').order('name'), sb.from('branches').select('*').order('name'), sb.from('profiles').select('id, full_name, role, active, branch_id').eq('active', true)]);
+  const { data: floats } = await sb.from('v_floats').select('id, branch_id, period, status, balance').eq('status', 'open');
+  const custodians = (b) => (people || []).filter((p) => p.branch_id === b.id && p.role === 'finance').map((p) => p.full_name).join(', ');
+  const stock = (b) => (people || []).filter((p) => p.branch_id === b.id && p.role === 'stock_manager').map((p) => p.full_name).join(', ');
+  return h('div', {},
+    (companies || []).map((c) => h('div', { class: 'sheet' },
+      h('div', { class: 'sheet-head' }, h('h2', {}, c.name), h('span', { class: 'sub' }, `${c.currency} · ${c.currency_code}${c.is_base ? ' · group reports are shown in this currency' : ''}`)),
+      h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
+        h('thead', {}, h('tr', {}, h('th', {}, 'Branch'), h('th', {}, 'Code'), h('th', {}, 'Custodian (finance)'), h('th', {}, 'Stock controller'), h('th', { class: 'num' }, 'Usual float'), h('th', {}, 'This month'), h('th'))),
+        h('tbody', {}, (branches || []).filter((b) => b.company_id === c.id).map((b) => { const f = (floats || []).find((x) => x.branch_id === b.id);
+          return h('tr', { class: b.active ? '' : 'inactive' },
+            h('td', {}, h('strong', {}, b.name), !b.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'closed') : null),
+            h('td', { class: 'muted' }, b.code),
+            h('td', {}, custodians(b) || h('span', { class: 'muted' }, 'nobody yet')),
+            h('td', {}, stock(b) || h('span', { class: 'muted' }, '—')),
+            h('td', { class: 'num' }, b.usual_float != null ? money(b.usual_float) : h('span', { class: 'muted', title: 'the schedule’s usual float' }, money(state.settings?.default_monthly_float || 0))),
+            h('td', {}, f ? `${money(f.balance)} in the box` : h('span', { class: 'muted' }, 'no float open')),
+            h('td', { class: 'num' }, h('button', { class: 'btn btn-sm btn-quiet', onclick: () => branchDialog(b, companies) }, 'Edit'))); })))))),
+    h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h3', {}, 'How branches work')),
+      h('ul', { class: 'plain-list' },
+        h('li', {}, 'Each branch keeps its own float, cash counts, top-ups, store and month-end pack. The limits and rules in the authority schedule apply to every branch of the company; only the usual float amount can differ per branch.'),
+        h('li', {}, 'Each person has a home branch and can cover others. The General Manager and the Managing Director see every branch; the branch switcher in the menu narrows the screens to one.'),
+        h('li', {}, 'A branch needs its own custodian: add a person with the Finance role whose home branch it is. You approve their requests from wherever you are.'),
+        h('li', {}, 'A second company (for example the Angolan one) gets its own currency; its figures are converted into the base currency for the group view at a rate recorded each month.'))));
+}
+function branchDialog(b, companies = null) {
+  modal(b ? `Edit ${b.name}` : 'Add a branch', (close) => {
+    const cos = companies || [];
+    const company = select(cos.map((c) => [c.id, c.name]), b?.company_id || cos[0]?.id);
+    const name = h('input', { class: 'input', value: b?.name || '', required: true, placeholder: 'Lüderitz' });
+    const code = h('input', { class: 'input', value: b?.code || '', required: true, placeholder: 'LUD', maxlength: 6, style: { textTransform: 'uppercase' } });
+    const usual = h('input', { class: 'input num', type: 'number', step: '0.01', min: '0', value: b?.usual_float ?? '', placeholder: String(state.settings?.default_monthly_float || '') });
+    const active = h('input', { type: 'checkbox', checked: b ? b.active : true });
+    const copyFrom = b ? null : select([['', 'Start with an empty store'], ...state.branches.map((x) => [x.id, `Copy the ${x.name} catalogue (names and reorder levels, no quantities)`])], '');
+    const err = h('div', { class: 'error' });
+    const save = h('button', { class: 'btn btn-primary', type: 'submit' }, b ? 'Save' : 'Add branch');
+    const go = busy(save, async () => {
+      err.textContent = '';
+      try {
+        await rpc('save_branch', { p_id: b?.id || null, p_company: company.value || null, p_name: name.value, p_code: code.value, p_usual_float: usual.value === '' ? null : num(usual.value), p_active: active.checked, p_copy_catalogue_from: copyFrom?.value || null });
+        toast(b ? 'Saved.' : `${name.value.trim()} added. Now add its custodian under People.`, { ms: 6000 }); close(); location.reload();
+      } catch (e) { err.textContent = e.message; }
+    });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      cos.length > 1 ? field('Company', company) : null,
+      field('Name', name), field('Short code', code, 'Printed on vouchers and the pack.'),
+      field('Usual monthly float', usual, `Leave empty to use the schedule’s usual float (${money(state.settings?.default_monthly_float || 0)}).`),
+      copyFrom ? field('Store', copyFrom) : null,
+      b ? field('', h('label', { class: 'check' }, active, ' Open (people can work in it)'), 'A branch can only be closed once its float is closed.') : null,
+      err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), save));
+  });
 }
 
 /* =============================================================== sign-ins */
@@ -72,10 +128,10 @@ async function usersTab() {
   return h('div', {},
     h('div', { class: 'sheet' },
       h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), h('th', {}, 'Devices'), h('th'))),
+        h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), multiBranch() ? h('th', {}, 'Branch') : null, h('th', {}, 'Devices'), h('th'))),
         h('tbody', {}, people.map((p) => h('tr', { class: p.active ? '' : 'inactive' },
           h('td', {}, h('strong', {}, p.full_name || '—'), !p.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null, p.id === state.me.id ? h('span', { class: 'muted' }, ' (you)') : null),
-          h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]), h('td', {}, devCell(p)),
+          h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]), multiBranch() ? h('td', {}, ['approver', 'managing_director'].includes(p.role) ? h('span', { class: 'muted' }, 'All branches') : [branchName(p.branch_id), (p.extra_branches || []).length ? h('span', { class: 'muted' }, ` + ${(p.extra_branches || []).map(branchName).join(', ')}`) : null]) : null, h('td', {}, devCell(p)),
           h('td', { class: 'num', style: { whiteSpace: 'nowrap' } },
             h('button', { class: 'btn btn-sm btn-quiet', onclick: () => userDialog(p) }, 'Edit'), ' ',
             p.active ? h('button', { class: 'btn btn-sm btn-quiet', onclick: () => inviteDialog(p) }, 'Invite') : null, ' ',
@@ -99,6 +155,12 @@ function userDialog(p) {
     const name = h('input', { class: 'input', value: p?.full_name || '', required: true, autocomplete: 'off' });
     const email = h('input', { class: 'input', type: 'email', value: p?.email || '', required: true, autocomplete: 'off' });
     const role = select(Object.entries(ROLE_LABEL), p?.role || 'requester');
+    const branches = state.branches.filter((b) => b.active);
+    const home = select(branches.map((b) => [b.id, b.name]), p?.branch_id || myBranch());
+    const extra = branches.map((b) => { const cb = h('input', { type: 'checkbox', value: b.id, checked: (p?.extra_branches || []).includes(b.id) }); return { id: b.id, cb, el: h('label', { class: 'check' }, cb, ` ${b.name}`) }; });
+    const extraWrap = h('div', { class: 'row', style: { gap: '12px', flexWrap: 'wrap', display: 'flex' } }, extra.map((x) => x.el));
+    const syncExtra = () => { for (const x of extra) { x.el.style.display = x.id === home.value || ['approver', 'managing_director'].includes(role.value) ? 'none' : ''; } };
+    home.onchange = syncExtra; role.onchange = syncExtra; syncExtra();
     const pass = p ? null : h('input', { class: 'input', type: 'text', value: tempPassword(), autocomplete: 'off' });
     const err = h('div', { class: 'error' });
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, p ? 'Save' : 'Create account');
@@ -107,9 +169,11 @@ function userDialog(p) {
       try {
         if (p) {
           await adminUsers({ action: 'update', user_id: p.id, full_name: name.value, role: role.value, email: email.value });
+          if (multiBranch()) await rpc('set_person_branches', { p_user: p.id, p_home: home.value, p_extra: extra.filter((x) => x.cb.checked && x.id !== home.value).map((x) => x.id) });
           toast(email.value.trim().toLowerCase() !== (p.email || '').toLowerCase() ? `Saved. ${name.value.trim()} now signs in as ${email.value.trim().toLowerCase()}.` : 'Saved.', { ms: 6000 }); close(); refresh();
         } else {
-          const { user_id } = await adminUsers({ action: 'create', email: email.value, full_name: name.value, role: role.value, password: pass.value });
+          const { user_id } = await adminUsers({ action: 'create', email: email.value, full_name: name.value, role: role.value, password: pass.value, branch_id: home.value });
+          if (multiBranch()) await rpc('set_person_branches', { p_user: user_id, p_home: home.value, p_extra: extra.filter((x) => x.cb.checked && x.id !== home.value).map((x) => x.id) });
           close(); refresh();
           inviteDialog({ id: user_id, full_name: name.value.trim(), email: email.value.trim().toLowerCase(), role: role.value }, pass.value);
         }
@@ -117,6 +181,8 @@ function userDialog(p) {
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       field('Name', name), field('Email', email, p ? 'They sign in with this. If you change it, tell them – the old address stops working at once.' : 'They sign in with this.'), field('Role', role),
+      multiBranch() ? field('Home branch', home, 'Where they work. The General Manager and the Managing Director cover every branch.') : null,
+      multiBranch() ? field('Also covers', extraWrap, 'Other branches this person holds the same position in.') : null,
       pass ? field('Temporary password', pass, 'Only needed if the invitation cannot be emailed; shown again on the next screen.') : null,
       err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });

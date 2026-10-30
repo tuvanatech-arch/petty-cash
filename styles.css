@@ -622,3 +622,17 @@ a.rec:hover { background: var(--paper); }
 .rec.info { border-left-color: var(--ink-3); } .rec.info .dot { color: var(--ink-3); }
 .rec.green { border-left-color: var(--green); } .rec.green .dot { color: var(--green); }
 .score .box { display: flex; flex-direction: column; }
+
+/* ---- branches: the switcher for people who cover more than one ---- */
+.branch-switch { font: inherit; font-size: .9rem; min-height: 40px; padding: 6px 28px 6px 10px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: inherit; max-width: 100%; }
+html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
+.topbar .brand { flex: 1 1 auto; min-width: 0; }
+.side .side-branch { margin: 0 0 12px; width: 100%; }
+.topbar .top-branch { margin-left: auto; margin-right: 8px; max-width: 46vw; }
+.topbar .top-branch + .bell { margin-left: 0; }
+@media (min-width: 900px) { .topbar .top-branch { display: none; } }
+@media (max-width: 899px) { .side .side-branch { display: none; } }
+.branch-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.branch-pick .box { cursor: pointer; }
+.branch-pick .box:hover { background: var(--paper); }
+.branch-tag { font-size: .75rem; color: var(--ink-3); border: 1px solid var(--rule); border-radius: 999px; padding: 1px 8px; margin-left: 6px; white-space: nowrap; }

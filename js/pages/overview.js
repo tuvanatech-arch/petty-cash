@@ -1,6 +1,6 @@
 // The Managing Director's overview: live status, charts, tracking and plain-language recommendations.
 // Everything is read from the same data the rest of the app uses; nothing here is stored or typed in.
-import { sb, state, personName } from '../api.js';
+import { sb, state, personName, scoped, inView, multiBranch, branchName } from '../api.js';
 import { h, money, fmtDate, monthLabel, emptyState, isoDate } from '../ui.js';
 import { barChart, lineChart, hBars } from '../charts.js';
 import { stageDurations, fmtHours } from './reports.js';
@@ -26,22 +26,24 @@ async function load() {
   const months = lastMonths(6);
   const since = months[0] + '-01';
   const since3 = isoDate(new Date(Date.now() - 90 * 864e5));
-  const [lines, open, prices, events, fl, outlook, budgets, claims, counts, topUps, sched, items, reports] = await Promise.all([
-    ask(sb.from('v_spend_lines').select('*').gte('spent_at', since).order('spent_at')),
-    ask(sb.from('requests').select('id, request_no, purpose, type, status, approval_level, estimated_total, requester_id, disbursed_to, disbursed_amount, disbursed_at, submitted_at, updated_at').in('status', OPEN)),
+  const [lines, open, prices, events, fl, outlook, budgets, claims, counts, topUps, sched, items, reports, allFloats] = await Promise.all([
+    ask(scoped(sb.from('v_spend_lines').select('*')).gte('spent_at', since).order('spent_at')),
+    ask(scoped(sb.from('requests').select('id, request_no, purpose, type, status, approval_level, estimated_total, requester_id, disbursed_to, disbursed_amount, disbursed_at, submitted_at, updated_at, branch_id')).in('status', OPEN)),
     ask(sb.from('v_price_history').select('*').gte('on_date', since).order('on_date')),
     ask(sb.from('request_events').select('request_id, from_status, to_status, created_at').gte('created_at', since3).order('created_at').limit(5000)),
-    ask(sb.from('v_floats').select('*').eq('status', 'open').maybeSingle()),
-    ask(sb.rpc('float_outlook')),
+    ask(scoped(sb.from('v_floats').select('*')).eq('status', 'open').order('period')),
+    ask(sb.rpc('branch_outlooks')),
     ask(sb.rpc('budget_status')),
     ask(sb.rpc('claims_summary')),
     ask(sb.from('cash_counts').select('*').neq('status', 'superseded').order('counted_at', { ascending: false }).limit(12)),
     ask(sb.from('top_ups').select('*').order('requested_at', { ascending: false }).limit(5)),
     ask(sb.from('schedule_versions').select('version_no, status').eq('status', 'applied').order('version_no', { ascending: false }).limit(1)),
-    ask(sb.from('items').select('id, name, qty_on_hand, reorder_level, recurring').eq('active', true)),
-    ask(sb.from('stock_reports').select('item_id').is('resolved_at', null)),
+    ask(scoped(sb.from('items').select('id, name, qty_on_hand, reorder_level, recurring')).eq('active', true)),
+    ask((state.view ? sb.from('stock_reports').select('item_id, item:items!inner(branch_id)').eq('item.branch_id', state.view) : sb.from('stock_reports').select('item_id')).is('resolved_at', null)),
+    ask(sb.from('floats').select('id, branch_id')),
   ]);
-  return { months, lines: lines || [], open: open || [], prices: prices || [], events: events || [], f: fl, o: outlook, budgets: (budgets || []).filter((b) => b.active), claims: claims || [], counts: counts || [], topUps: topUps || [], schedule: (sched || [])[0] || null, items: items || [], reports: reports || [] };
+  const fls = allFloats || [];
+  return { months, lines: lines || [], open: open || [], prices: prices || [], events: events || [], floats: fl || [], outlooks: Array.isArray(outlook) ? outlook : [], budgets: (budgets || []).filter((b) => b.active), claims: claims || [], counts: inView(counts || [], fls), topUps: inView(topUps || [], fls), schedule: (sched || [])[0] || null, items: items || [], reports: reports || [], allFloats: fls };
 }
 
 /** Turn the raw data into the numbers the screen shows and the recommendations draw on. */
@@ -61,15 +63,22 @@ function model(d) {
   const catMonth = {}; for (const l of lines) { const k = monthKey(l.spent_at); (catMonth[l.category_name || 'Uncategorised'] ||= {})[k] = (catMonth[l.category_name || 'Uncategorised'][k] || 0) + num(l.line_total); }
   const drivers = Object.entries(catMonth).map(([name, m]) => ({ name, rise: (m[cur] || 0) - prev3.reduce((t, k) => t + (m[k] || 0), 0) / Math.max(1, prev3.length) })).sort((a, b) => b.rise - a.rise);
 
-  // the open float: funds, spent, and the line that climbs through the month
-  const f = d.f; let float = null;
-  if (f) {
-    const funds = num(f.allocated) + num(f.topped_up) + num(f.carried_over) - num(f.returned);
-    const mine = lines.filter((l) => l.float_id === f.id).sort((a, b) => (a.spent_at < b.spent_at ? -1 : 1));
+  // the open float(s): funds, spent, and the line that climbs through the month – every open float added together when looking at all branches
+  const opens = d.floats; let float = null;
+  if (opens.length) {
+    const ids = new Set(opens.map((f) => f.id));
+    const funds = opens.reduce((t, f) => t + num(f.allocated) + num(f.topped_up) + num(f.carried_over) - num(f.returned), 0);
+    const mine = lines.filter((l) => ids.has(l.float_id)).sort((a, b) => (a.spent_at < b.spent_at ? -1 : 1));
     let cum = 0; const seen = {}; for (const l of mine) { cum += num(l.line_total); seen[l.spent_at] = cum; }
     const first = isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), last = isoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-    float = { f, funds, cum, pts: Object.entries(seen).map(([x, y]) => ({ x, y })), first, last };
+    float = { f: opens[0], n: opens.length, funds, cum, pts: Object.entries(seen).map(([x, y]) => ({ x, y })), first, last };
   }
+  // one outlook across the branches being looked at: sums, and the worst verdict
+  const rank = { no_float: 0, ok: 1, caution: 2, short: 3, overdrawn: 4 };
+  const os = d.outlooks; const sum = (k) => os.reduce((t, x) => t + num(x[k]), 0);
+  d.o = os.length ? { has_float: os.some((x) => x.has_float), balance: sum('balance'), after_approval: sum('after_approval'), awaiting: sum('awaiting'), expected_remaining: sum('expected_remaining'), reserve: sum('reserve'), days_left: os[0].days_left,
+    status: os.filter((x) => x.has_float).map((x) => x.status).sort((a, b) => rank[b] - rank[a])[0] || 'no_float' } : null;
+  d.f = opens[0] || null;
 
   // work in progress and cash out with people
   const grace = num(s.advance_grace_days) || 5, esc = num(s.advance_escalate_days) || 14;
@@ -108,14 +117,17 @@ function model(d) {
 
 /** What the MD should look at, in words, worst first. */
 function recommend(m) {
-  const { d, s } = m; const o = d.o; const R = [];
+  const { d, s } = m; const R = [];
   const add = (tone, title, text, href) => R.push({ tone, title, text, href });
-  if (o && o.has_float && ['overdrawn', 'short', 'caution'].includes(o.status)) {
+  const many = d.outlooks.length > 1; const pre = (o) => (many ? `${o.branch} · ` : '');
+  for (const o of d.outlooks) {
+    if (!(o.has_float && ['overdrawn', 'short', 'caution'].includes(o.status))) continue;
     const after = num(o.after_approval); const need = Math.max(0, num(o.expected_remaining) - after); const round = Math.ceil(need / 100) * 100;
-    const pending = m.openTopUp ? ` A top-up of ${money(m.openTopUp.amount)} is already ${m.openTopUp.status === 'requested' ? 'requested' : 'authorised'}.` : round ? ` A top-up of about ${money(round)} would cover it.` : '';
-    if (o.status === 'overdrawn') add('red', 'More has been approved than the box holds', `Approved payments of ${money(o.awaiting)} are more than the ${money(o.balance)} in the box.${pending}`, '#/cash');
-    else if (o.status === 'short') add('red', 'The float may not last the month', `After what is already approved ${money(after)} is left, but about ${money(o.expected_remaining)} is usually still spent in the ${plural(num(o.days_left), 'day')} to month-end.${pending}`, '#/cash');
-    else add('amber', 'The float is getting tight', `${money(after)} is left after approved payments, close to the ${money(o.reserve)} usually needed to month-end.${pending}`, '#/cash');
+    const tu = d.topUps.find((t) => t.float_id === o.float_id && ['requested', 'authorised'].includes(t.status));
+    const pending = tu ? ` A top-up of ${money(tu.amount)} is already ${tu.status === 'requested' ? 'requested' : 'authorised'}.` : round ? ` A top-up of about ${money(round)} would cover it.` : '';
+    if (o.status === 'overdrawn') add('red', `${pre(o)}More has been approved than the box holds`, `Approved payments of ${money(o.awaiting)} are more than the ${money(o.balance)} in the box.${pending}`, '#/cash');
+    else if (o.status === 'short') add('red', `${pre(o)}The float may not last the month`, `After what is already approved ${money(after)} is left, but about ${money(o.expected_remaining)} is usually still spent in the ${plural(num(o.days_left), 'day')} to month-end.${pending}`, '#/cash');
+    else add('amber', `${pre(o)}The float is getting tight`, `${money(after)} is left after approved payments, close to the ${money(o.reserve)} usually needed to month-end.${pending}`, '#/cash');
   }
   const budgets = m.d.budgets.filter((b) => num(b.monthly_limit) > 0);
   const overB = budgets.filter((b) => num(b.used) > num(b.monthly_limit)), nearB = budgets.filter((b) => num(b.used) <= num(b.monthly_limit) && num(b.used) / num(b.monthly_limit) >= 0.8);
@@ -126,10 +138,11 @@ function recommend(m) {
     add(worst.days > m.esc ? 'red' : 'amber', `${plural(m.overdue.length, 'receipt')} overdue`, `${money(m.overdue.reduce((t, a) => t + num(a.r.disbursed_amount), 0))} has been out longer than ${plural(m.grace, 'day')}. Longest: ${personName(worst.r.disbursed_to)}, ${money(worst.r.disbursed_amount)}, ${Math.floor(worst.days)} days.`, '#/requests?status=disbursed');
   }
   if (m.stale.length) add('amber', `${plural(m.stale.length, 'request')} waiting over 2 days for approval`, m.stale.slice(0, 3).map((r) => `#${r.request_no} ${r.purpose} (${money(r.estimated_total)})`).join(' · ') + (m.waitingMD.length ? `. ${m.waitingMD.length} of the approvals are yours.` : '.'), '#/requests?status=pending_approval');
-  if (d.f) {
-    const days = num(s.cash_count_days) || 7;
-    if (!m.lastCount) add('amber', 'The cash box has not been counted', 'No count has been recorded yet. A count against the book is the only proof the cash is there.', '#/cash');
-    else if (days && m.countAge > days) add('amber', `The box was last counted ${ago(m.countAge)}`, `The schedule asks for a count at least every ${plural(days, 'day')}.`, '#/cash');
+  for (const f of d.floats) {
+    const days = num(s.cash_count_days) || 7; const bp = many ? `${branchName(f.branch_id)} · ` : '';
+    const last = d.counts.find((c) => c.float_id === f.id); const age = last ? daysSince(last.counted_at) : null;
+    if (!last) add('amber', `${bp}The cash box has not been counted`, 'No count has been recorded yet. A count against the book is the only proof the cash is there.', '#/cash');
+    else if (days && age > days) add('amber', `${bp}The box was last counted ${ago(age)}`, `The schedule asks for a count at least every ${plural(days, 'day')}.`, '#/cash');
   }
   if (m.diffs.length) add('amber', `${plural(m.diffs.length, 'count')} did not match the book (90 days)`, `Net ${m.diffNet < 0 ? money(-m.diffNet) + ' short' : money(m.diffNet) + ' over'}. Each was explained and signed off by the General Manager; a pattern is worth a conversation.`, '#/cash');
   if (m.pace != null && m.avg3 > 0 && m.pace > m.avg3 * 1.25) {
@@ -156,7 +169,7 @@ function strip(m) {
   const diff = c ? (Math.abs(num(c.difference)) < 0.005 ? 'matched the book' : num(c.difference) < 0 ? `${money(-c.difference)} short` : `${money(c.difference)} over`) : null;
   const waiting = m.d.open.filter((r) => r.status === 'pending_approval');
   return h('div', { class: 'score' },
-    box('In the box', f ? money(f.balance) : '—', f && o?.has_float ? h('span', { class: 'd' }, `${money(o.after_approval)} after approved payments`) : h('span', { class: 'd' }, f ? '' : 'no float open'), verdict ? h('span', { class: `pill ${verdict[0]}`, style: { marginTop: '4px', alignSelf: 'flex-start' } }, verdict[1]) : null),
+    box('In the box', f ? money(o.balance) : '—', f && o?.has_float ? h('span', { class: 'd' }, m.d.outlooks.length > 1 ? m.d.outlooks.map((x) => `${x.branch} ${x.has_float ? money(x.balance) : 'no float'}`).join(' · ') : `${money(o.after_approval)} after approved payments`) : h('span', { class: 'd' }, f ? '' : 'no float open'), verdict ? h('span', { class: `pill ${verdict[0]}`, style: { marginTop: '4px', alignSelf: 'flex-start' } }, verdict[1]) : null),
     box('Spent this month', money(m.spent), dtext(pct(m.spent, m.prev), 'on last month'), m.avg3 > 0 ? h('span', { class: 'd' }, `usual month ${money(m.avg3)}`) : null),
     box('Cash out with people', money(m.advTotal), h('span', { class: 'd', style: m.overdue.length ? { color: 'var(--amber)' } : {} }, m.advances.length ? `${plural(m.advances.length, 'receipt')} awaited${m.overdue.length ? ` · ${m.overdue.length} overdue` : ''}` : 'all receipts in')),
     box('Waiting for approval', plural(waiting.length, 'request'), h('span', { class: 'd' }, waiting.length ? `${money(waiting.reduce((t, r) => t + num(r.estimated_total), 0))} · ${m.waitingMD.length} with you` : 'nothing waiting')),
@@ -175,7 +188,7 @@ function charts(m) {
   const m6 = m.months;
   const spend = sheet('Monthly spend', 'last 6 months', barChart(null, { labels: m6.map(shortMonth), values: m6.map((k) => m.byMonth[k]), line: m.avgSeries, lineName: '3-month average', format: money }));
   const fl = m.float;
-  const burn = sheet('This month\'s float', fl ? `${money(fl.cum)} spent of ${money(fl.funds)}${m.d.o?.has_float ? ` · about ${money(fl.cum + num(m.d.o.expected_remaining))} by month-end` : ''}` : 'no float open',
+  const burn = sheet(fl && fl.n > 1 ? `This month's floats (${fl.n} branches)` : 'This month\'s float', fl ? `${money(fl.cum)} spent of ${money(fl.funds)}${m.d.o?.has_float ? ` · about ${money(fl.cum + num(m.d.o.expected_remaining))} by month-end` : ''}` : 'no float open',
     fl ? (fl.pts.length ? lineChart(null, { series: [{ name: 'Spent', points: fl.pts }, { name: 'Funds', points: [{ x: fl.first, y: fl.funds }, { x: fl.last, y: fl.funds }] }], format: money, xLabel: (x) => fmtDate(x) }) : emptyState('Nothing spent yet this month', 'The line climbs as expenses are recorded.')) : emptyState('No float open', 'Finance opens the month under Petty cash.'));
   const cat = {}; const cut = isoDate(new Date(Date.now() - 90 * 864e5));
   for (const l of m.d.lines) if (l.spent_at >= cut) cat[l.category_name || 'Uncategorised'] = (cat[l.category_name || 'Uncategorised'] || 0) + num(l.line_total);
@@ -198,7 +211,7 @@ function tracking(m) {
       h('td', {}, personName(a.r.disbursed_to), h('span', { class: 'muted' }, ` · #${a.r.request_no}`)), h('td', { class: 'num' }, money(a.r.disbursed_amount)), h('td', { class: 'num', style: a.days > m.grace ? { color: 'var(--amber)' } : { color: 'var(--ink-3)' } }, `${Math.floor(a.days)}d`)))))) : emptyState('No cash out', 'Every pay-out has its receipt.'));
   const c = m.lastCount; const tu = m.openTopUp;
   const box_ = sheet('The cash box', m.d.schedule ? `schedule version ${m.d.schedule.version_no}` : null,
-    c ? h('ul', { class: 'ledger-list' }, m.d.counts.slice(0, 4).map((x) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${x.kind === 'month_end' ? 'Month-end count' : 'Count'} · ${fmtDate(x.counted_at)}`), h('span', {}, `${money(x.counted)} counted · ${personName(x.counted_by)}${x.status === 'accepted' ? ` · signed off by ${personName(x.reviewed_by)}` : x.status === 'queried' ? ' · queried by the GM' : ' · waiting for the GM'}`)),
+    c ? h('ul', { class: 'ledger-list' }, m.d.counts.slice(0, 4).map((x) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${m.d.outlooks.length > 1 ? `${branchName(m.d.allFloats.find((f) => f.id === x.float_id)?.branch_id)} · ` : ''}${x.kind === 'month_end' ? 'Month-end count' : 'Count'} · ${fmtDate(x.counted_at)}`), h('span', {}, `${money(x.counted)} counted · ${personName(x.counted_by)}${x.status === 'accepted' ? ` · signed off by ${personName(x.reviewed_by)}` : x.status === 'queried' ? ' · queried by the GM' : ' · waiting for the GM'}`)),
       h('span', { class: 'amt', style: Math.abs(num(x.difference)) < 0.005 ? {} : { color: 'var(--amber)' } }, Math.abs(num(x.difference)) < 0.005 ? 'matched' : num(x.difference) < 0 ? `${money(-x.difference)} short` : `${money(x.difference)} over`))))
       : emptyState('No counts yet', 'Finance counts the box under Petty cash.'),
     tu ? h('p', { class: 'hint', style: { marginTop: '8px' } }, `Top-up of ${money(tu.amount)} (${tu.reason}): ${tu.status === 'requested' ? `waiting for the ${tu.level === 'md' ? 'MD' : 'GM'}` : 'authorised, waiting for the cash'}.`) : null);

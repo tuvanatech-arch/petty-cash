@@ -1,4 +1,5 @@
-import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL } from '../api.js';
+import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
+import { branchTag } from '../branch.js';
 import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint } from '../ui.js';
 import { outlookBox } from './cash.js';
 
@@ -16,7 +17,7 @@ export function requestRow(q, { showRequester = false, note = null } = {}) {
   const over = Number(q.estimated_total) > thr() || Number(q.disbursed_amount) > thr();
   return h('li', { class: 'click', onclick: () => { location.hash = `#/requests/${q.id}`; } },
     h('div', { class: 'what' },
-      h('strong', {}, `#${q.request_no} · ${q.purpose || (q.type === 'stock' ? 'Stock request' : q.type === 'claim' ? 'Claim' : 'Cash request')}`),
+      h('strong', {}, `#${q.request_no} · ${q.purpose || (q.type === 'stock' ? 'Stock request' : q.type === 'claim' ? 'Claim' : 'Cash request')}`, branchTag(q.branch_id)),
       h('span', {}, [typeLabel(q), showRequester ? ` · ${personName(q.requester_id)}` : '', ` · ${fmtDate(q.submitted_at || q.created_at)}`].join(''),
         q.over_budget ? h('span', { style: { color: 'var(--amber)' } }, ' · over budget') : null,
         note ? h('span', { style: { color: 'var(--amber)' } }, ` · ${note}`) : null)),
@@ -36,7 +37,7 @@ export async function requestsPage() {
   let rows = [];
 
   async function load() {
-    let q = sb.from('requests').select('*, expense:expenses(total, proof_status)').order('updated_at', { ascending: false }).limit(300);
+    let q = scoped(sb.from('requests').select('*, expense:expenses(total, proof_status)')).order('updated_at', { ascending: false }).limit(300);
     if (view === 'status') q = q.in('status', statusFilter);
     else if (view === 'open') q = q.in('status', OPEN_STATUSES);
     else if (view === 'mine') q = q.eq('requester_id', state.me.id);
@@ -79,7 +80,7 @@ function priceHint(prices, itemId) {
 /* =============================================================== new / edit */
 export async function newRequestPage(editId, presetType) {
   const [{ data: items }, { data: cats }, budgets, prices] = await Promise.all([
-    sb.from('items').select('*').eq('active', true).order('name'),
+    sb.from('items').select('*').eq('active', true).eq('branch_id', myBranch()).order('name'),
     sb.from('categories').select('*').eq('active', true).order('name'),
     loadBudgets(), loadPrices(),
   ]);
@@ -194,7 +195,7 @@ export async function newRequestPage(editId, presetType) {
     } else {
       const head = { type, purpose: purpose.value.trim(), needed_by: needed.value || null, category_id: type === 'cash' ? (category.value || null) : null, not_stock: type === 'cash' && notStock };
       if (id) unwrap(await sb.from('requests').update(head).eq('id', id));
-      else { const row = unwrap(await sb.from('requests').insert({ ...head, requester_id: state.me.id, for_store: forStore }).select().single()); id = row.id; existing = row; }
+      else { const row = unwrap(await sb.from('requests').insert({ ...head, requester_id: state.me.id, for_store: forStore, branch_id: myBranch() }).select().single()); id = row.id; existing = row; }
     }
     if (type === 'cash' && simpleCash) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }];
     const clean = lines.filter((l) => (type === 'stock' ? l.item_id : l.description.trim()));
@@ -717,7 +718,7 @@ async function claimPanel(q, expense, reload, check = null) {
 async function expensePanel(q, lines, expense, reload) {
   const [{ data: suppliers }, { data: items }, prices] = await Promise.all([
     sb.from('suppliers').select('id, name').eq('active', true).order('name'),
-    q.type === 'stock' ? sb.from('items').select('id, name, unit, last_unit_price').eq('active', true).order('name') : { data: [] },
+    q.type === 'stock' ? sb.from('items').select('id, name, unit, last_unit_price').eq('active', true).eq('branch_id', q.branch_id).order('name') : { data: [] },
     q.type === 'stock' ? loadPrices() : [],
   ]);
   const returned = expense?.proof_status === 'returned';

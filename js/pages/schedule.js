@@ -1,15 +1,16 @@
 // The authority schedule (MGP-SCH-PC-001): limits, the float, reminder periods, budgets and who holds each position,
 // in one versioned place. The administrator changes it; the Managing Director approves what needs approving.
-import { sb, state, unwrap, rpc, role, has, personName, ROLE_LABEL, mdInPlace } from '../api.js';
+import { sb, state, unwrap, rpc, role, has, personName, ROLE_LABEL, mdInPlace, multiBranch, branchName } from '../api.js';
 import { h, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today } from '../ui.js';
 import { ITEMS, SECTIONS, WEEKDAYS, EVERY, BUDGET_MODES, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText } from '../schedule-meta.js';
 import { downloadSchedulePdf } from '../schedule-pdf.js';
 
 async function load() {
-  const [settings, versions, budgets, cats, standins] = await Promise.all([
+  const [settings, versions, budgets, budgetBranches, cats, standins] = await Promise.all([
     sb.from('settings').select('*').eq('id', 1).single(),
     sb.from('schedule_versions').select('*').order('proposed_at', { ascending: false }).limit(300),
     sb.rpc('budget_status'),
+    multiBranch() ? sb.from('budgets').select('id, branch_id') : { data: [] },
     sb.from('categories').select('id, name').order('name'),
     sb.from('delegations').select('*').gte('ends_on', today()).order('starts_on'),
   ]);
@@ -22,7 +23,7 @@ async function load() {
     current: applied[0] || null,
     pending: all.find((v) => v.status === 'pending') || null,
     history: all.filter((v) => v.status !== 'pending').sort((a, b) => String(when(b)).localeCompare(String(when(a)))),
-    budgets: budgets.data || [],
+    budgets: (budgets.data || []).map((b) => ({ ...b, branch_id: (budgetBranches.data || []).find((x) => x.id === b.budget_id)?.branch_id || null })),
     cats: cats.data || [],
     standins: standins.data || [],
   };
@@ -239,11 +240,11 @@ function budgetsBlock(d, admin) {
   };
   return h('div', { class: 'sheet' },
     head('Budgets', false, admin ? h('button', { class: 'btn btn-sm', type: 'button', onclick: () => budgetDialog(null, d.cats) }, 'Add budget') : null),
-    h('p', { class: 'hint' }, `Monthly limits per category or per person, counted against cash paid out and claims reimbursed in the calendar month. ${modeText}`),
+    h('p', { class: 'hint' }, `Monthly limits per category or per person, counted against cash paid out and claims reimbursed in the calendar month. ${modeText}${multiBranch() ? ` A budget added while looking at one branch is for that branch; added while looking at all branches, it covers every branch${state.view ? '' : ' (you are looking at all branches now)'}.` : ''}`),
     rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
       h('thead', {}, h('tr', {}, h('th', {}, 'Budget'), h('th', { style: { width: '30%' } }, 'This month'), h('th', { class: 'num' }, 'Used'), h('th', { class: 'num' }, 'Limit'), admin ? h('th') : null)),
       h('tbody', {}, rows.map((b) => h('tr', { class: b.active ? '' : 'inactive' },
-        h('td', {}, h('strong', {}, b.label), b.note ? h('div', { class: 'muted' }, b.note) : null, !b.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'off') : null),
+        h('td', {}, h('strong', {}, b.label), multiBranch() ? h('span', { class: 'branch-tag' }, b.branch_id ? branchName(b.branch_id) : 'All branches') : null, b.note ? h('div', { class: 'muted' }, b.note) : null, !b.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'off') : null),
         h('td', {}, meter(b)),
         h('td', { class: 'num', style: { color: Number(b.used) > Number(b.monthly_limit) ? 'var(--red)' : '' } }, money(b.used)),
         h('td', { class: 'num' }, money(b.monthly_limit)),

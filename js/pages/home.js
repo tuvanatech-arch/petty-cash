@@ -1,4 +1,4 @@
-import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush, canApproveReq, canReviewReq } from '../api.js';
+import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush, canApproveReq, canReviewReq, scoped, inView, multiBranch, branchName } from '../api.js';
 import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more } from '../ui.js';
 import { requestRow, expenseOf } from './requests.js';
 import { floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
@@ -21,14 +21,14 @@ async function buildHome() {
   const isMD = role() === 'managing_director';
   const staff = isStaff();
   const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes] = await Promise.all([
-    staff ? sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
+    staff ? scoped(sb.from('requests').select('*, expense:expenses(proof_status, finance_note)')).in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(staff ? 20 : 6),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
-    duty('finance') || oversight() ? sb.from('v_floats').select('*').eq('status', 'open').maybeSingle() : { data: null },
-    duty('stock_manager') ? sb.from('items').select('id,name,unit,qty_on_hand,reorder_level,recurring').eq('active', true).order('name') : { data: [] },
+    duty('finance') || oversight() ? scoped(sb.from('v_floats').select('*')).eq('status', 'open').order('period') : { data: [] },
+    duty('stock_manager') ? scoped(sb.from('items').select('id,name,unit,qty_on_hand,reorder_level,recurring')).eq('active', true).order('name') : { data: [] },
     duty('stock_manager') ? sb.rpc('item_usage_stats') : { data: [] },
-    duty('finance') || oversight() ? sb.rpc('float_outlook') : { data: null },
-    sb.from('stock_reports').select('id, item_id, level, reported_by, created_at, request_id, item:items(name, unit, qty_on_hand)').is('resolved_at', null).order('created_at', { ascending: false }),
+    duty('finance') || oversight() ? sb.rpc('branch_outlooks') : { data: [] },
+    (state.view ? sb.from('stock_reports').select('id, item_id, level, reported_by, created_at, request_id, item:items!inner(name, unit, qty_on_hand, branch_id)').eq('item.branch_id', state.view) : sb.from('stock_reports').select('id, item_id, level, reported_by, created_at, request_id, item:items(name, unit, qty_on_hand, branch_id)')).is('resolved_at', null).order('created_at', { ascending: false }),
     sb.from('receipt_inbox').select('id, file_name, extracted, created_at').eq('status', 'unfiled').order('created_at', { ascending: false }),
     duty('finance') ? sb.rpc('expense_checks') : { data: [] },
     oversight() ? sb.from('requests').select('*').not('review_reason', 'is', null).is('reviewed_at', null).order('submitted_at') : { data: [] },
@@ -38,7 +38,9 @@ async function buildHome() {
   ]);
   const open = openRes.data || [];
   const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
-  outlookRef.current = outlookRes.data; checksRef.current = checks;
+  const floats = floatRes.data || [];
+  const outlooks = Array.isArray(outlookRes.data) ? outlookRes.data : [];
+  outlookRef.current = outlooks; checksRef.current = checks;
   const cash = unwrap(cashRes);
   const unfiled = inboxRes.data || [];
   const reports = reportsRes.data || [];
@@ -83,7 +85,8 @@ async function buildHome() {
       h('a', { class: 'btn btn-sm', href: '#/schedule' }, 'Open the schedule')));
   }
   // the cash box: counts to sign off or answer, top-ups to authorise or receive
-  const counts = countsRes.data || []; const topUps = topUpsRes.data || [];
+  const allFloats = (duty('finance') || oversight()) ? (await sb.from('floats').select('id, branch_id')).data || [] : [];
+  const counts = inView(countsRes.data || [], allFloats); const topUps = inView(topUpsRes.data || [], allFloats);
   const diffWords = (d) => (Math.abs(Number(d)) < 0.005 ? 'matches the book' : Number(d) < 0 ? `${money(-d)} short` : `${money(d)} over`);
   const cashRow = (title, sub, amt, btnLabel, onClick, tone = '') => h('li', {}, h('div', { class: 'what' }, h('strong', {}, title), h('span', {}, sub)),
     amt ? h('span', { class: 'amt', style: { color: tone } }, amt) : null, h('div', { class: 'row-actions' }, h('button', { class: 'btn btn-sm btn-primary', onclick: onClick }, btnLabel)));
@@ -146,7 +149,8 @@ async function buildHome() {
   }
 
   /* ---------------- the float, once ---------------- */
-  const floatCard = !isMD && (duty('finance') || oversight()) ? floatSummary(floatRes.data, outlookRes.data) : null;
+  // one float card per branch being looked at (the MD's overview has its own)
+  const floatCard = !isMD && (duty('finance') || oversight()) ? outlooks.map((o) => floatSummary(floats.find((f) => f.id === o.float_id) || null, o)) : null;
 
   /* ---------------- my own requests ---------------- */
   const myReports = reports.filter((r) => r.reported_by === me.id);
@@ -213,11 +217,13 @@ function stockToAct(items, statsArr, reports) {
 
 /** One card for the float: four numbers and a verdict; the breakdown on tap. */
 function floatSummary(f, o) {
-  if (!f) return duty('finance') ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'No float is open'), 'Nothing can be paid out until this month\'s float is opened. ', h('a', { href: '#/cash' }, 'Open it')) : null;
+  const where = multiBranch() && o?.branch ? ` for ${o.branch}` : '';
+  if (!f) return duty('finance') || multiBranch() ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `No float is open${where}`), 'Nothing can be paid out until this month\'s float is opened. ', h('a', { href: '#/cash' }, 'Open it')) : null;
   const after = o ? Number(o.after_approval) : Number(f.balance);
   const verdict = o ? { ok: ['pill-green', 'Comfortable'], caution: ['pill-amber', 'Tight'], short: ['pill-red', 'Short for the month'], overdrawn: ['pill-red', 'Overcommitted'] }[o.status] : null;
   const cell = (k, v, cls = '') => h('div', {}, h('span', { class: 'k' }, k), h('span', { class: `v ${cls}` }, v));
   return h('div', { class: 'sheet flat' },
+    multiBranch() ? h('div', { class: 'sheet-head', style: { marginBottom: '6px' } }, h('h3', {}, o?.branch || branchName(f.branch_id))) : null,
     h('div', { class: 'float-card' },
       cell('In the box', money(f.balance), Number(f.balance) < 0 ? 'neg' : ''),
       cell('Approved, not paid', money(o?.awaiting || 0)),
@@ -247,7 +253,7 @@ function alertsAsk() {
 const outlookRef = { current: null };
 const checksRef = { current: {} };
 function approveActions(q) {
-  const o = outlookRef.current;
+  const o = (outlookRef.current || []).find((x) => x.branch_id === q.branch_id) || null;
   let note = null; let tight = false;
   if (o && o.has_float) {
     const after = Number(o.balance) - Number(o.awaiting) - Number(q.estimated_total);

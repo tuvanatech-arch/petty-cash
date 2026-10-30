@@ -26,7 +26,7 @@ export function clear(el) { while (el.firstChild) el.removeChild(el.firstChild);
 export function mount(el, ...children) { clear(el); append(el, children); return el; }
 
 /* ---------- formatting ---------- */
-export function cur() { return state.settings?.currency || 'N$'; }
+export function cur() { const b = state.branches?.find((x) => x.id === (state.view || state.branches.find((y) => y.home)?.id)) || state.branches?.[0]; return b?.currency || state.settings?.currency || 'N$'; }
 export function money(v, { sign = false } = {}) {
   const n = Number(v || 0);
   const s = Math.abs(n).toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

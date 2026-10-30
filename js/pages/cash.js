@@ -1,4 +1,5 @@
-import { sb, state, can, has, personName, unwrap, rpc, uploadPack, packUrl, sendPack, mdInPlace } from '../api.js';
+import { sb, state, can, has, personName, unwrap, rpc, uploadPack, packUrl, sendPack, mdInPlace, multiBranch, myBranch, branchName } from '../api.js';
+import { branchGate } from '../branch.js';
 import { buildMonthEndPack } from '../pack.js';
 import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog } from '../ui.js';
 
@@ -45,12 +46,16 @@ export function outlookBox(o, { request = null } = {}) {
 }
 
 export async function cashPage() {
-  const [floats, packs, counts, topUps] = await Promise.all([
+  const [allFloats, packs, counts, topUps] = await Promise.all([
     unwrap(await sb.from('v_floats').select('*').order('period', { ascending: false })),
     unwrap(await sb.from('packs').select('*')),
     unwrap(await sb.from('cash_counts').select('*').order('counted_at', { ascending: false }).limit(300)),
     unwrap(await sb.from('top_ups').select('*').order('requested_at', { ascending: false }).limit(60)),
   ]);
+  // the cash of one branch at a time: looking at all branches, pick one first
+  const gate = branchGate('petty cash', Object.fromEntries(allFloats.filter((f) => f.status === 'open').map((f) => [f.branch_id, { line: `${monthLabel(f.period)} · ${money(f.balance)} in the box` }])));
+  if (gate) return h('div', {}, h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Petty cash'), h('p', {}, 'Each branch keeps its own float.'))), gate);
+  const floats = allFloats.filter((f) => f.branch_id === myBranch());
   const packOf = (f) => packs.find((p) => p.float_id === f.id);
   const open = floats.find((f) => f.status === 'open');
   const custodian = has('finance');   // finance holds the cash: counts it and asks for top-ups; the GM signs off
@@ -97,7 +102,7 @@ export async function cashPage() {
 
   const past = floats.filter((f) => f.status === 'closed');
   mount(page,
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Petty cash'), h('p', {}, 'The monthly float from finance: what came in, what went out, and what should be in the box.')), h('div', { class: 'page-actions' }, actions)),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, multiBranch() ? `Petty cash · ${branchName(myBranch())}` : 'Petty cash'), h('p', {}, 'The monthly float from finance: what came in, what went out, and what should be in the box.')), h('div', { class: 'page-actions' }, actions)),
     !open ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'No float is open'), 'Nothing can be paid out until a float is opened for the month.') : null,
     current,
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Past months')),

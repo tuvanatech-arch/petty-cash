@@ -1,4 +1,4 @@
-import { sb, state, loadSessionContext, refreshUnread, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength, checkIn, signOutHere, whenSignedOutElsewhere } from './api.js';
+import { sb, state, loadSessionContext, refreshUnread, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength, checkIn, signOutHere, whenSignedOutElsewhere, multiBranch, setView, scoped } from './api.js';
 import { h, mount, toast, fmtDate } from './ui.js';
 import { authPage } from './pages/auth.js';
 import { homePage } from './pages/home.js';
@@ -81,7 +81,7 @@ async function actionCounts() {
   if (duty('finance')) { or.push('status.eq.awaiting_disbursement'); or.push('status.eq.proof_review'); or.push('status.eq.physical_required'); }
   or.push(`and(status.eq.disbursed,disbursed_to.eq.${me})`);
   const [{ count }, sched, cash] = await Promise.all([
-    sb.from('requests').select('id', { count: 'exact', head: true }).or(or.join(',')),
+    scoped(sb.from('requests').select('id', { count: 'exact', head: true })).or(or.join(',')),
     // a schedule change waiting for the MD counts as one of the MD's things to do
     duty('managing_director') ? sb.from('schedule_versions').select('id', { count: 'exact', head: true }).eq('status', 'pending').neq('proposed_by', me) : { count: 0 },
     // cash counts to sign off or answer, top-ups to authorise or record
@@ -90,6 +90,17 @@ async function actionCounts() {
   const c = cash.data || {};
   const cashN = (duty('approver') ? Number(c.counts_to_review || 0) : 0) + (duty('finance') ? Number(c.counts_queried || 0) + Number(c.top_ups_to_receive || 0) : 0) + Number(c.top_ups_to_decide || 0);
   return (count || 0) + (sched.count || 0) + cashN;
+}
+
+/** For people with more than one branch: which branch the screens show. "All branches" for the overview; one branch to act in it. */
+function branchSwitcher(cls) {
+  if (!multiBranch()) return null;
+  const sel = h('select', { class: `branch-switch ${cls}`, 'aria-label': 'Branch' },
+    h('option', { value: '' }, 'All branches'),
+    state.branches.map((b) => h('option', { value: b.id, selected: state.view === b.id ? 'selected' : null }, b.name)));
+  sel.value = state.view || '';
+  sel.onchange = async () => { try { await setView(sel.value || null); render(); } catch (e) { toast(e.message || 'Could not switch branch'); sel.value = state.view || ''; } };
+  return sel;
 }
 
 let renderToken = 0;
@@ -127,13 +138,14 @@ export async function render() {
     : installBanner();
   const tabs = tabItems();
   const bell = h('a', { href: '#/notifications', class: `bell${activeKey === 'notifications' ? ' active' : ''}`, 'aria-label': 'Alerts' }, '🔔', h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread));
-  const topbar = h('div', { class: 'topbar' }, h('div', { class: 'brand' }, h('div', { class: 'brand-mark' }, 'N$'), h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petty cash')), bell);
+  const topbar = h('div', { class: 'topbar' }, h('div', { class: 'brand' }, h('div', { class: 'brand-mark' }, 'N$'), h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petty cash')), branchSwitcher('top-branch'), bell);
   mount(app,
     h('a', { class: 'skip', href: '#', onclick: (e) => { e.preventDefault(); const first = document.querySelector('main .sheet [tabindex="0"], main .sheet button, main .sheet a[href]'); (first || document.querySelector('main h1'))?.focus(); } }, 'Skip to what needs me'),
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
         h('div', { class: 'brand' }, h('div', { class: 'brand-mark' }, 'N$'),
           h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petty cash', h('small', {}, 'Petty cash & stock'))),
+        branchSwitcher('side-branch'),
         h('nav', { class: 'nav' }, items.map(navLink)),
         h('div', { class: 'me' }, h('strong', {}, me.full_name || me.email), h('span', {}, ROLE_LABEL[me.role]))),
       h('main', { class: 'main' }, topbar, banner, page)),

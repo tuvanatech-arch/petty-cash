@@ -67,10 +67,14 @@ await page.locator('.modal button:has-text("Sign off")').click(); await page.wai
 check(!(await page.locator('.modal').count()), 'sign-off: done with a resolution');
 
 await as('approver', '/cash');
+check(/Which branch/.test(await text()), 'GM looking at all branches: asked which branch\'s petty cash');
+await page.locator('.branch-pick .box', { hasText: 'Windhoek' }).click(); await page.waitForTimeout(800);
 t = await text();
+check(/Petty cash · Windhoek/.test(t), 'GM: picking a branch opens its petty cash');
 check(await btn('Count cash').count() === 0 && await btn('Request top-up').count() === 0, 'GM: does not count the cash or request top-ups');
 check(/Signed off by Ada/.test(t), 'GM: the signed-off count shows who signed it');
 
+await page.evaluate(() => localStorage.removeItem('demo_view'));
 await as('approver', '/admin/schedule');
 t = await text();
 check(/Cash difference allowed at a count/.test(t) && /Cash count reminder/.test(t), 'schedule: the cash difference allowed and the count reminder');

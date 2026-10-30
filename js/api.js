@@ -36,6 +36,8 @@ export const state = {
   roles: [],       // effective roles today: own role plus any stand-in roles
   standingIn: [],  // active delegations to me
   unread: 0,       // unread notifications
+  branches: [],    // the branches I may work in (my_branch_list), with their company and currency
+  view: null,      // the branch I am looking at (profiles.view_branch); null = all of mine
 };
 
 export const ROLE_LABEL = {
@@ -76,6 +78,25 @@ export function canReviewReq(q) {
   return q.review_role === 'managing_director' ? has('managing_director') : has('approver');
 }
 /** Is the Managing Director position filled? (Until it is, the GM approves the larger amounts too.) */
+/* ---------- branches ---------- */
+/** More than one branch to look at: the switcher shows, and lists can be narrowed to one. */
+export function multiBranch() { return state.branches.length > 1; }
+/** The branch I am acting in: my chosen view, else my home branch. */
+export function myBranch() { return state.view || state.branches.find((b) => b.home)?.id || state.branches[0]?.id || null; }
+export function branchName(id) { return state.branches.find((b) => b.id === id)?.name || ''; }
+/** The company (and so the currency) of the branch being looked at. */
+export function company() { const b = state.branches.find((x) => x.id === myBranch()) || state.branches[0]; return b ? { id: b.company_id, name: b.company, currency: b.currency, currency_code: b.currency_code } : null; }
+/** Narrow a list query to the branch being looked at (no-op when looking at all branches). */
+export function scoped(q) { return state.view ? q.eq('branch_id', state.view) : q; }
+/** Choose the branch to look at (null = all of mine); remembered on the profile, so every device follows. */
+export async function setView(id) {
+  const v = id || null;
+  await rpc('set_view_branch', { p_branch: v });
+  state.view = v; if (state.me) state.me.view_branch = v;
+}
+/** Keep only rows whose float belongs to the branch being looked at. */
+export function inView(rows, floats, key = 'float_id') { if (!state.view) return rows; const ids = new Set(floats.filter((f) => f.branch_id === state.view).map((f) => f.id)); return rows.filter((r) => ids.has(r[key])); }
+
 export function mdInPlace() { return state.people.some((p) => p.active && p.role === 'managing_director'); }
 
 export function personName(id) {
@@ -114,7 +135,7 @@ export async function loadSessionContext() {
     const today = new Date(); const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const [{ data: settings }, { data: people }, { data: roles }, { data: deleg }, { count }] = await Promise.all([
       sb.from('settings').select('*').eq('id', 1).single(),
-      sb.from('profiles').select('id, full_name, email, role, active').order('full_name'),
+      sb.from('profiles').select('id, full_name, email, role, active, branch_id, extra_branches').order('full_name'),
       sb.rpc('my_roles'),
       sb.from('delegations').select('*').eq('to_user', me.id).lte('starts_on', iso).gte('ends_on', iso),
       sb.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null),
@@ -126,6 +147,9 @@ export async function loadSessionContext() {
     if (state.roles.includes('managing_director') && !state.roles.includes('approver')) state.roles.push('approver');
     state.standingIn = deleg || [];
     state.unread = count || 0;
+    const { data: branches } = await sb.rpc('my_branch_list');
+    state.branches = Array.isArray(branches) ? branches : [];
+    state.view = me.view_branch && state.branches.some((b) => b.id === me.view_branch) ? me.view_branch : null;
   }
   syncAppBadge(me && me.active ? state.unread : 0);
   if (me && me.active) checkIn().catch(() => {});
@@ -337,7 +361,7 @@ export async function flushOfflineQueue() {
 }
 
 export async function refreshPeople() {
-  const { data } = await sb.from('profiles').select('id, full_name, email, role, active').order('full_name');
+  const { data } = await sb.from('profiles').select('id, full_name, email, role, active, branch_id, extra_branches').order('full_name');
   state.people = data || [];
 }
 

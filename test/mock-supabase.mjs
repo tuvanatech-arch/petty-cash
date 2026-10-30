@@ -67,7 +67,7 @@ export function createClient() {
     from: (t) => builder(t),
     rpc: async (fn, args) => {
       calls.push(`rpc.${fn}`); rpcArgs.push([fn, args]);
-      const canned = { my_roles: ['approver', 'finance'], budget_status: [{ budget_id: 'b1', category_id: 'c1', person_id: null, label: 'Stationery', monthly_limit: 1500, used: 620, note: null, active: true }], item_usage_stats: [], mark_notifications_read: 1, quick_count: 1,
+      const canned = { my_roles: ['approver', 'finance'], my_branch_list: [{ id: 'br1', name: 'Windhoek', code: 'WHK', company_id: 'co1', company: 'Test Co', currency: 'N$', currency_code: 'NAD', usual_float: null, active: true, home: true }], branch_outlooks: [], set_view_branch: null, budget_status: [{ budget_id: 'b1', category_id: 'c1', person_id: null, label: 'Stationery', monthly_limit: 1500, used: 620, note: null, active: true }], item_usage_stats: [], mark_notifications_read: 1, quick_count: 1,
         devices: [
           { session_id: SID, label: 'iPhone · installed app', user_agent: 'iPhone', place: 'Windhoek, Namibia', country: 'NA', approx: false, ip: '1.1.1.1', tz: 'Africa/Windhoek', standalone: true, signed_in_at: '2026-10-20T10:00:00Z', last_active: new Date().toISOString(), alerts: true, reported: true },
           { session_id: '5e550002-0000-4000-8000-000000000000', label: null, user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/155', place: null, country: null, approx: false, ip: '2.2.2.2', tz: null, standalone: null, signed_in_at: '2026-10-21T10:00:00Z', last_active: '2026-10-21T10:00:00Z', alerts: false, reported: false }],

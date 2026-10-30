@@ -114,6 +114,9 @@ Deno.serve(async (req) => {
         await admin.from("invitations").delete().eq("id", inv.id);
         throw new Error(/already/i.test(error.message) ? "That email already has an account" : error.message);
       }
+      // the home branch the administrator chose (the profile trigger gave the first branch)
+      const branch_id = typeof body.branch_id === "string" && /^[0-9a-f-]{36}$/.test(body.branch_id) ? body.branch_id : null;
+      if (branch_id) await admin.from("profiles").update({ branch_id }).eq("id", data.user.id);
       await syncPositions(me.id);
       return json({ ok: true, user_id: data.user.id });
     }
