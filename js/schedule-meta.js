@@ -19,6 +19,7 @@ export const ITEMS = {
   float_rollover: { label: 'Unspent balance carries into the next month', kind: 'bool', hint: 'No: a quiet month shows as a saving and finance receives the full float again. Yes: the float resets to the usual amount plus whatever was left.' },
   cash_variance_limit: { label: 'Cash difference allowed at a count', kind: 'money', hint: 'A count further out than this needs a reason from finance and a resolution from the GM. N$0 means every difference is explained.' },
   cash_count_days: { label: 'Cash count reminder', kind: 'every', hint: 'Finance is reminded to count the box when it has not been counted for this long.' },
+  stock_adjust_limit: { label: 'Stock correction the controller may make alone', kind: 'money', hint: 'A count difference on an issued item, a manual correction or a short delivery worth up to this is applied and logged; above it the GM approves before the balance changes. The same limit decides when someone other than the controller signs a delivery in.' },
   advance_grace_days: { label: 'Receipt reminder after', kind: 'days', min: 1, max: 60, hint: 'Cash out with no receipt recorded after this many days gets a reminder every few days.' },
   advance_escalate_days: { label: 'Overdue: GM and finance told after', kind: 'days', min: 1, max: 90, hint: 'From then on the GM and finance are told each week until it is settled.' },
   count_day: { label: 'Weekly stock count reminder', kind: 'weekday', hint: 'The stock controller gets a nudge to do a quick count.' },
@@ -31,6 +32,7 @@ export const ITEMS = {
 export const SECTIONS = [
   { title: 'Who approves what', md: true, keys: ['approval_threshold', 'gm_limit', 'split_window_days', 'change_tolerance_pct', 'claims_need_approval', 'budget_mode', 'block_with_outstanding'] },
   { title: 'The float and cash counts', md: true, keys: ['default_monthly_float', 'float_rollover', 'cash_variance_limit'] },
+  { title: 'The store', md: true, keys: ['stock_adjust_limit'] },
   { title: 'Reminders and warnings', md: false, keys: ['advance_grace_days', 'advance_escalate_days', 'cash_count_days', 'count_day', 'reserve_buffer_pct'] },
   { title: 'Documents', md: false, keys: ['schedule_ref', 'policy_ref', 'policy_url'] },
 ];
@@ -39,9 +41,9 @@ export const AREA_LABEL = { start: 'Starting schedule', rules: 'Limits, rules an
 
 export const POSITIONS = [
   { role: 'finance', label: 'Finance – custodian of the float', duty: (s) => `Holds the cash and pays out. Pays alone up to ${money(s.approval_threshold)}; checks every receipt; counts the box and requests top-ups.` },
-  { role: 'approver', label: 'General Manager', duty: (s) => `Approves above ${money(s.approval_threshold)} up to ${money(s.gm_limit)}, and finance’s own requests. Signs off cash counts and authorises top-ups up to ${money(s.gm_limit)}. Administers the app.` },
+  { role: 'approver', label: 'General Manager', duty: (s) => `Approves above ${money(s.approval_threshold)} up to ${money(s.gm_limit)}, and finance’s own requests. Signs off cash counts and authorises top-ups up to ${money(s.gm_limit)}. Approves stock corrections above ${money(s.stock_adjust_limit)}. Administers the app.` },
   { role: 'managing_director', label: 'Managing Director', duty: (s) => `Approves above ${money(s.gm_limit)}, the GM’s own requests and top-ups above ${money(s.gm_limit)}; approves changes to limits, rules and the float.` },
-  { role: 'stock_manager', label: 'Stock controller', duty: () => 'Keeps the store and the catalogue; reviews stock requests and raises restock orders.' },
+  { role: 'stock_manager', label: 'Stock controller', duty: (s) => `Keeps the store and the catalogue; records hand-outs of issued items; confirms deliveries; counts the shelf; corrects differences up to ${money(s.stock_adjust_limit)} alone; reviews stock requests and raises restock orders.` },
 ];
 
 /** A schedule value in words, the same way the database writes it in the history. */

@@ -9,10 +9,12 @@ export async function stockPage(tab = 'items') {
   const gate = branchGate('store');
   if (gate) return h('div', {}, h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Stock'), h('p', {}, 'Each branch keeps its own store.'))), gate);
   const openReports = (await sb.from('stock_reports').select('id', { count: 'exact', head: true }).is('resolved_at', null)).count || 0;
+  const acts = manage ? (await sb.rpc('stock_actions')).data || {} : {};
+  const nDeliv = Number(acts.receipts_to_check || 0), nCorr = Number(acts.adjustments_to_approve || 0);
   // daily work in the tab bar; catalogue setup (suppliers, categories) one tap away under "Catalogue"
   const setup = tab === 'suppliers' || tab === 'categories';
   const tabs = setup ? [['suppliers', 'Suppliers'], ['categories', 'Categories']]
-    : manage ? [['items', 'Items'], ['reports', openReports ? `Reported (${openReports})` : 'Reported'], ['usage', 'Usage'], ['movements', 'Movements']]
+    : manage ? [['items', 'Items'], ['reports', openReports ? `Reported (${openReports})` : 'Reported'], ['deliveries', nDeliv ? `Deliveries (${nDeliv})` : 'Deliveries'], ['usage', 'Usage'], ['movements', 'Movements'], ['adjustments', nCorr ? `Corrections (${nCorr})` : 'Corrections']]
     : [['items', 'Items'], ['reports', 'My reports']];
   const body = h('div', {});
   const tabBar = h('div', { class: 'tabs' }, tabs.map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { location.hash = `#/stock/${k}`; } }, l)));
@@ -31,7 +33,7 @@ export async function stockPage(tab = 'items') {
     if (tab === 'suppliers' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => supplierDialog(null, () => refresh()) }, 'Add supplier'));
     if (tab === 'categories' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => categoryDialog(null, () => refresh()) }, 'Add category'));
   }
-  mount(body, await ({ items: itemsTab, reports: reportsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
+  mount(body, await ({ items: itemsTab, reports: reportsTab, deliveries: deliveriesTab, adjustments: adjustmentsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, setup ? 'Catalogue' : 'Stock'), h('p', {}, setup ? 'Suppliers and categories – set up once, rarely changed.' : manage ? 'What is in the store, how fast it goes, and when it runs out.' : 'Tap an item that is running low or finished to report it.')),
       h('div', { class: 'page-actions' }, actions)),
@@ -76,7 +78,7 @@ async function itemsTab(manage) {
       h('tbody', {}, rows.map((i) => {
         const s = stats[i.id];
         return h('tr', { class: `item-row${low(i) ? ' low' : ''}`, onclick: () => (manage ? itemSheet(i, s, { catName, supName, sups }) : reportDialog(i)) },
-          h('td', {}, h('strong', {}, i.name), paceBadge(s), !i.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null,
+          h('td', {}, h('strong', {}, i.name), paceBadge(s), manage && i.tracking === 'issued' ? h('span', { class: 'pill pill-purple', style: { marginLeft: '6px' }, title: 'Recorded at each hand-out; a count difference is a variance' }, 'Issued') : null, !i.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null,
             manage ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, [catName(i.category_id), i.recurring ? 'monthly' : null].filter((x) => x && x !== '—').join(' · ')) : null),
           h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`),
           manage ? h('td', { class: 'num hide-xs' }, s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : h('span', { class: 'muted' }, '—')) : null,
@@ -119,6 +121,7 @@ function itemSheet(i, s, { catName, supName, sups }) {
         h('button', { class: 'btn btn-primary', onclick: () => { close(); usageDialog(i, () => refresh()); } }, 'Used'),
         h('button', { class: 'btn', onclick: () => { close(); issueDialog(i, () => refresh()); } }, 'Issue to someone'),
         h('button', { class: 'btn', onclick: () => { close(); receiveDialog(i, sups, () => refresh()); } }, 'Receive'),
+        h('button', { class: 'btn btn-quiet', onclick: () => { close(); correctDialog(i, () => refresh()); } }, 'Correct'),
         can('catalogue') ? h('button', { class: 'btn btn-quiet', onclick: () => { close(); itemDialog(i, done); } }, 'Edit') : null));
   });
 }
@@ -246,7 +249,7 @@ function quickCountDialog() {
     // works without signal: the item list is cached on the phone and the count is queued until there is a connection
     let items = null; let offline = !navigator.onLine;
     if (!offline) {
-      const { data, error } = await scoped(sb.from('items').select('id, name, unit, qty_on_hand, recurring, active')).eq('active', true).order('name');
+      const { data, error } = await scoped(sb.from('items').select('id, name, unit, qty_on_hand, recurring, active, tracking')).eq('active', true).order('name');
       if (error && /No connection|Failed to fetch|NetworkError/i.test(error.message)) offline = true;
       else if (error) throw new Error(error.message);
       else { items = data; try { localStorage.setItem(ITEMS_CACHE, JSON.stringify({ at: new Date().toISOString(), items })); } catch {} }
@@ -265,7 +268,7 @@ function quickCountDialog() {
       mount(tbody, items.filter((i) => !onlyRecurring || i.recurring).map((i) => {
         let inp = inputs.get(i.id);
         if (!inp) { inp = h('input', { class: 'input num', type: 'number', min: 0, step: 'any', placeholder: qty(i.qty_on_hand), inputmode: 'decimal' }); inputs.set(i.id, inp); }
-        return h('tr', {}, h('td', {}, i.name, h('div', { class: 'muted', style: { fontSize: '.78rem' } }, i.unit)), h('td', { class: 'num muted' }, qty(i.qty_on_hand)), h('td', { class: 'num', style: { width: '110px' } }, inp));
+        return h('tr', {}, h('td', {}, i.name, i.tracking === 'issued' ? h('span', { class: 'pill pill-purple', style: { marginLeft: '6px' } }, 'Issued') : null, h('div', { class: 'muted', style: { fontSize: '.78rem' } }, i.unit)), h('td', { class: 'num muted' }, qty(i.qty_on_hand)), h('td', { class: 'num', style: { width: '110px' } }, inp));
       }));
     }
     draw();
@@ -280,16 +283,106 @@ function quickCountDialog() {
       let n;
       try { n = await rpc('quick_count', args); }
       catch (e) { if (/No connection/.test(e.message)) return park(); throw e; }
-      toast(n ? `Count saved – ${n} item${n === 1 ? '' : 's'} adjusted.` : 'Count saved – everything matched the book.'); close(); refresh();
+      const waiting = Math.floor((n || 0) / 1000), changed = (n || 0) % 1000;
+      toast(!changed ? 'Count saved – everything matched the book.' : waiting ? `Count saved – ${changed} item${changed === 1 ? '' : 's'} differ; ${waiting} above the correction limit wait${waiting === 1 ? 's' : ''} for the GM.` : `Count saved – ${changed} item${changed === 1 ? '' : 's'} adjusted.`, { ms: waiting ? 7000 : 4000 }); close(); refresh();
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       offline ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'You are offline'), 'Book quantities are from the last time this phone was online. The count is kept here and sent later.') : null,
-      h('p', { class: 'hint' }, 'Type what is actually on the shelf. Anything you leave blank is skipped. Less than the book is logged as used; more is a correction.'),
+      h('p', { class: 'hint' }, `Type what is actually on the shelf. Anything you leave blank is skipped. For counted items, less than the book is logged as used. For issued items a difference is a variance: within ${money(state.settings?.stock_adjust_limit || 0)} it is applied and logged; above that the GM approves it first.`),
       h('div', { class: 'row' }, field('Counted on', date), field('Note', note)),
       h('label', { class: 'check', style: { marginBottom: '10px' } }, h('input', { type: 'checkbox', checked: onlyRecurring, onchange: (e) => { onlyRecurring = e.target.checked; draw(); } }), 'Monthly items only'),
       h('div', { class: 'table-wrap lines-edit' }, h('table', { class: 'ledger' }, h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'Book'), h('th', { class: 'num' }, 'Counted'))), tbody)),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   }, { wide: true });
+}
+
+/** A manual correction with a reason: within the limit it applies at once; above it the GM approves first. */
+function correctDialog(item, done) {
+  modal(`Correct: ${item.name}`, (close) => {
+    const limit = Number(state.settings?.stock_adjust_limit || 0);
+    const q = h('input', { class: 'input num', type: 'number', min: 0, step: 'any', value: qty(item.qty_on_hand), inputmode: 'decimal' });
+    const note = h('input', { class: 'input', placeholder: 'e.g. Two boxes water-damaged', required: true });
+    const line = h('p', { class: 'hint' });
+    const draw = () => { const d = num(q.value) - Number(item.qty_on_hand); const v = Math.abs(d) * Number(item.last_unit_price || 0);
+      mount(line, d === 0 ? 'No change.' : `${d < 0 ? `${qty(-d)} fewer` : `${qty(d)} more`} than the book – worth ${money(v)}. ${v > limit && !can('admin') ? `Above the ${money(limit)} limit: the General Manager approves it before the balance changes.` : 'Applied at once and logged.'}`); };
+    q.oninput = draw; draw();
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save correction');
+    const go = busy(b, async () => {
+      const mv = await rpc('adjust_stock', { p_item: item.id, p_new_qty: num(q.value), p_note: note.value.trim() });
+      toast(mv ? 'Correction applied and logged.' : 'Sent to the General Manager to approve. The balance changes once approved.', { ms: mv ? 4000 : 6000 }); close(); done();
+    });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      h('p', { class: 'hint' }, `${qty(item.qty_on_hand)} ${item.unit} on the book. A correction is for breakage, loss or a counting mistake – not for things handed out (use Issue) or used up (use Used).`),
+      h('div', { class: 'row' }, field('Actually on hand', q), field('Reason', note)), line,
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
+/* ---------------- deliveries: what was bought against what arrived ---------------- */
+async function deliveriesTab() {
+  const q = state.view ? sb.from('stock_receipts').select('*, item:items!inner(name, unit, branch_id)').eq('item.branch_id', state.view) : sb.from('stock_receipts').select('*, item:items(name, unit, branch_id)');
+  const { data } = await q.neq('status', 'void').order('created_at', { ascending: false }).limit(200);
+  const rows = data || [];
+  const ids = [...new Set(rows.map((r) => r.request_id).filter(Boolean))];
+  const { data: reqs } = ids.length ? await sb.from('requests').select('id, request_no, purpose').in('id', ids) : { data: [] };
+  const reqOf = (id) => (reqs || []).find((r) => r.id === id);
+  const open = rows.filter((r) => r.status === 'to_check'); const done = rows.filter((r) => r.status !== 'to_check');
+  const limit = Number(state.settings?.stock_adjust_limit || 0);
+  const row = (r) => { const rq = reqOf(r.request_id); const val = Number(r.qty_bought) * Number(r.unit_cost || 0);
+    return h('li', { class: rq ? 'click' : '', onclick: rq ? () => { location.hash = `#/requests/${rq.id}`; } : null },
+      h('div', { class: 'what' }, h('strong', {}, `${r.item?.name || 'Item'} · ${qty(r.qty_bought)} ${r.item?.unit || ''} bought`),
+        h('span', {}, `${rq ? `#${rq.request_no} ${rq.purpose} · ` : ''}by ${personName(r.bought_by)}, ${fmtDate(r.created_at)}${val ? ` · ${money(val)}` : ''}`),
+        r.status !== 'to_check' ? h('span', { style: { display: 'block' } }, `${qty(r.qty_received)} arrived · checked by ${personName(r.checked_by)}, ${fmtDate(r.checked_at)}${r.note ? ` – “${r.note}”` : ''}`) : null),
+      r.status === 'to_check' ? h('div', { class: 'row-actions', onclick: (e) => e.stopPropagation() }, h('button', { class: 'btn btn-sm btn-primary', onclick: () => confirmReceiptDialog(r, rq) }, 'Confirm arrival'))
+        : h('span', { class: `pill ${r.status === 'short' ? 'pill-red' : 'pill-green'}` }, r.status === 'short' ? `${qty(Number(r.qty_bought) - Number(r.qty_received))} short` : 'Arrived in full')); };
+  return h('div', {},
+    h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'To check'), h('span', { class: 'sub' }, open.length)),
+      h('p', { class: 'hint' }, `Goods bought for the store are confirmed by the controller when they arrive. Where the controller bought them and the value is above ${money(limit)}, the GM or finance confirms instead. A shortfall is flagged to the GM and finance.`),
+      open.length ? h('ul', { class: 'ledger-list' }, open.map(row)) : emptyState('Nothing waiting', 'Each purchase for the store appears here once its receipt is recorded.')),
+    done.length ? h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Checked'), h('span', { class: 'sub' }, 'latest first')), h('ul', { class: 'ledger-list' }, done.slice(0, 40).map(row))) : null);
+}
+export function confirmReceiptDialog(r, rq) {
+  modal(`Delivery: ${r.item?.name || 'item'}`, (close) => {
+    const got = h('input', { class: 'input num', type: 'number', min: 0, max: r.qty_bought, step: 'any', value: qty(r.qty_bought), inputmode: 'decimal' });
+    const note = h('input', { class: 'input', placeholder: 'Needed if fewer arrived' });
+    const line = h('p', { class: 'hint' });
+    const draw = () => { const short = Number(r.qty_bought) - num(got.value); mount(line, short > 0 ? `${qty(short)} short – worth ${money(short * Number(r.unit_cost || 0))}. Say what happened; the GM and finance are told and the shelf is corrected.` : 'Everything arrived.'); };
+    got.oninput = draw; draw();
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Confirm');
+    const go = busy(b, async () => { await rpc('confirm_stock_receipt', { p_id: r.id, p_received: num(got.value), p_note: note.value.trim() || null }); toast('Delivery confirmed.'); close(); refresh(); });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      h('p', { class: 'hint' }, `${qty(r.qty_bought)} ${r.item?.unit || ''} bought${rq ? ` on #${rq.request_no} ${rq.purpose}` : ''} by ${personName(r.bought_by)}. Count what reached the shelf.`),
+      h('div', { class: 'row' }, field('Arrived', got), field('Note', note)), line,
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
+/* ---------------- corrections: count differences, manual corrections and short deliveries ---------------- */
+async function adjustmentsTab() {
+  const q = state.view ? sb.from('stock_adjustments').select('*, item:items!inner(name, unit, branch_id)').eq('item.branch_id', state.view) : sb.from('stock_adjustments').select('*, item:items(name, unit, branch_id)');
+  const { data } = await q.order('requested_at', { ascending: false }).limit(200);
+  const rows = data || [];
+  const pending = rows.filter((a) => a.status === 'to_approve'); const done = rows.filter((a) => a.status !== 'to_approve');
+  const limit = Number(state.settings?.stock_adjust_limit || 0);
+  const KIND = { count: 'Count difference', correction: 'Correction', delivery: 'Short delivery' };
+  const STATUS = { applied: ['Applied', 'pill-grey'], to_approve: ['Waiting for the GM', 'pill-amber'], approved: ['Approved', 'pill-green'], rejected: ['Turned down', 'pill-red'] };
+  const row = (a) => h('li', {},
+    h('div', { class: 'what' }, h('strong', {}, `${a.item?.name || 'Item'} · ${qty(a.qty_before)} → ${qty(a.qty_after)} ${a.item?.unit || ''}`),
+      h('span', {}, `${KIND[a.kind] || a.kind} · worth ${money(a.value)} · ${personName(a.requested_by)}, ${fmtDate(a.requested_at)}${a.reason ? ` – “${a.reason}”` : ''}`),
+      a.decided_at ? h('span', { style: { display: 'block' } }, `${a.status === 'approved' ? 'Approved' : 'Turned down'} by ${personName(a.decided_by)}, ${fmtDate(a.decided_at)}${a.decision_note ? ` – “${a.decision_note}”` : ''}`) : null),
+    a.status === 'to_approve' && can('admin') && a.requested_by !== state.me.id ? decideAdjustmentActions(a) : h('span', { class: `pill ${STATUS[a.status][1]}` }, STATUS[a.status][0]));
+  return h('div', {},
+    h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Waiting for the General Manager'), h('span', { class: 'sub' }, pending.length)),
+      h('p', { class: 'hint' }, `A count difference on an issued item, a manual correction or a short delivery worth up to ${money(limit)} is applied at once and logged here. Above that the balance only changes once the GM approves it.`),
+      pending.length ? h('ul', { class: 'ledger-list' }, pending.map(row)) : emptyState('Nothing waiting', 'Corrections above the limit appear here for the GM.')),
+    done.length ? h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Log'), h('span', { class: 'sub' }, 'latest first')), h('ul', { class: 'ledger-list' }, done.slice(0, 60).map(row))) : null);
+}
+export function decideAdjustmentActions(a) {
+  const ok = h('button', { class: 'btn btn-sm btn-primary' }, 'Approve');
+  ok.onclick = busy(ok, async (e) => { e.stopPropagation(); await rpc('decide_stock_adjustment', { p_id: a.id, p_approve: true, p_note: null }); toast('Approved – the balance has been corrected.'); refresh(); });
+  const no = h('button', { class: 'btn btn-sm btn-quiet btn-danger' }, 'Turn down');
+  no.onclick = busy(no, async (e) => { e.stopPropagation(); const why = await confirmDialog('Turn this correction down?', 'The balance stays as it is; the controller is told.', { ok: 'Turn down', danger: true, note: { label: 'Reason', required: true } }); if (!why) return; await rpc('decide_stock_adjustment', { p_id: a.id, p_approve: false, p_note: why }); toast('Turned down.'); refresh(); });
+  return h('div', { class: 'row-actions', onclick: (e) => e.stopPropagation() }, no, ok);
 }
 
 function usageDialog(item, done) {
@@ -315,6 +408,7 @@ function itemDialog(item, done) {
     const cat = select([['', 'No category'], ...cats.filter((c) => c.kind !== 'cash').map((c) => [c.id, c.name])], item?.category_id || '');
     const sup = select([['', 'No preferred supplier'], ...sups.map((s) => [s.id, s.name])], item?.preferred_supplier_id || '');
     const recurring = h('input', { type: 'checkbox', checked: !!item?.recurring });
+    const tracking = select([['counted', 'Counted – the weekly count measures what was used (tea, sugar, cleaning stock)'], ['issued', 'Issued – every hand-out is recorded; a count difference is a variance (toner, paper, memory sticks)']], item?.tracking || (Number(item?.last_unit_price) > 100 ? 'issued' : 'counted'));
     const monthly = h('input', { class: 'input num', type: 'number', min: 0, step: 'any', value: item?.expected_monthly_qty || 0 });
     const reorder = h('input', { class: 'input num', type: 'number', min: 0, step: 'any', value: item?.reorder_level || 0 });
     const price = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', value: item?.last_unit_price ?? '' });
@@ -327,6 +421,7 @@ function itemDialog(item, done) {
       field('Name', name), h('div', { class: 'row' }, field('Unit', unit), field('Code / SKU', sku, 'Optional')), field('Pack note', pack, 'Optional'),
       h('div', { class: 'row' }, field('Category', cat), field('Preferred supplier', sup)),
       h('div', { class: 'row' }, field('Reorder when below', reorder), field('Last known price', price, 'Per unit')),
+      field('How it is tracked', tracking, 'Things worth more than N$100 each are usually issued.'),
       h('label', { class: 'check', style: { marginBottom: '10px' } }, recurring, 'Bought every month'),
       field('Expected monthly quantity', monthly, 'Starting point for the restock order until usage has been measured for two weeks'),
       opening ? field('Opening stock on hand', opening) : h('label', { class: 'check', style: { marginBottom: '10px' } }, active, 'Active (shown when raising requests)'),
@@ -334,13 +429,13 @@ function itemDialog(item, done) {
     const go = busy(save, async () => {
       err.textContent = '';
       const row = { name: name.value.trim(), sku: sku.value.trim() || null, unit: unit.value.trim() || 'each', pack_note: pack.value.trim() || null, category_id: cat.value || null, preferred_supplier_id: sup.value || null,
-        recurring: recurring.checked, expected_monthly_qty: num(monthly.value), reorder_level: num(reorder.value), last_unit_price: price.value === '' ? null : num(price.value), active: active.checked };
+        recurring: recurring.checked, expected_monthly_qty: num(monthly.value), reorder_level: num(reorder.value), last_unit_price: price.value === '' ? null : num(price.value), active: active.checked, tracking: tracking.value };
       if (!row.name) { err.textContent = 'Give the item a name.'; return; }
       try {
         if (item) unwrap(await sb.from('items').update(row).eq('id', item.id));
         else {
           const created = unwrap(await sb.from('items').insert({ ...row, branch_id: myBranch() }).select().single());
-          if (num(opening.value) > 0) await rpc('adjust_stock', { p_item: created.id, p_new_qty: num(opening.value), p_note: 'Opening stock' });
+          if (num(opening.value) > 0) { const mv = await rpc('adjust_stock', { p_item: created.id, p_new_qty: num(opening.value), p_note: 'Opening stock' }); if (!mv) toast('Opening stock is above the correction limit – sent to the GM to approve.', { ms: 6000 }); }
         }
         toast(item ? 'Item saved.' : 'Item added.'); close(); done();
       } catch (e) { err.textContent = /items_name_uq/.test(e.message) ? 'An item with that name already exists.' : e.message; }

@@ -2,7 +2,7 @@ import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, en
 import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more } from '../ui.js';
 import { requestRow, expenseOf } from './requests.js';
 import { floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
-import { reportDialog } from './stock.js';
+import { reportDialog, confirmReceiptDialog, decideAdjustmentActions } from './stock.js';
 import { setupCard, welcomeStrip } from '../learn.js';
 import { overviewSection, liveRoot } from './overview.js';
 
@@ -20,7 +20,7 @@ async function buildHome() {
   const me = state.me;
   const isMD = role() === 'managing_director';
   const staff = isStaff();
-  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes] = await Promise.all([
+  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes, receiptsRes, adjRes] = await Promise.all([
     staff ? scoped(sb.from('requests').select('*, expense:expenses(proof_status, finance_note)')).in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(staff ? 20 : 6),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
@@ -35,6 +35,8 @@ async function buildHome() {
     oversight() ? sb.from('schedule_versions').select('id, status, md_status, area, version_no, changes, reason, proposed_by, proposed_at').or('status.eq.pending,and(status.eq.applied,md_status.eq.no_md)') : { data: [] },
     duty('finance') || oversight() ? sb.from('cash_counts').select('*').in('status', ['to_review', 'queried']).order('counted_at') : { data: [] },
     duty('finance') || oversight() ? sb.from('top_ups').select('*').in('status', ['requested', 'authorised']).order('requested_at') : { data: [] },
+    staff ? sb.from('stock_receipts').select('*, item:items(name, unit, branch_id)').eq('status', 'to_check').order('created_at') : { data: [] },
+    oversight() ? sb.from('stock_adjustments').select('*, item:items(name, unit, branch_id)').eq('status', 'to_approve').order('requested_at') : { data: [] },
   ]);
   const open = openRes.data || [];
   const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
@@ -118,6 +120,28 @@ async function buildHome() {
       restock.onclick = busy(restock, async () => { const req = await rpc('create_restock_request'); toast('Draft restock order created from measured usage – check quantities, then submit.'); location.hash = `#/requests/${req.id}/edit`; });
       cards.push(card('Stock to act on', stockRows.length, null, h('ul', { class: 'ledger-list' }, stockRows), h('div', { class: 'form-actions', style: { justifyContent: 'flex-start', marginTop: '10px' } }, h('a', { class: 'btn btn-sm btn-quiet', href: '#/stock/reports' }, 'Team reports'), restock)));
     }
+  }
+  // the store: deliveries to check, and corrections above the limit for the GM
+  const inViewItem = (r) => !state.view || r.item?.branch_id === state.view;
+  const receipts = (receiptsRes.data || []).filter(inViewItem);
+  const limit = Number(state.settings?.stock_adjust_limit || 0);
+  const roleOf = (id) => state.people.find((p) => p.id === id)?.role;
+  const receiptRow = (r) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${r.item?.name || 'Item'} · ${qty(r.qty_bought)} ${r.item?.unit || ''} bought`), h('span', {}, `by ${personName(r.bought_by)}, ${fmtDate(r.created_at)}${Number(r.unit_cost) ? ` · ${money(Number(r.qty_bought) * Number(r.unit_cost))}` : ''}`)),
+    h('div', { class: 'row-actions' }, h('button', { class: 'btn btn-sm btn-primary', onclick: () => confirmReceiptDialog(r, null) }, 'Confirm arrival')));
+  if (duty('stock_manager')) {
+    const mine = receipts.filter((r) => !(r.bought_by === me.id && Number(r.qty_bought) * Number(r.unit_cost || 0) > limit));
+    if (mine.length) cards.push(card('Deliveries to check', mine.length, h('p', { class: 'hint' }, 'Count what reached the shelf against what was bought.'), h('ul', { class: 'ledger-list' }, mine.map(receiptRow))));
+  }
+  if (duty('finance') || duty('approver')) {
+    // the controller bought it above the limit: someone independent signs it in
+    const theirs = receipts.filter((r) => roleOf(r.bought_by) === 'stock_manager' && Number(r.qty_bought) * Number(r.unit_cost || 0) > limit && r.bought_by !== me.id);
+    if (theirs.length) cards.push(card('Deliveries to confirm', theirs.length, h('p', { class: 'hint' }, `Bought by the stock controller for more than ${money(limit)}, so someone else confirms what arrived.`), h('ul', { class: 'ledger-list' }, theirs.map(receiptRow))));
+  }
+  if (duty('approver')) {
+    const adj = (adjRes.data || []).filter(inViewItem).filter((a) => a.requested_by !== me.id);
+    if (adj.length) cards.push(card('Stock corrections to approve', adj.length, h('p', { class: 'hint' }, `Above the ${money(limit)} limit the balance only changes once you approve.`),
+      h('ul', { class: 'ledger-list' }, adj.map((a) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${a.item?.name || 'Item'} · ${qty(a.qty_before)} → ${qty(a.qty_after)} ${a.item?.unit || ''}`),
+        h('span', {}, `${{ count: 'Count difference', correction: 'Correction', delivery: 'Short delivery' }[a.kind] || a.kind} · worth ${money(a.value)} · ${personName(a.requested_by)}, ${fmtDate(a.requested_at)}${a.reason ? ` – “${a.reason}”` : ''}`)), decideAdjustmentActions(a)))), null, 'purple'));
   }
   if (duty('finance')) {
     const payouts = byStatus('awaiting_disbursement');

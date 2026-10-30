@@ -367,7 +367,7 @@ export function guessCategory(text, cats) {
 /* =============================================================== detail */
 export async function requestDetailPage(id) {
   const q = unwrap(await sb.from('requests').select('*').eq('id', id).single());
-  const [lines, events, expense, movements, messages, checkRes, docs] = await Promise.all([
+  const [lines, events, expense, movements, messages, checkRes, docs, openOrders] = await Promise.all([
     unwrap(await sb.from('request_lines').select('*, item:items(name, unit, qty_on_hand, last_unit_price, category_id)').eq('request_id', id).order('line_no')),
     unwrap(await sb.from('request_events').select('*').eq('request_id', id).order('created_at')),
     sb.from('expenses').select('*, lines:expense_lines(*), proofs:expense_proofs(*)').eq('request_id', id).maybeSingle().then((r) => r.data),
@@ -375,6 +375,7 @@ export async function requestDetailPage(id) {
     sb.from('request_messages').select('*').eq('request_id', id).order('created_at').then((r) => r.data || []),
     sb.rpc('expense_checks', { p_request: id }).then((r) => (r.data || [])[0] || null),
     sb.from('request_documents').select('*').eq('request_id', id).order('created_at').then((r) => r.data || []),
+    q.status === 'stock_review' && can('stock_review') ? sb.rpc('item_open_orders').then((r) => r.data || []) : [],
   ]);
   const check = checkRes;
   q.docs = docs;
@@ -428,7 +429,7 @@ export async function requestDetailPage(id) {
       h('td', { class: 'num' }, money((reviewed ? Number(l.qty_to_buy ?? l.qty) : Number(l.qty)) * Number(l.est_unit_price)))))),
     h('tfoot', {}, h('tr', {}, h('td', { colspan: showSplit ? 5 : 3 }, isClaim ? 'Claimed' : reviewed ? 'To be bought' : 'Estimated'), h('td', { class: `num${over ? ' threshold' : ''}` }, money(q.estimated_total))))));
 
-  const stage = await stagePanel(q, lines, expense, reload, check);
+  const stage = await stagePanel(q, lines, expense, reload, check, openOrders);
   const reviewPanel = canReviewReq(q) ? (() => {
     const note = h('textarea', { class: 'input', placeholder: 'What you checked, or what should happen next (optional)' });
     const b = h('button', { class: 'btn btn-primary' }, 'Mark reviewed');
@@ -505,7 +506,7 @@ export async function requestDetailPage(id) {
 }
 
 /* =============================================================== stage panels */
-async function stagePanel(q, lines, expense, reload, check = null) {
+async function stagePanel(q, lines, expense, reload, check = null, openOrders = []) {
   const me = state.me.id;
   const since = () => { const d = Math.floor((Date.now() - new Date(q.updated_at)) / 86400000); return d >= 1 ? h('span', { class: 'muted' }, ` Waiting since ${fmtDate(q.updated_at)} (${d} day${d === 1 ? '' : 's'}).`) : null; };
   const banner = (tone, title, text, ...extra) => h('div', { class: `banner banner-${tone}` }, h('strong', {}, title), text, OPEN_STATUSES.includes(q.status) && q.status !== 'draft' ? since() : null, ...extra);
@@ -517,7 +518,7 @@ async function stagePanel(q, lines, expense, reload, check = null) {
       return q.requester_id === me ? banner('amber', 'This is a draft', 'Edit it, then submit when it is ready.') : banner('amber', 'Draft', 'Not submitted yet.');
 
     case 'stock_review':
-      if (can('stock_review') && q.requester_id !== me) return stockReviewPanel(q, lines, reload);
+      if (can('stock_review') && q.requester_id !== me) return stockReviewPanel(q, lines, reload, openOrders);
       return banner('blue', 'With the stock manager', 'They will issue what is in the store and arrange to buy the rest.');
 
     case 'pending_approval': {
@@ -566,7 +567,8 @@ async function stagePanel(q, lines, expense, reload, check = null) {
 }
 
 /* ---- stock manager review ---- */
-function stockReviewPanel(q, lines, reload) {
+function stockReviewPanel(q, lines, reload, openOrders = []) {
+  const onOrder = (itemId) => openOrders.find((o) => o.item_id === itemId && !(o.request_ids || []).every((id) => id === q.id));
   const edits = lines.map((l) => ({ line_id: l.id, qty_from_stock: Math.min(Number(l.qty), Number(l.item?.qty_on_hand || 0)), qty_to_buy: 0, est_unit_price: Number(l.est_unit_price) || Number(l.item?.last_unit_price || 0) }));
   edits.forEach((e, i) => { e.qty_to_buy = Math.max(Number(lines[i].qty) - e.qty_from_stock, 0); });
   const note = h('textarea', { class: 'input', placeholder: 'Note for the requester or finance (optional)' });
@@ -578,7 +580,10 @@ function stockReviewPanel(q, lines, reload) {
       const from = h('input', { class: 'input num', type: 'number', min: 0, max: onhand, step: 'any', value: e.qty_from_stock, disabled: !l.item_id, oninput: (ev) => { e.qty_from_stock = Math.min(num(ev.target.value), onhand); e.qty_to_buy = Math.max(Number(l.qty) - e.qty_from_stock, 0); buy.value = e.qty_to_buy; total(); } });
       const buy = h('input', { class: 'input num', type: 'number', min: 0, step: 'any', value: e.qty_to_buy, oninput: (ev) => { e.qty_to_buy = num(ev.target.value); total(); } });
       const price = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', value: e.est_unit_price, oninput: (ev) => { e.est_unit_price = num(ev.target.value); total(); } });
-      return h('tr', {}, h('td', {}, l.item?.name || l.description, h('span', { class: 'muted' }, l.item ? ` · ${qty(onhand)} ${l.item.unit} on hand` : ' · not a catalogue item')),
+      const oo = l.item_id ? onOrder(l.item_id) : null; const enough = l.item_id && onhand >= Number(l.qty) && e.qty_to_buy > 0;
+      return h('tr', {}, h('td', {}, l.item?.name || l.description, h('span', { class: 'muted' }, l.item ? ` · ${qty(onhand)} ${l.item.unit} on hand` : ' · not a catalogue item'),
+          enough ? h('div', { class: 'note warn' }, 'Enough on hand – nothing needs buying') : null,
+          oo ? h('div', { class: 'note warn' }, `${qty(oo.on_order)} already on order (#${(oo.request_nos || []).filter((n) => n !== q.request_no).join(', #')})`) : null),
         h('td', { class: 'num' }, qty(l.qty)), h('td', { class: 'num', style: { width: '100px' } }, from), h('td', { class: 'num', style: { width: '100px' } }, buy), h('td', { class: 'num', style: { width: '120px' } }, price));
     }));
     total();

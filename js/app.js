@@ -80,16 +80,19 @@ async function actionCounts() {
   if (duty('managing_director')) { or.push('and(status.eq.pending_approval,approval_level.eq.md)'); or.push('and(reviewed_at.is.null,review_role.eq.managing_director)'); }
   if (duty('finance')) { or.push('status.eq.awaiting_disbursement'); or.push('status.eq.proof_review'); or.push('status.eq.physical_required'); }
   or.push(`and(status.eq.disbursed,disbursed_to.eq.${me})`);
-  const [{ count }, sched, cash] = await Promise.all([
+  const [{ count }, sched, cash, stock] = await Promise.all([
     scoped(sb.from('requests').select('id', { count: 'exact', head: true })).or(or.join(',')),
     // a schedule change waiting for the MD counts as one of the MD's things to do
     duty('managing_director') ? sb.from('schedule_versions').select('id', { count: 'exact', head: true }).eq('status', 'pending').neq('proposed_by', me) : { count: 0 },
     // cash counts to sign off or answer, top-ups to authorise or record
     duty('finance') || duty('approver') || duty('managing_director') ? sb.rpc('cash_actions') : { data: null },
+    duty('stock_manager') || duty('approver') ? sb.rpc('stock_actions') : { data: null },
   ]);
   const c = cash.data || {};
   const cashN = (duty('approver') ? Number(c.counts_to_review || 0) : 0) + (duty('finance') ? Number(c.counts_queried || 0) + Number(c.top_ups_to_receive || 0) : 0) + Number(c.top_ups_to_decide || 0);
-  return (count || 0) + (sched.count || 0) + cashN;
+  const st = stock.data || {};
+  const stockN = (duty('stock_manager') ? Number(st.receipts_to_check || 0) : 0) + (duty('approver') ? Number(st.adjustments_to_approve || 0) : 0);
+  return (count || 0) + (sched.count || 0) + cashN + stockN;
 }
 
 /** For people with more than one branch: which branch the screens show. "All branches" for the overview; one branch to act in it. */
