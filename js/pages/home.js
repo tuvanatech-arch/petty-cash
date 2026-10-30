@@ -4,6 +4,7 @@ import { requestRow, expenseOf } from './requests.js';
 import { floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
 import { reportDialog } from './stock.js';
 import { setupCard, welcomeStrip } from '../learn.js';
+import { overviewSection, liveRoot } from './overview.js';
 
 /** A duty is a role you hold today: your own, or one you are standing in for. The approver can see everything but only approving is theirs. */
 const duty = (r) => role() === r || state.standingIn.some((d) => d.role === r);
@@ -12,8 +13,12 @@ const HOLDER = { stock_review: 'stock_manager', pending_approval: 'approver', aw
 const holderOf = (q) => (q.status === 'pending_approval' && q.approval_level === 'md' ? 'managing_director' : HOLDER[q.status]);
 const oversight = () => duty('approver') || duty('managing_director');
 
-export async function homePage() {
+/** The MD's Home is the approvals first, then the live overview; everyone else gets their own queue. */
+export async function homePage() { return role() === 'managing_director' ? liveRoot(buildHome) : buildHome(); }
+
+async function buildHome() {
   const me = state.me;
+  const isMD = role() === 'managing_director';
   const staff = isStaff();
   const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes] = await Promise.all([
     staff ? sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
@@ -126,7 +131,7 @@ export async function homePage() {
 
   /* ---------------- everything else, in one line ---------------- */
   let elsewhere = null;
-  if (staff) {
+  if (staff && !isMD) {
     const mineHolders = new Set(['approver', 'managing_director', 'stock_manager', 'finance'].filter(duty));
     const counts = {};
     for (const q of open) { const hld = holderOf(q); if (mineHolders.has(hld)) continue; counts[hld] = (counts[hld] || 0) + 1; }
@@ -141,12 +146,12 @@ export async function homePage() {
   }
 
   /* ---------------- the float, once ---------------- */
-  const floatCard = (duty('finance') || oversight()) ? floatSummary(floatRes.data, outlookRes.data) : null;
+  const floatCard = !isMD && (duty('finance') || oversight()) ? floatSummary(floatRes.data, outlookRes.data) : null;
 
   /* ---------------- my own requests ---------------- */
   const myReports = reports.filter((r) => r.reported_by === me.id);
   const mine = (mineRes.data || []).filter((q) => (staff ? !['closed', 'rejected', 'cancelled', 'fulfilled_from_stock'].includes(q.status) && q.status !== 'disbursed' : q.status !== 'disbursed'));
-  const mineCard = mine.length || !staff ? h('div', { class: 'sheet' },
+  const mineCard = !isMD && (mine.length || !staff) ? h('div', { class: 'sheet' },
     h('div', { class: 'sheet-head' }, h('h2', {}, staff ? 'Your open requests' : 'Your requests'), h('a', { href: '#/requests' }, 'All')),
     mine.length ? h('ul', { class: 'ledger-list' }, mine.slice(0, 6).map((q) => requestRow(q))) : emptyState('Nothing yet', 'Snap or upload a receipt to claim money back, or ask for cash.'),
     myReports.length ? h('p', { class: 'hint', style: { marginTop: '10px' } }, `Reported to the stock manager: ${myReports.map((r) => r.item?.name).join(', ')}.`) : null) : null;
@@ -174,6 +179,7 @@ export async function homePage() {
     cards.map((c) => c.el),
     staff && !cards.length ? h('div', { class: 'sheet duty-empty' }, h('strong', {}, 'Nothing needs you right now'), 'You will get a buzz when something does.') : null,
     elsewhere,
+    isMD ? await overviewSection() : null,
     mineCard);
 }
 

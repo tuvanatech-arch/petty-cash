@@ -601,3 +601,24 @@ tr.inactive td, tr.inactive td strong { color: var(--ink-3); }
 .sched-version > summary { color: var(--ink); font-weight: 400; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .ledger-list li > details.sched-version { flex: 1 1 100%; margin-top: 0; min-width: 0; }
 @media (max-width: 860px) { .sched-kv { grid-template-columns: 1fr; gap: 2px 0; } .sched-kv dd { margin-bottom: 8px; } }
+
+/* ---- the MD's overview: live indicator and recommendations ---- */
+.overview { display: flex; flex-direction: column; gap: 18px; margin-top: 8px; }
+.overview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.overview-head h2 { margin: 0; }
+.live-ind { font-size: .8rem; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; }
+.live-ind i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); display: inline-block; }
+.live-ind[data-live="on"] i { background: var(--green); animation: live-pulse 2.4s ease-out infinite; }
+@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(27, 94, 75, .45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(27, 94, 75, 0); } }
+@media (prefers-reduced-motion: reduce) { .live-ind[data-live="on"] i { animation: none; } }
+.recs { display: flex; flex-direction: column; gap: 8px; }
+.rec { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--rule); border-left-width: 4px; border-radius: var(--radius); padding: 10px 12px; text-decoration: none; color: inherit; }
+a.rec:hover { background: var(--paper); }
+.rec strong { display: block; }
+.rec p { margin: 2px 0 0; color: var(--ink-3); font-size: .88rem; }
+.rec .dot { line-height: 1.4; }
+.rec.red { border-left-color: var(--red); } .rec.red .dot { color: var(--red); }
+.rec.amber { border-left-color: var(--amber); } .rec.amber .dot { color: var(--amber); }
+.rec.info { border-left-color: var(--ink-3); } .rec.info .dot { color: var(--ink-3); }
+.rec.green { border-left-color: var(--green); } .rec.green .dot { color: var(--green); }
+.score .box { display: flex; flex-direction: column; }
