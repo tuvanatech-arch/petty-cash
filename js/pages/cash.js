@@ -1,6 +1,7 @@
 import { sb, state, can, has, personName, unwrap, rpc, uploadPack, packUrl, sendPack, mdInPlace, multiBranch, myBranch, branchName } from '../api.js';
 import { branchGate } from '../branch.js';
 import { buildMonthEndPack } from '../pack.js';
+import { downloadFullExport } from '../export.js';
 import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog } from '../ui.js';
 
 export function floatStrip(f) {
@@ -168,6 +169,8 @@ export async function packPage(floatId) {
     check(!!acct, 'Accountant email set', acct || 'add it under Admin → Settings'));
 
   const download = h('a', { class: 'btn', href: url || '#', target: '_blank', rel: 'noopener', download: pack.file_name }, 'Download PDF');
+  const exportBtn = h('button', { class: 'btn', title: 'Every register of the month as spreadsheets, plus the receipt images, in one zip' }, 'Full export (zip)');
+  exportBtn.onclick = busy(exportBtn, async () => { const r = await downloadFullExport(f, (m) => { exportBtn.textContent = m || 'Full export (zip)'; }); toast(`Export ready: ${r.receipts} receipt${r.receipts === 1 ? '' : 's'} and the registers.`); });
   const rebuild = h('button', { class: 'btn' }, 'Rebuild');
   rebuild.onclick = () => build(rebuild);
   const send = h('button', { class: 'btn btn-primary', disabled: !acct }, acct ? `Approve & send to ${state.settings.accountant_name || acct}` : 'Approve & send');
@@ -186,7 +189,7 @@ export async function packPage(floatId) {
   mount(page,
     h('div', { class: 'page-head' }, h('div', {}, h('div', { class: 'ref' }, `Month-end pack · built ${fmtDate(pack.built_at, { time: true })} by ${personName(pack.built_by)} · ${pack.pages} pages · ${(Number(pack.size_bytes) / 1048576).toFixed(1)} MB`),
       h('h1', {}, `${monthLabel(f.period)} pack`), h('p', {}, sent ? h('span', { class: 'pill pill-green' }, `Sent ${fmtDate(pack.sent_at, { time: true })} by ${personName(pack.sent_by)} to ${pack.sent_to}`) : h('span', { class: 'pill pill-amber' }, 'Awaiting bookkeeper review'))),
-      h('div', { class: 'page-actions' }, download, sent ? null : rebuild)),
+      h('div', { class: 'page-actions' }, download, exportBtn, sent ? null : rebuild)),
     sent ? null : h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
       h('div', { class: 'sheet-head' }, h('h2', {}, 'Review before sending'), h('span', { class: 'sub' }, 'the bookkeeper\'s sign-off')),
       checklist,

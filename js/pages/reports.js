@@ -1,5 +1,5 @@
-import { sb, state, can, personName, unwrap, scoped, multiBranch, branchName } from '../api.js';
-import { h, mount, money, qty, fmtDate, monthLabel, pill, emptyState, select, field, isoDate, more } from '../ui.js';
+import { sb, state, can, personName, unwrap, scoped, multiBranch, branchName, rpc } from '../api.js';
+import { h, mount, money, qty, fmtDate, monthLabel, pill, emptyState, select, field, isoDate, more, toast, busy, confirmDialog, refresh } from '../ui.js';
 import { barChart, lineChart, hBars } from '../charts.js';
 
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -26,7 +26,7 @@ export function stageDurations(events) {
 }
 export const fmtHours = (hrs) => (hrs == null ? '—' : hrs < 1 ? `${Math.round(hrs * 60)} min` : hrs < 48 ? `${hrs.toFixed(hrs < 10 ? 1 : 0)} h` : `${(hrs / 24).toFixed(1)} days`);
 
-export async function reportsPage() {
+export async function reportsPage(startTab = null) {
   const months = lastMonths(13);
   const since = months[0] + '-01';
   const since3 = months[months.length - 3] + '-01';
@@ -41,11 +41,12 @@ export async function reportsPage() {
   ]);
   // money spent before anyone approved it (claims), per person: this month and the last 12
   const m12from = months[Math.max(0, months.length - 12)] + '-01';
-  const [{ data: claimsNow }, { data: claims12 }] = await Promise.all([sb.rpc('claims_summary'), sb.rpc('claims_summary', { p_from: m12from })]);
+  const [{ data: claimsNow }, { data: claims12 }, { data: exceptions }] = await Promise.all([sb.rpc('claims_summary'), sb.rpc('claims_summary', { p_from: m12from }), sb.rpc('exceptions_log', { p_from: m12from })]);
+  const exc = Array.isArray(exceptions) ? exceptions : [];
   const scorecard = buildScorecard({ months, lines, requests, items, events, budgets: (budgets || []).filter((b) => b.active) });
 
   let range = 3; // months in the "period" views
-  let tab = 'spending';
+  let tab = ['spending', 'prices', 'controls'].includes(startTab) ? startTab : 'spending';
   const rangeSel = select([[1, 'This month'], [3, 'Last 3 months'], [6, 'Last 6 months'], [12, 'Last 12 months']], 3, { onchange: (e) => { range = Number(e.target.value); draw(); } });
   const tabBar = h('div', { class: 'tabs', style: { marginTop: '4px' } });
   const periodMonths = () => months.slice(-range);
@@ -112,7 +113,7 @@ export async function reportsPage() {
     const reqRow = (r) => h('tr', { class: 'click', onclick: () => { location.hash = `#/requests/${r.id}`; } }, h('td', {}, `#${r.request_no} ${r.purpose}`), h('td', { class: 'muted' }, personName(r.requester_id)), h('td', { class: 'muted' }, fmtDate(r.submitted_at || r.created_at)), h('td', {}, pill(r.status)), h('td', { class: 'num' }, money(exTotal(r) || r.estimated_total)));
     const tbl = (rows, empty) => rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' }, h('tbody', {}, rows.map(reqRow)))) : h('p', { class: 'hint' }, empty);
 
-    const flags = overUnapproved.length + splits.length + nearMiss.length;
+    const flags = exc.filter((x) => x.state === 'open').length;
     mount(tabBar, [['spending', 'Spending'], ['prices', 'Prices & items'], ['controls', flags ? `Controls (${flags})` : 'Controls']].map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { tab = k; draw(); } }, l)));
     rangeSel.style.display = tab === 'spending' ? '' : 'none';
     const sections = {
@@ -141,11 +142,10 @@ export async function reportsPage() {
             h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`))))))) : null,
       ],
       controls: () => [
+      exceptionsSheet(exc),
       claimsSheet(claimsNow || [], claims12 || []),
-      h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Controls'), h('span', { class: 'sub' }, `around the ${money(thr())} threshold, last 12 months`)),
+      h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Around the limit'), h('span', { class: 'sub' }, `the ${money(thr())} threshold, last 12 months`)),
         h('h3', { style: { margin: '8px 0 6px' } }, `Spent above ${money(thr())} without approval`), h('p', { class: 'hint' }, 'The estimate was under the limit but the receipt came in over it.'), tbl(overUnapproved, 'None.'),
-        h('h3', { style: { margin: '16px 0 6px' } }, 'Same person, same day, together above the limit'), h('p', { class: 'hint' }, 'Several small requests that add up to more than one approval would have covered.'),
-        splits.length ? h('div', {}, splits.map((sp) => h('div', { style: { marginBottom: '8px' } }, h('strong', {}, `${personName(sp.who)} · ${fmtDate(sp.day)} · ${money(sp.sum)} across ${sp.rs.length} requests`), tbl(sp.rs, '')))) : h('p', { class: 'hint' }, 'None.'),
         h('h3', { style: { margin: '16px 0 6px' } }, `Just under the limit (${money(thr() * 0.9)} – ${money(thr())})`), tbl(nearMiss, 'None.'))],
     };
     mount(body, scorecard, tabBar, sections[tab]());
@@ -157,6 +157,31 @@ export async function reportsPage() {
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, multiBranch() ? `Reports · ${state.view ? branchName(state.view) : 'all branches'}` : 'Reports'), h('p', {}, 'The scorecard first; the detail when you want it.')),
       h('div', { class: 'page-actions' }, rangeSel, exportButton(lines))),
     body);
+}
+
+/** The Approval and Exception Log: every override, correction and delegated action, with who, why and whether it was reviewed. */
+export function exceptionsSheet(rows, { compact = false } = {}) {
+  const gm = can('admin');
+  let only = 'open'; const list = h('div', {});
+  const TONE = { open: ['Open', 'pill-amber'], reviewed: ['Cleared', 'pill-green'], auto: ['Reviewed', 'pill-green'], info: ['Logged', 'pill-grey'] };
+  const clear = (x, outcome) => { const b = h('button', { class: `btn btn-sm ${outcome === 'resolved' ? 'btn-primary' : ''}` }, outcome === 'justified' ? 'Justified' : 'Resolved');
+    b.onclick = busy(b, async (e) => { e.stopPropagation(); const why = await confirmDialog(outcome === 'justified' ? 'Mark as justified' : 'Mark as resolved', x.title + ' – ' + (x.detail || ''), { ok: outcome === 'justified' ? 'Justified' : 'Resolved', note: { label: 'In a few words', required: true } }); if (!why) return; await rpc('review_exception', { p_kind: x.kind, p_ref: x.ref, p_outcome: outcome, p_note: why }); toast('Cleared.'); refresh(); }); return b; };
+  const draw = () => {
+    const shown = rows.filter((x) => only === 'all' || (only === 'open' ? x.state === 'open' : only === 'reviewed' ? ['reviewed', 'auto'].includes(x.state) : x.state === 'info'));
+    mount(list, shown.length ? h('ul', { class: 'ledger-list' }, shown.slice(0, compact ? 8 : 300).map((x) => h('li', { class: x.request_id ? 'click' : '', onclick: x.request_id ? () => { location.hash = `#/requests/${x.request_id}`; } : null },
+      h('div', { class: 'what' }, h('strong', {}, x.title), h('span', {}, `${fmtDate(x.at)}${x.who ? ` · ${personName(x.who)}` : ''}${x.detail ? ` · ${x.detail}` : ''}`),
+        x.at2 || x.note ? h('span', { style: { display: 'block' } }, `${x.by_whom ? `${x.state === 'reviewed' ? (x.outcome === 'resolved' ? 'Resolved' : 'Justified') : 'By'} ${personName(x.by_whom)}` : ''}${x.at2 ? `, ${fmtDate(x.at2)}` : ''}${x.note ? ` – “${x.note}”` : ''}`) : null),
+      x.amount != null ? h('span', { class: 'amt' }, money(x.amount)) : null,
+      x.state === 'open' && gm ? h('div', { class: 'row-actions', onclick: (e) => e.stopPropagation() }, clear(x, 'justified'), clear(x, 'resolved')) : h('span', { class: `pill ${TONE[x.state][1]}` }, TONE[x.state][0]))))
+      : emptyState(only === 'open' ? 'Nothing open' : 'Nothing here', only === 'open' ? 'Every exception has been looked at.' : ''));
+  };
+  const chips = h('div', { class: 'tabs', style: { borderBottom: 0, marginBottom: '6px' } });
+  const n = (k) => rows.filter((x) => k === 'all' || (k === 'open' ? x.state === 'open' : k === 'reviewed' ? ['reviewed', 'auto'].includes(x.state) : x.state === 'info')).length;
+  const drawChips = () => mount(chips, [['open', 'Open'], ['reviewed', 'Reviewed'], ['info', 'Logged'], ['all', 'All']].map(([k, l]) => h('button', { class: k === only ? 'active' : '', onclick: () => { only = k; drawChips(); draw(); } }, `${l} (${n(k)})`)));
+  drawChips(); draw();
+  return h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Approval and exception log'), h('span', { class: 'sub' }, 'last 12 months')),
+    h('p', { class: 'hint' }, 'Every override, correction and delegated action: money spent before approval, approvals over budget, spending looked at after payment, possible split purchases, undone pay-outs, stock corrections, cash differences, overdue receipts, actions by stand-ins, and changes to the schedule, people and branches. Open ones wait for the General Manager to mark them justified or resolved.'),
+    compact ? null : chips, list);
 }
 
 /** Claims are money spent before approval: how much of each person's spend went that way. */

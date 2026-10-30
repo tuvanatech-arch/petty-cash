@@ -20,7 +20,7 @@ async function buildHome() {
   const me = state.me;
   const isMD = role() === 'managing_director';
   const staff = isStaff();
-  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes, receiptsRes, adjRes] = await Promise.all([
+  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes, receiptsRes, adjRes, excRes] = await Promise.all([
     staff ? scoped(sb.from('requests').select('*, expense:expenses(proof_status, finance_note)')).in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(staff ? 20 : 6),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
@@ -37,6 +37,7 @@ async function buildHome() {
     duty('finance') || oversight() ? sb.from('top_ups').select('*').in('status', ['requested', 'authorised']).order('requested_at') : { data: [] },
     staff ? sb.from('stock_receipts').select('*, item:items(name, unit, branch_id)').eq('status', 'to_check').order('created_at') : { data: [] },
     oversight() ? sb.from('stock_adjustments').select('*, item:items(name, unit, branch_id)').eq('status', 'to_approve').order('requested_at') : { data: [] },
+    role() === 'approver' ? sb.rpc('exceptions_open') : { data: 0 },
   ]);
   const open = openRes.data || [];
   const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
@@ -143,6 +144,10 @@ async function buildHome() {
       h('ul', { class: 'ledger-list' }, adj.map((a) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${a.item?.name || 'Item'} · ${qty(a.qty_before)} → ${qty(a.qty_after)} ${a.item?.unit || ''}`),
         h('span', {}, `${{ count: 'Count difference', correction: 'Correction', delivery: 'Short delivery' }[a.kind] || a.kind} · worth ${money(a.value)} · ${personName(a.requested_by)}, ${fmtDate(a.requested_at)}${a.reason ? ` – “${a.reason}”` : ''}`)), decideAdjustmentActions(a)))), null, 'purple'));
   }
+  // the exception log: open entries wait for the GM
+  const excN = Number(excRes.data || 0);
+  if (role() === 'approver' && excN) cards.push(card('Exceptions to clear', excN, h('p', { class: 'hint' }, 'Overrides, corrections and flags nobody has looked at yet: mark each justified or resolved.'),
+    h('a', { class: 'btn btn-sm', href: '#/reports/controls' }, 'Open the log')));
   if (duty('finance')) {
     const payouts = byStatus('awaiting_disbursement');
     if (payouts.length) cards.push(card('To pay out', payouts.length, null, list(payouts, (q) => (q.type === 'claim' ? h('div', { class: 'row-actions' }, h('span', { class: 'note' }, 'Claim – reimburse from the float')) : null))));

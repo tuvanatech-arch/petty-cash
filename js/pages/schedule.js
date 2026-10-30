@@ -6,13 +6,15 @@ import { ITEMS, SECTIONS, WEEKDAYS, EVERY, BUDGET_MODES, AREA_LABEL, POSITIONS, 
 import { downloadSchedulePdf } from '../schedule-pdf.js';
 
 async function load() {
-  const [settings, versions, budgets, budgetBranches, cats, standins] = await Promise.all([
+  const [settings, versions, budgets, budgetBranches, cats, standins, accessStatus, accessList] = await Promise.all([
     sb.from('settings').select('*').eq('id', 1).single(),
     sb.from('schedule_versions').select('*').order('proposed_at', { ascending: false }).limit(300),
     sb.rpc('budget_status'),
     multiBranch() ? sb.from('budgets').select('id, branch_id') : { data: [] },
     sb.from('categories').select('id, name').order('name'),
     sb.from('delegations').select('*').gte('ends_on', today()).order('starts_on'),
+    has('approver') ? sb.rpc('access_review_status') : { data: null },
+    has('approver') ? sb.rpc('access_list') : { data: [] },
   ]);
   state.settings = unwrap(settings);
   const all = unwrap(versions) || [];
@@ -26,6 +28,8 @@ async function load() {
     budgets: (budgets.data || []).map((b) => ({ ...b, branch_id: (budgetBranches.data || []).find((x) => x.id === b.budget_id)?.branch_id || null })),
     cats: cats.data || [],
     standins: standins.data || [],
+    access: accessStatus.data || null,
+    accessList: Array.isArray(accessList.data) ? accessList.data : [],
   };
 }
 
@@ -35,7 +39,7 @@ export async function schedulePage({ embedded = false } = {}) {
   const isMD = has('managing_director');
   const body = h('div', { class: 'schedule' },
     headCard(d, admin), pendingCard(d, admin, isMD), reviewCard(d, isMD),
-    valuesBlock(d, admin), budgetsBlock(d, admin), positionsBlock(d, admin), historyBlock(d));
+    valuesBlock(d, admin), budgetsBlock(d, admin), positionsBlock(d, admin), accessReviewBlock(d, isMD), historyBlock(d));
   if (embedded) return body;
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Authority schedule'),
@@ -216,6 +220,31 @@ function reviewChanges(inputs) {
       field('Reason for the change', reason, 'Kept with the version and printed on the schedule.'),
       err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
+}
+
+/* ---------------------------------------------------------------- the quarterly access review */
+function accessReviewBlock(d, isMD) {
+  if (!d.access) return null;
+  const a = d.access; const q = new Date(a.quarter); const qLabel = `Q${Math.floor(q.getMonth() / 3) + 1} ${q.getFullYear()}`;
+  const ROLE = { requester: 'Requester', stock_manager: 'Stock controller', finance: 'Finance', approver: 'General Manager', managing_director: 'Managing Director' };
+  const confirm = h('button', { class: 'btn btn-primary', type: 'button' }, a.done ? 'Confirm again' : `Confirm ${qLabel}`);
+  confirm.onclick = busy(confirm, async () => {
+    const note = await confirmDialog(`Sign off the access review for ${qLabel}`, 'You confirm that everyone listed should still have access, in the position and branch shown, and that nobody who has left still appears.', { ok: 'Sign off', note: { label: 'Note (optional)' } });
+    if (note === null) return;
+    await rpc('confirm_access_review', { p_note: note || null }); toast(`Access review for ${qLabel} signed off.`); refresh();
+  });
+  const last = a.last ? `Last signed off ${fmtDate(a.last.at)} by ${personName(a.last.by)} (Q${Math.floor(new Date(a.last.quarter).getMonth() / 3) + 1} ${new Date(a.last.quarter).getFullYear()})${a.last.note ? ` – “${a.last.note}”` : ''}.` : 'Never signed off yet.';
+  return h('div', { class: 'sheet' },
+    h('div', { class: 'sheet-head' }, h('h2', {}, 'Access review'), h('span', { class: `pill ${a.done ? 'pill-green' : 'pill-amber'}` }, a.done ? `${qLabel} signed off` : `${qLabel} due`)),
+    h('p', { class: 'hint' }, `Once a quarter the Managing Director confirms who holds each position. ${last}`),
+    h('div', { class: 'table-wrap' }, h('table', { class: 'ledger compact' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Person'), h('th', {}, 'Position'), multiBranch() ? h('th', {}, 'Branch') : null, h('th', {}, 'Last sign-in'), h('th', { class: 'num' }, 'Devices'))),
+      h('tbody', {}, d.accessList.map((p) => h('tr', { class: p.active ? '' : 'inactive' },
+        h('td', {}, h('strong', {}, p.full_name || p.email), !p.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null, h('div', { class: 'muted', style: { fontSize: '.8rem' } }, p.email)),
+        h('td', {}, ROLE[p.role] || p.role), multiBranch() ? h('td', {}, ['approver', 'managing_director'].includes(p.role) ? 'All' : [p.branch, p.also ? ` + ${p.also}` : ''].join('')) : null,
+        h('td', { style: p.active && (!p.last_sign_in || Date.now() - new Date(p.last_sign_in) > 60 * 864e5) ? { color: 'var(--amber)' } : {} }, p.last_sign_in ? fmtDate(p.last_sign_in) : 'never'),
+        h('td', { class: 'num' }, p.devices)))))),
+    isMD ? h('div', { class: 'form-actions' }, confirm) : h('p', { class: 'hint' }, 'People who have left are deactivated under Admin → People; the MD then signs the quarter off.'));
 }
 
 /* ---------------------------------------------------------------- budgets */

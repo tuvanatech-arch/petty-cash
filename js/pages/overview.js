@@ -26,7 +26,7 @@ async function load() {
   const months = lastMonths(6);
   const since = months[0] + '-01';
   const since3 = isoDate(new Date(Date.now() - 90 * 864e5));
-  const [lines, open, prices, events, fl, outlook, budgets, claims, counts, topUps, sched, items, reports, allFloats] = await Promise.all([
+  const [lines, open, prices, events, fl, outlook, budgets, claims, counts, topUps, sched, items, reports, allFloats, excOpen] = await Promise.all([
     ask(scoped(sb.from('v_spend_lines').select('*')).gte('spent_at', since).order('spent_at')),
     ask(scoped(sb.from('requests').select('id, request_no, purpose, type, status, approval_level, estimated_total, requester_id, disbursed_to, disbursed_amount, disbursed_at, submitted_at, updated_at, branch_id')).in('status', OPEN)),
     ask(sb.from('v_price_history').select('*').gte('on_date', since).order('on_date')),
@@ -41,9 +41,10 @@ async function load() {
     ask(scoped(sb.from('items').select('id, name, qty_on_hand, reorder_level, recurring')).eq('active', true)),
     ask((state.view ? sb.from('stock_reports').select('item_id, item:items!inner(branch_id)').eq('item.branch_id', state.view) : sb.from('stock_reports').select('item_id')).is('resolved_at', null)),
     ask(sb.from('floats').select('id, branch_id')),
+    ask(sb.rpc('exceptions_open')),
   ]);
   const fls = allFloats || [];
-  return { months, lines: lines || [], open: open || [], prices: prices || [], events: events || [], floats: fl || [], outlooks: Array.isArray(outlook) ? outlook : [], budgets: (budgets || []).filter((b) => b.active), claims: claims || [], counts: inView(counts || [], fls), topUps: inView(topUps || [], fls), schedule: (sched || [])[0] || null, items: items || [], reports: reports || [], allFloats: fls };
+  return { months, lines: lines || [], open: open || [], prices: prices || [], events: events || [], floats: fl || [], outlooks: Array.isArray(outlook) ? outlook : [], budgets: (budgets || []).filter((b) => b.active), claims: claims || [], counts: inView(counts || [], fls), topUps: inView(topUps || [], fls), schedule: (sched || [])[0] || null, items: items || [], reports: reports || [], allFloats: fls, excOpen: Number(excOpen || 0) };
 }
 
 /** Turn the raw data into the numbers the screen shows and the recommendations draw on. */
@@ -151,6 +152,7 @@ function recommend(m) {
   if (m.claimShare >= 25 && m.claimed > 0) add('amber', `${Math.round(m.claimShare)}% of this month's spending was claimed after the fact`, `${money(m.claimed)} was paid from people's own pockets without asking first. Remind staff to ask before they spend.`, '#/reports');
   if (m.overNoApproval.length) add('amber', `${plural(m.overNoApproval.length, 'purchase')} over ${money(m.thr)} without approval (90 days)`, `The estimate was under the limit but the receipt came in over it. Finance and the GM were told each time.`, '#/reports');
   for (const r of m.rises.slice(0, 2)) add('info', `${r.name} is up ${Math.round(r.chg * 100)}%`, `${money(r.from)} → ${money(r.to)} since ${fmtDate(r.since)}. Worth asking suppliers for a quote.`, '#/reports');
+  if (d.excOpen) add('amber', `${plural(d.excOpen, 'exception')} waiting for the GM`, 'Overrides, corrections and flags in the approval and exception log that nobody has marked justified or resolved yet.', '#/reports/controls');
   if (m.lowItems.length) add('info', `${plural(m.lowItems.length, 'store item')} low or out`, m.lowItems.slice(0, 4).map((i) => i.name).join(', ') + (m.lowItems.length > 4 ? '…' : '') + '. Restocking will draw on the float.', '#/stock');
   const order = { red: 0, amber: 1, info: 2 };
   return R.sort((a, b) => order[a.tone] - order[b.tone]);
