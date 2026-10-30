@@ -5,14 +5,48 @@ import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refre
 
 export async function adminPage(tab = 'users') {
   if (tab === 'budgets') tab = 'schedule';   // budgets live in the schedule now
-  const tabs = [['users', 'People'], ['standins', 'Stand-ins'], ['schedule', 'Schedule'], ['settings', 'Settings']];
+  const tabs = [['users', 'People'], ['signins', 'Sign-ins'], ['standins', 'Stand-ins'], ['schedule', 'Schedule'], ['settings', 'Settings']];
   const bar = h('div', { class: 'tabs' }, tabs.map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { location.hash = `#/admin/${k}`; } }, l)));
-  const body = tab === 'settings' ? settingsTab() : tab === 'standins' ? await standinsTab() : tab === 'schedule' ? await schedulePage({ embedded: true }) : await usersTab();
+  const body = tab === 'settings' ? settingsTab() : tab === 'standins' ? await standinsTab() : tab === 'signins' ? await signInsTab() : tab === 'schedule' ? await schedulePage({ embedded: true }) : await usersTab();
   const action = { users: ['Add person', () => userDialog(null)], standins: ['Add stand-in', () => standinDialog(null)] }[tab];
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Admin'), h('p', {}, 'Who can sign in, who covers for whom, the authority schedule, and the organisation’s details.')),
       action ? h('div', { class: 'page-actions' }, h('button', { class: 'btn btn-primary', onclick: action[1] }, action[0])) : null),
     bar, body);
+}
+
+/* =============================================================== sign-ins */
+const FLAG = { new_device: ['New device', 'pill-amber'], new_country: ['New country', 'pill-amber'], far_apart: ['Two far-apart places', 'pill-red'] };
+let signInFilter = { days: 30, who: '', unusual: false };
+async function signInsTab() {
+  const from = new Date(Date.now() - signInFilter.days * 864e5).toISOString();
+  const rows = (await rpc('sign_in_log', { p_from: from }).catch(() => [])) || [];
+  const people = [...new Map(rows.map((r) => [r.user_id, r.person])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+  const body = h('div', {});
+  const draw = () => {
+    const shown = rows.filter((r) => (!signInFilter.who || r.user_id === signInFilter.who) && (!signInFilter.unusual || (r.flags || []).length));
+    const unusual = rows.filter((r) => (r.flags || []).length).length;
+    const places = new Set(rows.map((r) => r.place).filter(Boolean)).size;
+    mount(body,
+      h('div', { class: 'score', style: { marginBottom: '14px' } },
+        h('div', { class: 'box' }, h('span', { class: 'k' }, 'Sign-ins'), h('span', { class: 'v' }, rows.length), h('span', { class: 'd' }, `${new Set(rows.map((r) => r.user_id)).size} people`)),
+        h('div', { class: 'box' }, h('span', { class: 'k' }, 'Unusual'), h('span', { class: 'v', style: unusual ? { color: 'var(--amber)' } : {} }, unusual), h('span', { class: 'd' }, 'new device, new country or far apart')),
+        h('div', { class: 'box' }, h('span', { class: 'k' }, 'Places'), h('span', { class: 'v' }, places), h('span', { class: 'd' }, 'approximate, from the internet address'))),
+      h('div', { class: 'sheet' },
+        shown.length ? h('ul', { class: 'ledger-list' }, shown.map((r) => h('li', { class: 'click', onclick: () => devicesDialog(state.people.find((p) => p.id === r.user_id) || { id: r.user_id, full_name: r.person }) },
+          h('div', { class: 'what' }, h('strong', {}, `${r.person} · ${r.label || 'A device'}`),
+            h('span', {}, `${fmtDate(r.at, { time: true })} · near ${r.place || 'an unknown place'}${r.approx ? ' (rough)' : ''}${r.ip ? ` · ${r.ip}` : ''}`),
+            h('span', { style: { display: 'block' } }, r.signed_in ? `Still signed in · last active ${fmtDate(r.last_seen, { time: true })}${r.current_place && r.current_place !== r.place ? ` near ${r.current_place}` : ''}` : 'Signed out')),
+          h('div', { class: 'row-actions' }, (r.flags || []).map((f) => h('span', { class: `pill ${(FLAG[f] || [f, 'pill-grey'])[1]}` }, (FLAG[f] || [f])[0])),
+            h('span', { class: `pill ${r.signed_in ? 'pill-green' : 'pill-grey'}` }, r.signed_in ? 'Signed in' : 'Signed out')))))
+          : emptyState('No sign-ins in this view', 'Change the period or the person above.')),
+      h('p', { class: 'hint' }, 'Places come from the internet address, so they are approximate (a mobile network can show a nearby city). Tap a sign-in to see that person’s devices and sign one out. Kept for 12 months.'));
+  };
+  const who = select([['', 'Everyone'], ...people], signInFilter.who, { onchange: (e) => { signInFilter.who = e.target.value; draw(); } });
+  const days = select([[7, 'Last 7 days'], [30, 'Last 30 days'], [90, 'Last 90 days'], [365, 'Last 12 months']], signInFilter.days, { onchange: (e) => { signInFilter.days = Number(e.target.value); refresh(); } });
+  const unusualBox = h('input', { type: 'checkbox', checked: signInFilter.unusual, onchange: (e) => { signInFilter.unusual = e.target.checked; draw(); } });
+  draw();
+  return h('div', {}, h('div', { class: 'row', style: { gap: '10px', alignItems: 'center', margin: '4px 0 14px', flexWrap: 'wrap', display: 'flex' } }, days, who, h('label', { style: { display: 'flex', gap: '6px', alignItems: 'center' } }, unusualBox, 'Only unusual')), body);
 }
 
 /* =============================================================== people */
