@@ -284,6 +284,8 @@ export function standinDialog(d, { fixedFrom = null } = {}) {
 }
 
 /* =============================================================== settings */
+/** Text that must not be swapped for the organisation's titles (it names the app's own words). */
+const raw = (t) => h('span', {}, document.createTextNode(t));
 function settingsTab() {
   const s = state.settings;
   const org = h('input', { class: 'input', value: s.org_name });
@@ -295,6 +297,22 @@ function settingsTab() {
   const acctEmail = h('input', { class: 'input', type: 'email', value: s.accountant_email || '', placeholder: 'accounts@…' });
   const pkg = h('input', { class: 'input', value: s.accounting_package || '', placeholder: 'e.g. Sage, Pastel, Xero, QuickBooks' });
   const cashAcct = h('input', { class: 'input', value: s.petty_cash_account || '', placeholder: 'e.g. 1020' });
+  // region: time zone (day boundaries, reminders, the dates in messages) and how numbers are written
+  let zones = []; try { zones = Intl.supportedValuesOf('timeZone').filter((z) => z.startsWith('Africa/')); } catch {}
+  if (!zones.length) zones = ['Africa/Windhoek', 'Africa/Luanda', 'Africa/Johannesburg', 'Africa/Gaborone', 'Africa/Lusaka', 'Africa/Harare', 'Africa/Maputo', 'Africa/Nairobi', 'Africa/Lagos'];
+  const tzNow = s.time_zone || 'Africa/Windhoek';
+  if (!zones.includes(tzNow)) zones.unshift(tzNow);
+  const tz = h('select', { class: 'input', id: 'set-tz' }, [...zones, 'UTC'].map((z) => h('option', { value: z, selected: z === tzNow }, z.replace(/^Africa\//, '').replace(/_/g, ' '))));
+  const locales = [['en-NA', 'Namibia'], ['en-ZA', 'South Africa'], ['pt-AO', 'Angola'], ['en-BW', 'Botswana'], ['en-GB', 'United Kingdom'], ['en-US', 'United States']];
+  const locNow = s.number_locale || 'en-NA';
+  if (!locales.some(([l]) => l === locNow)) locales.unshift([locNow, locNow]);
+  const loc = h('select', { class: 'input', id: 'set-locale' }, locales.map(([l, name]) => { let ex = ''; try { ex = (1234.5).toLocaleString(l, { minimumFractionDigits: 2 }); } catch {} return h('option', { value: l, selected: l === locNow }, `${name} (${ex})`); }));
+  // what this organisation calls the two approving positions; the app's own words are GM and MD
+  const t = s.titles || {};
+  const tGm = h('input', { class: 'input', id: 'set-title-gm', value: t.gm || 'GM', maxlength: 20 });
+  const tGmLong = h('input', { class: 'input', id: 'set-title-gm-long', value: t.gm_long || 'General Manager', maxlength: 40 });
+  const tMd = h('input', { class: 'input', id: 'set-title-md', value: t.md || 'MD', maxlength: 20 });
+  const tMdLong = h('input', { class: 'input', id: 'set-title-md-long', value: t.md_long || 'Managing Director', maxlength: 40 });
   const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save settings');
   const go = busy(b, async () => {
     unwrap(await sb.from('settings').update({
@@ -302,6 +320,8 @@ function settingsTab() {
       headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
       accountant_name: acctName.value.trim() || null, accountant_email: acctEmail.value.trim() || null,
       accounting_package: pkg.value.trim() || null, petty_cash_account: cashAcct.value.trim() || null,
+      time_zone: tz.value, number_locale: loc.value,
+      titles: { gm: tGm.value.trim() || 'GM', gm_long: tGmLong.value.trim() || 'General Manager', md: tMd.value.trim() || 'MD', md_long: tMdLong.value.trim() || 'Managing Director' },
       updated_at: new Date().toISOString(),
     }).eq('id', 1));
     state.settings = unwrap(await sb.from('settings').select('*').eq('id', 1).single());
@@ -312,6 +332,10 @@ function settingsTab() {
     h('div', { class: 'banner banner-grey' }, 'Limits, the float, reminders and budgets are on the ', h('a', { href: '#/admin/schedule' }, 'Schedule'), ' tab, where every change is a version and the MD approves what needs approving.'),
     block('Organisation', h('div', { class: 'row' }, field('Organisation name', org), field('Currency symbol', currency)),
       field('People in the office', headcount, 'Used for cost per head in reports.')),
+    block('Region', h('div', { class: 'row' }, field('Time zone', tz, 'Sets when a day and a month start, and when reminders go out.'), field('How numbers are written', loc))),
+    block('Position titles', h('p', { class: 'muted' }, 'What your organisation calls the two approving positions. Every screen, alert, email and document uses these words.'),
+      h('div', { class: 'row' }, field('Approver, short', tGm, raw('Default: GM')), field('Approver, in full', tGmLong, raw('Default: General Manager'))),
+      h('div', { class: 'row' }, field('Top approver, short', tMd, raw('Default: MD')), field('Top approver, in full', tMdLong, raw('Default: Managing Director')))),
     block('Month-end pack', h('div', { class: 'row' }, field('Senior accountant', acctName), field('Their email', acctEmail, 'The reviewed pack is emailed here, with the approver in copy.'))),
     block('Accounting export', h('div', { class: 'row' }, field('Accounting package', pkg, 'Named so the journal export can match it; until then it is a generic journal.'), field('Petty cash ledger account', cashAcct, 'The account code the package uses for the cash box. Expense accounts are set per category under Stock → Catalogue → Categories.'))),
     block('Email', h('div', { class: 'row' }, field('Send emails from', emailFrom, 'Must be an address on a domain verified with the email provider; blank uses the test sender.'), field('Link to the app', appUrl, 'Used in emails so people can open the thing that needs them.'))),

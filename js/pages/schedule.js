@@ -1,4 +1,4 @@
-// The authority schedule (MGP-SCH-PC-001): limits, the float, reminder periods, budgets and who holds each position,
+// The authority schedule : limits, the float, reminder periods, budgets and who holds each position,
 // in one versioned place. The administrator changes it; the Managing Director approves what needs approving.
 import { sb, state, unwrap, rpc, role, has, personName, ROLE_LABEL, mdInPlace, multiBranch, branchName } from '../api.js';
 import { h, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today } from '../ui.js';

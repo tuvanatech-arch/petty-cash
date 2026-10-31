@@ -55,8 +55,8 @@ declare c uuid; b uuid; v_org text;
 begin
   if not exists (select 1 from public.companies) then
     select coalesce(nullif(org_name, ''), 'Petty cash') into v_org from public.settings where id = 1;
-    insert into public.companies (name, code, is_base) values (v_org, 'MGP', true) returning id into c;
-    insert into public.branches (company_id, name, code) values (c, 'Windhoek', 'WHK') returning id into b;
+    insert into public.companies (name, code, is_base) values (v_org, coalesce(nullif(upper(left(regexp_replace(v_org, '[^A-Za-z]', '', 'g'), 3)), ''), 'CO'), true) returning id into c;
+    insert into public.branches (company_id, name, code) values (c, 'Head office', 'HQ') returning id into b;
   end if;
 end $$;
 

@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm';
-import { SUPABASE_URL, SUPABASE_KEY, FUNCTIONS_URL, VAPID_PUBLIC_KEY } from './config.js';
+import { SUPABASE_URL, SUPABASE_KEY, FUNCTIONS_URL } from './config.js';
 import { thisDeviceLabel, isStandaloneApp } from './device-label.js';
 
 // A request that never answers (a phone waking up with a dead socket) must fail, not hang the page:
@@ -185,8 +185,15 @@ async function relinkPush(sid) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
   try { if (localStorage.getItem('pcs_push_asked') === 'off') return; } catch {}
   const reg = await navigator.serviceWorker.getRegistration();
-  const sub = await reg?.pushManager?.getSubscription();
+  let sub = await reg?.pushManager?.getSubscription();
   if (!sub) return;
+  // the server's alert key changed (a new key, or a new installation): sign this phone up again with the new one
+  const key = await pushKey().catch(() => null);
+  if (key && sub.options?.applicationServerKey && bytesToB64(sub.options.applicationServerKey) !== key.replace(/=+$/, '')) {
+    await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+    await sub.unsubscribe().catch(() => {});
+    try { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) }); } catch { return; }   // Account → Phone alerts turns it back on
+  }
   const j = sub.toJSON();
   await sb.from('push_subscriptions').upsert({ user_id: state.me.id, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), session_id: sid }, { onConflict: 'endpoint' });
 }
@@ -241,6 +248,10 @@ export function pushSupport() {
   return { ok: true, granted: Notification.permission === 'granted' };
 }
 async function swReady() { if (!('serviceWorker' in navigator)) throw new Error('Not supported in this browser'); return navigator.serviceWorker.ready; }
+/** The public half of this installation's alert key (each client has its own). */
+let pushKeyCache = null;
+async function pushKey() { if (!pushKeyCache) { const { data, error } = await sb.rpc('push_public_key'); if (error || !data) throw new Error('Phone alerts are not set up on the server yet.'); pushKeyCache = data; } return pushKeyCache; }
+function bytesToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function b64ToBytes(b64) { const pad = '='.repeat((4 - (b64.length % 4)) % 4); const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...raw].map((c) => c.charCodeAt(0))); }
 /** Is this device subscribed for the signed-in person? */
 export async function pushStatus() {
@@ -258,7 +269,9 @@ export async function enablePush() {
   if (perm !== 'granted') throw new Error('Alerts were not allowed.');
   const reg = await swReady();
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_PUBLIC_KEY) });
+  const key = await pushKey();
+  if (sub && sub.options?.applicationServerKey && bytesToB64(sub.options.applicationServerKey) !== key.replace(/=+$/, '')) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe().catch(() => {}); sub = null; }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
   const j = sub.toJSON();
   unwrap(await sb.from('push_subscriptions').upsert({ user_id: state.me.id, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), session_id: currentSessionId() }, { onConflict: 'endpoint' }));
   try { localStorage.setItem('pcs_push_asked', 'on'); } catch {}

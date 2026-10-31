@@ -19,22 +19,41 @@ export function h(tag, attrs = {}, ...children) {
 function append(el, children) {
   for (const c of children.flat(Infinity)) {
     if (c === null || c === undefined || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    el.append(c instanceof Node ? c : document.createTextNode(titled(String(c))));
   }
 }
 export function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 export function mount(el, ...children) { clear(el); append(el, children); return el; }
 
+/* ---------- the client's own words for positions ----------
+   The app and the database say "GM" / "MD"; each client sets what those positions are called (Admin → Settings),
+   and every piece of text on screen and in documents goes through titled(). For MGP the words are unchanged. */
+let titleKey = null, titleRe = null, titleMap = null;
+export function titled(s) {
+  const t = state.settings?.titles;
+  if (!t || typeof s !== 'string') return s;
+  const key = JSON.stringify(t);
+  if (key !== titleKey) {
+    titleKey = key;
+    const pairs = [['General Manager', t.gm_long], ['Managing Director', t.md_long], ['GM', t.gm], ['MD', t.md]].filter(([a, b]) => b && b.trim() && b !== a);
+    titleMap = new Map(pairs);
+    titleRe = pairs.length ? new RegExp(`\\b(${pairs.map(([a]) => a).join('|')})\\b`, 'g') : null;
+  }
+  return titleRe ? s.replace(titleRe, (m) => titleMap.get(m)) : s;
+}
+/** The client's number format (en-NA for Namibia: 1,234.50). */
+export function locale() { return state.settings?.number_locale || 'en-NA'; }
+
 /* ---------- formatting ---------- */
 export function cur() { const b = state.branches?.find((x) => x.id === (state.view || state.branches.find((y) => y.home)?.id)) || state.branches?.[0]; return b?.currency || state.settings?.currency || 'N$'; }
 export function money(v, { sign = false } = {}) {
   const n = Number(v || 0);
-  const s = Math.abs(n).toLocaleString('en-NA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const s = Math.abs(n).toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${n < 0 ? '−' : sign && n > 0 ? '+' : ''}${cur()}${s}`;
 }
 export function qty(v) {
   const n = Number(v || 0);
-  return Number.isInteger(n) ? String(n) : n.toLocaleString('en-NA', { maximumFractionDigits: 2 });
+  return Number.isInteger(n) ? String(n) : n.toLocaleString(locale(), { maximumFractionDigits: 2 });
 }
 export function fmtDate(d, { time = false } = {}) {
   if (!d) return '—';

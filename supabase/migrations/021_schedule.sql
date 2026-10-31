@@ -6,8 +6,8 @@
 -- Requests record the version they were routed and approved under.
 
 alter table public.settings add column if not exists advance_escalate_days integer not null default 7;
-alter table public.settings add column if not exists schedule_ref text not null default 'MGP-SCH-PC-001';
-alter table public.settings add column if not exists policy_ref text not null default 'MGP-POL-PC-001';
+alter table public.settings add column if not exists schedule_ref text not null default '';
+alter table public.settings add column if not exists policy_ref text not null default '';
 alter table public.settings add column if not exists policy_url text;
 alter table public.requests add column if not exists schedule_version integer;
 

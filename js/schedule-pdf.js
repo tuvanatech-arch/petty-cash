@@ -1,7 +1,7 @@
-// MGP-SCH-PC-001 as a PDF, drawn from a recorded schedule version – so the printed schedule and the app never disagree.
+// The authority schedule as a PDF, drawn from a recorded schedule version – so the printed schedule and the app never disagree.
 // Used on its own (Download PDF) and inside the month-end pack.
 import { state, personName } from './api.js';
-import { money } from './ui.js';
+import { money, titled } from './ui.js';
 import { ITEMS, SECTIONS, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText } from './schedule-meta.js';
 
 let jsPDFCtor = null;
@@ -11,13 +11,13 @@ async function loadJsPDF() { if (!jsPDFCtor) jsPDFCtor = (await import('https://
 const dateY = (d, time = false) => { if (!d) return '—'; const x = new Date(d); return x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + (time ? ', ' + x.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''); };
 const dayY = (s) => (s ? dateY(String(s).slice(0, 10) + 'T00:00:00') : '—');
 // the built-in PDF fonts have no arrow or minus sign
-const pdfSafe = (s) => String(s ?? '').replace(/→/g, '->').replace(/−/g, '-');
+const pdfSafe = (s) => titled(String(s ?? '')).replace(/→/g, '->').replace(/−/g, '-');
 
 /** Draw version v of the schedule into a jsPDF document. In a pack it starts on a new page. */
 export function drawSchedule(doc, v, { inPack = false, monthChanges = [] } = {}) {
   const snap = v.snapshot || {}; const val = snap.values || {};
   const org = state.settings?.org_name || 'Petty cash';
-  const ref = val.schedule_ref || 'MGP-SCH-PC-001';
+  const ref = val.schedule_ref || 'Authority schedule';
   const W = 210, M = 16, LH = 5.2; let y = M;
   const ink = () => doc.setTextColor(25, 35, 31), muted = () => doc.setTextColor(123, 133, 127);
   const footer = () => { doc.setFontSize(8); muted(); doc.text(pdfSafe(`${ref} version ${v.version_no} · in force from ${dateY(v.effective_at)} · printed from Petti (Tuvana Tech), which holds the master copy`), M, 297 - 8); ink(); };
@@ -50,7 +50,7 @@ export function drawSchedule(doc, v, { inPack = false, monthChanges = [] } = {})
   y += 2;
   const st = versionStatus(v);
   kv([
-    ['Issued under', `${val.policy_ref || 'MGP-POL-PC-001'}${val.policy_url ? ` – ${val.policy_url}` : ''}`],
+    ['Issued under', `${val.policy_ref || 'The petty cash policy'}${val.policy_url ? ` – ${val.policy_url}` : ''}`],
     ['This version', `${AREA_LABEL[v.area] || ''} · changed by ${personName(v.proposed_by)}${v.reason ? ` – “${v.reason}”` : ''}`],
     ['Approval', v.md_status === 'no_md' ? 'Applied before a Managing Director was set up in the app; kept for the MD to review' : st.text || '—'],
   ]);
@@ -96,7 +96,7 @@ export async function downloadSchedulePdf(v) {
   drawSchedule(doc, v);
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(123, 133, 127); doc.text(`page ${i} of ${n}`, 210 - 16, 297 - 8, { align: 'right' }); }
-  const ref = v.snapshot.values?.schedule_ref || 'MGP-SCH-PC-001';
+  const ref = v.snapshot.values?.schedule_ref || 'Authority schedule';
   doc.setProperties({ title: `${ref} version ${v.version_no}` });
   doc.save(`${ref}-v${v.version_no}.pdf`);
 }

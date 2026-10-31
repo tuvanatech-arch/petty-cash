@@ -228,7 +228,7 @@ language sql stable security definer set search_path = public as $$
     group by l.spent_at, l.request_no, l.requester_name, l.branch_id, co.currency_code
     union all
     -- the float: allocations, top-ups and returns move between the bank and petty cash; write-offs go to an expense account
-    select t.created_at::date, 'PC-FLOAT-' || to_char(f.period, 'YYYYMM'), case when t.kind in ('allocation', 'top_up', 'carry_over') then (select code from cash_acct) when t.kind = 'return' then 'BANK' else 'CASH-' || upper(t.kind) end,
+    select t.created_at::date, 'PC-FLOAT-' || to_char(f.period, 'YYYYMM'), case when t.kind in ('allocation', 'top_up', 'carry_over') then (select code from cash_acct) when t.kind = 'return' then 'BANK' else 'CASH-' || upper(t.kind::text) end,
            case when t.kind in ('allocation', 'top_up', 'carry_over') then 'Petty cash' when t.kind = 'return' then 'Bank' else 'Cash ' || t.kind end,
            coalesce(t.note, t.kind::text), case when t.kind in ('allocation', 'top_up', 'carry_over', 'shortage') then t.amount else 0 end, case when t.kind in ('return', 'surplus') then t.amount else 0 end,
            public.branch_name(f.branch_id), co.currency_code::text, null

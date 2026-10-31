@@ -1,7 +1,7 @@
 // Month-end pack: one PDF with the reconciliation, a one-page monthly summary, every voucher paid from the float,
 // and the receipts (photos embedded, PDF invoices merged in as pages).
 import { sb, state, personName, unwrap, proofUrl, multiBranch, branchName } from './api.js';
-import { money, qty, fmtDate, monthLabel, STATUS, isoDate } from './ui.js';
+import { money, qty, fmtDate, monthLabel, STATUS, isoDate, titled } from './ui.js';
 import { drawSchedule } from './schedule-pdf.js';
 
 let jsPDFCtor = null; let pdfLib = null;
@@ -81,7 +81,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   const footer = () => { doc.setFontSize(8); muted(); doc.text(`${org} · petty cash · ${monthLabel(float.period)} · produced with Petti by Tuvana Tech`, M, 297 - 8); ink(); };
   const newPage = () => { doc.addPage(); y = M; footer(); };
   const need = (hgt) => { if (y + hgt > 297 - M) newPage(); };
-  const pdfSafe = (v) => String(v ?? '').replace(/−/g, '-').replace(/→/g, '->').replace(/·/g, '-');
+  const pdfSafe = (v) => titled(String(v ?? '')).replace(/−/g, '-').replace(/→/g, '->').replace(/·/g, '-');
   const text = (s, { size = 10, bold = false, x = M, color = null } = {}) => { doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal'); if (color) doc.setTextColor(...color); else ink(); const lines = doc.splitTextToSize(pdfSafe(s), W - x - M); need(lines.length * LH); doc.text(lines, x, y); y += lines.length * LH; doc.setFont('helvetica', 'normal'); };
   const rule = () => { need(3); doc.setDrawColor(184, 192, 184); doc.line(M, y, W - M, y); y += 3; };
   const heading = (s) => { text(s, { size: 13, bold: true }); rule(); };
@@ -101,7 +101,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
       y += hgt; doc.setDrawColor(214, 219, 212); doc.line(M, y - 1.5, W - M, y - 1.5); y += 1;
     }
   };
-  const kvRows = (rows) => { for (const [k, v, bold] of rows) { need(LH); doc.setFontSize(10); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.text(k, M, y); doc.text(pdfSafe(v), W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH; } };
+  const kvRows = (rows) => { for (const [k, v, bold] of rows) { need(LH); doc.setFontSize(10); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.text(pdfSafe(k), M, y); doc.text(pdfSafe(v), W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH; } };
 
   /* ---- page 1: the management summary (six questions) and the KPIs ---- */
   footer();
@@ -237,7 +237,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
       ['Requested by', `${personName(r.requester_id)} on ${fmtDate(r.submitted_at || r.created_at)}`],
       r.stock_reviewed_by ? ['Stock review', `${personName(r.stock_reviewed_by)}, ${fmtDate(r.stock_reviewed_at)}${r.stock_note ? ` – ${r.stock_note}` : ''}`] : null,
       r.approved_by ? ['Approved', `${personName(r.approved_by)}, ${fmtDate(r.approved_at)}${r.approval_note ? ` – ${r.approval_note}` : ''}`] : null,
-      r.schedule_version ? ['Schedule', `${state.settings?.schedule_ref || 'MGP-SCH-PC-001'} version ${r.schedule_version}`] : null,
+      r.schedule_version ? ['Schedule', `${state.settings?.schedule_ref || 'Authority schedule'} version ${r.schedule_version}`] : null,
       [r.type === 'claim' ? 'Reimbursed' : 'Cash paid', `${money(r.disbursed_amount)} to ${personName(r.disbursed_to)} by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`],
       e && Number(e.total) > 0 ? ['Spent', `${money(e.total)} on ${fmtDate(e.spent_at)}${e.supplier_name ? ` at ${e.supplier_name}` : ''}${r.type !== 'claim' ? ` · change ${money(e.change_returned)}` : ''}`] : ['Spent', 'Not yet recorded'],
       e?.confirmed_by ? ['Receipt confirmed', `${personName(e.confirmed_by)}, ${fmtDate(e.confirmed_at)}${e.physical_received_at ? ` · paper original received ${fmtDate(e.physical_received_at)}` : ''}`] : null,

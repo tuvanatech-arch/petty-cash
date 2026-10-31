@@ -1,4 +1,4 @@
-// What the authority schedule (MGP-SCH-PC-001) holds, in the words the screen, the PDF and the history use.
+// What the authority schedule holds, in the words the screen, the PDF and the history use.
 // The database (schedule_keys) holds the same list; labels match so a change reads the same everywhere.
 import { personName } from './api.js';
 import { money, fmtDate } from './ui.js';

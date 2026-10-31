@@ -1,0 +1,19 @@
+{
+  "slug": "example-lobito",
+  "org_name": "Lobito Supply Co (example)",
+  "company_code": "LSC",
+  "branch_name": "Lobito",
+  "branch_code": "LOB",
+  "currency": "Kz ",
+  "currency_code": "AOA",
+  "time_zone": "Africa/Luanda",
+  "number_locale": "pt-AO",
+  "titles": { "gm": "DG", "gm_long": "Director-Geral", "md": "PCA", "md_long": "Presidente do Conselho" },
+  "schedule_ref": "LSC-PC-01",
+  "policy_ref": "LSC-POL-01",
+  "headcount": 14,
+  "supabase_url": "https://exampleexampleexample.supabase.co",
+  "publishable_key": "sb_publishable_example",
+  "app_url": "https://app.usepetti.com/lobito/",
+  "email_from": "Lobito Supply <petti@example.test>"
+}

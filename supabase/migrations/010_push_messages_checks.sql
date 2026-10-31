@@ -20,18 +20,25 @@ create policy push_subs_update on public.push_subscriptions for update to authen
 create policy push_subs_delete on public.push_subscriptions for delete to authenticated using (user_id = auth.uid());
 alter table public.notifications add column if not exists pushed_at timestamptz;
 alter table public.notifications add column if not exists push_status text;
-insert into public.app_config (key, value) values ('vapid_public', 'BBI2qUt-D0O8tjPadnA_u-gEjSgIo7k36alyFH-2JlMQwuACGnhOulX6N18pke5UjzHNdRTfLwdMdjAcUYP6_qc'), ('vapid_private', '6lPlDNSkC6EiIaP7f6YOtwsRBwN1JbB2-j3pB_GD01Q')
-on conflict (key) do update set value = excluded.value;
+-- the alert keys (vapid_public / vapid_private) are made per installation by ops/new-client and stored in app_config; never in a file
+
+-- calls one of this installation's edge functions; the address (functions_url) and the key (cron_key) live in app_config
+create or replace function public.call_function(p_name text, p_body jsonb default '{}'::jsonb, p_timeout int default 15000) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare v_url text := (select value from public.app_config where key = 'functions_url');
+begin
+  if v_url is null then return null; end if;
+  return net.http_post(url := rtrim(v_url, '/') || '/' || p_name,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-key', (select value from public.app_config where key = 'cron_key')),
+    body := p_body, timeout_milliseconds := p_timeout);
+end $$;
+revoke execute on function public.call_function(text, jsonb, int) from public, anon, authenticated;
 
 -- every new alert is pushed to the person's phone(s) straight away
 create or replace function public.notifications_push_trigger() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  perform net.http_post(
-    url := 'https://ytfgzfaogfrzanrpcpkg.supabase.co/functions/v1/send-push',
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-key', (select value from public.app_config where key = 'cron_key')),
-    body := jsonb_build_object('id', new.id),
-    timeout_milliseconds := 15000);
+  perform public.call_function('send-push', jsonb_build_object('id', new.id), 15000);
   return new;
 exception when others then
   return new; -- a push hiccup never blocks the alert itself
@@ -160,7 +167,4 @@ select cron.schedule('petty-weekly-digest', '30 6 * * 1', 'select public.weekly_
 
 -- ---------- weekly backup of all tables to private storage ----------
 insert into storage.buckets (id, name, public) values ('backups', 'backups', false) on conflict (id) do nothing;
-select cron.schedule('petty-backup', '0 2 * * 0', $cron$select net.http_post(
-  url := 'https://ytfgzfaogfrzanrpcpkg.supabase.co/functions/v1/backup',
-  headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-key', (select value from public.app_config where key = 'cron_key')),
-  body := '{}'::jsonb, timeout_milliseconds := 120000)$cron$);
+select cron.schedule('petty-backup', '0 2 * * 0', $cron$select public.call_function('backup', '{}'::jsonb, 120000)$cron$);

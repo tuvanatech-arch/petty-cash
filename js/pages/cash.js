@@ -2,7 +2,7 @@ import { sb, state, can, has, personName, unwrap, rpc, uploadPack, packUrl, send
 import { branchGate } from '../branch.js';
 import { buildMonthEndPack } from '../pack.js';
 import { downloadFullExport } from '../export.js';
-import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog } from '../ui.js';
+import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog, titled } from '../ui.js';
 
 export function floatStrip(f) {
   const cell = (k, v, cls = '') => h('div', {}, h('span', { class: 'k' }, k), h('span', { class: `v ${cls}` }, money(v)));
@@ -495,7 +495,7 @@ function topUpDialog(f) {
     const amount = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01', inputmode: 'decimal', required: true });
     const reason = h('input', { class: 'input', placeholder: 'e.g. Busy month – three site visits still to pay for', maxlength: 200, required: true });
     const who = h('div', { class: 'hint' });
-    amount.oninput = () => { const a = num(amount.value); who.textContent = a > Number(state.settings.gm_limit) && mdInPlace() ? 'Above the GM limit: the Managing Director authorises it.' : 'The General Manager authorises it.'; };
+    amount.oninput = () => { const a = num(amount.value); who.textContent = titled(a > Number(state.settings.gm_limit) && mdInPlace() ? 'Above the GM limit: the Managing Director authorises it.' : 'The General Manager authorises it.'); };
     amount.oninput();
     const { counted, el } = countField(f, 'Cash in the box now');
     const note = h('input', { class: 'input', placeholder: 'Only if the count does not match' });

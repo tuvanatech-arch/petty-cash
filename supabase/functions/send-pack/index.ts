@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
   const { data: pack } = await admin.from("packs").select("*").eq("id", body.pack_id).maybeSingle();
   if (!pack) return json({ error: "Pack not found" }, 404);
-  const { data: settings } = await admin.from("settings").select("org_name, currency, email_from, app_url, accountant_email, accountant_name").eq("id", 1).single();
+  const { data: settings } = await admin.from("settings").select("org_name, currency, email_from, app_url, accountant_email, accountant_name, number_locale").eq("id", 1).single();
   if (!settings?.accountant_email) return json({ error: "No accountant email is set. Add it under Admin → Settings first." }, 400);
   const RESEND = Deno.env.get("RESEND_API_KEY");
   if (!RESEND) return json({ error: "Email is not switched on yet (no RESEND_API_KEY). Download the pack and send it yourself, then mark it as sent." }, 503);
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
   const month = monthLabel(pack.period);
   const s = pack.summary || {};
   const cur = settings.currency || "N$";
-  const money = (v: unknown) => `${cur}${Number(v || 0).toLocaleString("en-NA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const money = (v: unknown) => `${cur}${Number(v || 0).toLocaleString(settings.number_locale || "en-NA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const rows = [
     ["Allocated", money(s.allocated)], s.topped_up > 0 ? ["Top-ups", money(s.topped_up)] : null, s.carried_over > 0 ? ["Carried over", money(s.carried_over)] : null,
     ["Spent", money(s.spent)], ["Closing balance (book)", money(s.balance)], s.counted_cash != null ? ["Cash counted", money(s.counted_cash)] : null,

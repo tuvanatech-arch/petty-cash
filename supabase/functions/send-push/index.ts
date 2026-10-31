@@ -39,12 +39,21 @@ async function pushTo(subs: Sub[], payload: Record<string, unknown>) {
   return { sent, gone, failed };
 }
 
+// the organisation's own words for the two approving positions (settings.titles); the database says GM / MD
+function titler(t: Record<string, string> | null | undefined) {
+  const pairs = t ? ([["General Manager", t.gm_long], ["Managing Director", t.md_long], ["GM", t.gm], ["MD", t.md]] as [string, string][]).filter(([a, b]) => b && b.trim() && b !== a) : [];
+  if (!pairs.length) return (s: string) => s;
+  const map = new Map(pairs); const re = new RegExp(`\\b(${pairs.map(([a]) => a).join("|")})\\b`, "g");
+  return (s: string) => String(s ?? "").replace(re, (m) => map.get(m)!);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   const cfg = await config();
   if (!cfg.vapid_public || !cfg.vapid_private) return json({ error: "Push keys are not configured" }, 503);
-  const { data: settings } = await admin.from("settings").select("org_name, app_url").eq("id", 1).single();
+  const { data: settings } = await admin.from("settings").select("org_name, app_url, titles").eq("id", 1).single();
+  const tt = titler(settings?.titles);
   webpush.setVapidDetails("mailto:petty-cash@tuvana.tech", cfg.vapid_public, cfg.vapid_private);
   let body: { id?: string; test?: boolean };
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
@@ -69,7 +78,7 @@ Deno.serve(async (req) => {
   const { data: subs } = await admin.from("push_subscriptions").select("id, endpoint, p256dh, auth").eq("user_id", n.user_id);
   if (!subs?.length) { await admin.from("notifications").update({ push_status: "no_device" }).eq("id", n.id); return json({ sent: 0, reason: "no_device" }); }
   const r = await pushTo(subs as Sub[], {
-    title: n.title, body: n.body || "", link: n.link || "#/notifications", id: n.id, at: n.created_at,
+    title: tt(n.title), body: tt(n.body || ""), link: n.link || "#/notifications", id: n.id, at: n.created_at,
     tag: n.request_id ? `r-${n.request_id}` : `n-${n.id}`,   // one alert per request on the lock screen; others stack
     urgent: URGENT.has(n.kind), unread: await unreadFor(n.user_id),
   });

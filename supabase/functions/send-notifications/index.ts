@@ -30,12 +30,21 @@ function render(name: string, rows: Row[], org: string, appUrl: string) {
   return { html, text };
 }
 
+// the organisation's own words for the two approving positions (settings.titles); the database says GM / MD
+function titler(t: Record<string, string> | null | undefined) {
+  const pairs = t ? ([["General Manager", t.gm_long], ["Managing Director", t.md_long], ["GM", t.gm], ["MD", t.md]] as [string, string][]).filter(([a, b]) => b && b.trim() && b !== a) : [];
+  if (!pairs.length) return (s: string) => s;
+  const map = new Map(pairs); const re = new RegExp(`\\b(${pairs.map(([a]) => a).join("|")})\\b`, "g");
+  return (s: string) => String(s ?? "").replace(re, (m) => map.get(m)!);
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   const { data: cfg } = await admin.from("app_config").select("value").eq("key", "cron_key").maybeSingle();
   if (!cfg || req.headers.get("x-cron-key") !== cfg.value) return json({ error: "forbidden" }, 403);
 
-  const { data: settings } = await admin.from("settings").select("org_name, email_from, app_url").eq("id", 1).single();
+  const { data: settings } = await admin.from("settings").select("org_name, email_from, app_url, titles").eq("id", 1).single();
+  const tt = titler(settings?.titles);
   const since = new Date(Date.now() - 2 * 86400000).toISOString();
   const { data: rows, error } = await admin.from("notifications")
     .select("id, user_id, kind, title, body, link, created_at, email_attempts")
@@ -50,7 +59,7 @@ Deno.serve(async (req) => {
   let sent = 0, skipped = 0, failed = 0;
 
   for (const u of users ?? []) {
-    const mine = (rows as Row[]).filter((r) => r.user_id === u.id);
+    const mine = (rows as Row[]).filter((r) => r.user_id === u.id).map((r) => ({ ...r, title: tt(r.title), body: r.body ? tt(r.body) : r.body }));
     const ids = mine.map((r) => r.id);
     if (!u.active || !u.email_notifications || !u.email) {
       await admin.from("notifications").update({ emailed_at: now, email_status: "opted_out" }).in("id", ids);
