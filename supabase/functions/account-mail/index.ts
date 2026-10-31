@@ -79,7 +79,7 @@ async function tooSoon(email: string, kind: string) {
 function shell(org: string, title: string, bodyHtml: string) {
   return `<!doctype html><html><body style="margin:0;background:#eef1ec;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#19231f">
 <div style="max-width:560px;margin:24px auto;background:#fff;border:1px solid #d6dbd4;border-radius:8px;padding:24px">
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><span style="display:inline-block;background:#1b5e4b;color:#fff;font-weight:700;border-radius:6px;padding:4px 8px">P.</span><strong>${esc(org)} · Petti</strong></div>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><span style="display:inline-block;background:#1b5e4b;color:#fff;font-weight:700;border-radius:6px;padding:4px 8px">P<span style="color:#e4b85c">.</span></span><strong>${esc(org)} · Petti</strong></div>
 <h1 style="font-size:20px;margin:0 0 12px">${esc(title)}</h1>${bodyHtml}
 <p style="color:#7b857f;font-size:12px;margin-top:24px">If you were not expecting this email, you can ignore it.</p></div></body></html>`;
 }

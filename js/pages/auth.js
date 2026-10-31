@@ -1,8 +1,8 @@
 import { sb, adminUsers, accountMail, cleanError } from '../api.js';
 import { h, field, busy, toast } from '../ui.js';
 
-const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark' }, 'P.'),
-  h('div', { class: 'brand-name' }, 'Petti', h('small', {}, 'Petty cash & stock · by Tuvana Tech')));
+const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, 'P', h('span', { class: 'dot' }, '.')),
+  h('div', { class: 'brand-name' }, 'Petti', h('span', { class: 'dot' }, '.'), h('small', {}, 'Petty cash & stock · by Tuvana Tech')));
 
 export async function authPage() {
   let needsBootstrap = false;

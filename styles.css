@@ -11,6 +11,7 @@
   --rule: #d6dbd4;
   --rule-strong: #b8c0b8;
   --green: #1b5e4b;        /* primary action: money going where it should */
+  --sand: #e4b85c;         /* the Petti full stop */
   --green-ink: #0f4a3a;
   --green-tint: #e2efe9;
   --purple: #5a3d85;       /* the N$200 note: anything that needs the approver */
@@ -84,6 +85,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   display: flex; flex-direction: column; gap: 6px;
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
+.brand-mark .dot, .brand-name .dot { color: var(--sand); }
 .brand-mark { width: 1.75em; height: 1.75em; border-radius: .4em; background: var(--green); color: var(--on-green); display: grid; place-items: center; font-weight: 700; font-size: .95rem; flex: 0 0 auto; }
 .brand-name { font-weight: 600; line-height: 1.15; }
 .brand-name small { display: block; font-weight: 400; color: var(--ink-3); font-size: .78rem; }

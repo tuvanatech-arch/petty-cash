@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
   ].filter(Boolean) as string[][];
   const html = `<!doctype html><html><body style="margin:0;background:#eef1ec;font-family:-apple-system,Segoe UI,Roboto,sans-serif">
   <div style="max-width:560px;margin:24px auto;background:#fff;border:1px solid #d6dbd4;border-radius:8px;padding:24px">
-    <div style="font-size:13px;color:#7b857f;margin-bottom:12px">${esc(settings.org_name)} · Petti</div>
+    <div style="font-size:13px;color:#7b857f;margin-bottom:12px">${esc(settings.org_name)} · Petti<span style="color:#e4b85c">.</span></div>
     <div style="font-size:18px;font-weight:600;color:#19231f;margin-bottom:6px">Petty cash pack – ${esc(month)}</div>
     <p style="color:#4a5550;margin:0 0 14px">Hi ${esc((settings.accountant_name || "").split(" ")[0] || "there")}, attached is the petty cash pack for ${esc(month)}: reconciliation, every voucher and the receipts, reviewed by ${esc(sender?.full_name || "finance")}.</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px">${rows.map(([k, v]) => `<tr><td style="padding:6px 0;border-bottom:1px solid #e3e7e2;color:#4a5550">${esc(k)}</td><td style="padding:6px 0;border-bottom:1px solid #e3e7e2;text-align:right;color:#19231f;font-weight:600">${esc(v)}</td></tr>`).join("")}</table>
