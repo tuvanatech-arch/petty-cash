@@ -65,10 +65,11 @@ export async function packSummary(float, requests) {
 
 export async function buildMonthEndPack(float, { onProgress = () => {}, save = true } = {}) {
   onProgress('Collecting vouchers…');
-  const [requests, ledger, counts] = await Promise.all([
+  const [requests, ledger, counts, mgmt] = await Promise.all([
     unwrap(await sb.from('requests').select('*, expense:expenses(*, lines:expense_lines(*), proofs:expense_proofs(*))').eq('float_id', float.id).order('disbursed_at')),
     unwrap(await sb.rpc('cash_ledger', { p_float: float.id })) || [],
     unwrap(await sb.from('cash_counts').select('*').eq('float_id', float.id).order('counted_at')) || [],
+    sb.rpc('management_summary', { p_month: float.period }).then((r) => r.data || null).catch(() => null),   // as the builder sees it (their branch view)
   ]);
   const summary = await packSummary(float, requests);
   const org = state.settings?.org_name || 'Petty cash';
@@ -80,7 +81,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   const footer = () => { doc.setFontSize(8); muted(); doc.text(`${org} · petty cash · ${monthLabel(float.period)}`, M, 297 - 8); ink(); };
   const newPage = () => { doc.addPage(); y = M; footer(); };
   const need = (hgt) => { if (y + hgt > 297 - M) newPage(); };
-  const pdfSafe = (v) => String(v ?? '').replace(/−/g, '-');
+  const pdfSafe = (v) => String(v ?? '').replace(/−/g, '-').replace(/→/g, '->').replace(/·/g, '-');
   const text = (s, { size = 10, bold = false, x = M, color = null } = {}) => { doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal'); if (color) doc.setTextColor(...color); else ink(); const lines = doc.splitTextToSize(pdfSafe(s), W - x - M); need(lines.length * LH); doc.text(lines, x, y); y += lines.length * LH; doc.setFont('helvetica', 'normal'); };
   const rule = () => { need(3); doc.setDrawColor(184, 192, 184); doc.line(M, y, W - M, y); y += 3; };
   const heading = (s) => { text(s, { size: 13, bold: true }); rule(); };
@@ -102,12 +103,30 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   };
   const kvRows = (rows) => { for (const [k, v, bold] of rows) { need(LH); doc.setFontSize(10); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.text(k, M, y); doc.text(pdfSafe(v), W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH; } };
 
-  /* ---- page 1: reconciliation ---- */
+  /* ---- page 1: the management summary (six questions) and the KPIs ---- */
   footer();
   text(org, { size: 11, color: [123, 133, 127] });
   text(`Petty cash pack – ${monthLabel(float.period)}${multiBranch() ? ` – ${branchName(float.branch_id)}` : ''}`, { size: 18, bold: true });
   text(`${float.status === 'open' ? 'Open float (interim pack)' : `Closed ${fmtDate(float.closed_at)} by ${personName(float.closed_by)}`} · prepared ${fmtDate(new Date().toISOString(), { time: true })} by ${state.me.full_name || state.me.email}`, { size: 9, color: [123, 133, 127] });
   y += 4;
+  if (mgmt) {
+    heading('Management summary');
+    const prevD = Number(mgmt.prev) > 0 ? Math.round((Number(mgmt.spent) - Number(mgmt.prev)) / Number(mgmt.prev) * 100) : null;
+    text(`1. Spent ${money(mgmt.spent)} on ${mgmt.requests} request${Number(mgmt.requests) === 1 ? '' : 's'}${prevD != null ? ` (${prevD > 0 ? '+' : ''}${prevD}% on last month)` : ''}${Number(mgmt.avg6) > 0 ? `; a usual month is ${money(mgmt.avg6)}` : ''}.`);
+    text(`2. On: ${(mgmt.categories || []).slice(0, 5).map((c) => `${c.name} ${money(c.amount)} (${c.share}%)`).join(', ') || 'nothing recorded'}.`);
+    const bud = mgmt.budgets || [];
+    text(`3. Against budget: ${bud.length ? bud.map((b) => `${b.label} ${money(b.used)} of ${money(b.limit)}${b.over ? ' – OVER' : ''}`).join('; ') : 'no budgets set'}.`);
+    const bx = (mgmt.boxes || [])[0];
+    text(`4. Funds and receipts: ${bx ? `${money(bx.funds)} in, ${money(bx.spent)} spent, ${money(bx.balance)} on the book${bx.counted != null ? `, ${money(bx.counted)} counted` : ''}; ${Number(bx.missing_receipts) ? `${bx.missing_receipts} receipt(s) outstanding` : 'every receipt in'}; ${bx.signed_off} of ${bx.counts} count(s) signed off by the GM` : 'no float'}.`);
+    const ex = mgmt.exceptions || [];
+    text(`5. Irregularities: ${ex.length ? `${ex.length} logged (${Number(mgmt.open_exceptions)} open): ` + ex.slice(0, 6).map((x) => `${x.title}${x.amount != null ? ` ${money(x.amount)}` : ''}${x.state === 'open' ? ' [open]' : ''}`).join('; ') : 'none recorded'}.`);
+    const sv = mgmt.savings || [];
+    text(`6. Where costs could fall: ${sv.length ? sv.map((x) => x.text).join('; ') : 'nothing stands out'}.`);
+    y += 3;
+    heading('KPIs');
+    for (const k of mgmt.kpis || []) text(`${k.id} ${k.label}: ${k.value} – ${k.text}`, { size: 9.5 });
+    y += 4;
+  }
   heading('Reconciliation');
   kvRows([
     ['Allocated by finance', money(float.allocated)],

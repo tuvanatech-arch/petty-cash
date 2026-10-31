@@ -46,7 +46,7 @@ export async function reportsPage(startTab = null) {
   const scorecard = buildScorecard({ months, lines, requests, items, events, budgets: (budgets || []).filter((b) => b.active) });
 
   let range = 3; // months in the "period" views
-  let tab = ['spending', 'prices', 'controls'].includes(startTab) ? startTab : 'spending';
+  let tab = ['spending', 'prices', 'controls', 'kpis'].includes(startTab) ? startTab : 'spending';
   const rangeSel = select([[1, 'This month'], [3, 'Last 3 months'], [6, 'Last 6 months'], [12, 'Last 12 months']], 3, { onchange: (e) => { range = Number(e.target.value); draw(); } });
   const tabBar = h('div', { class: 'tabs', style: { marginTop: '4px' } });
   const periodMonths = () => months.slice(-range);
@@ -114,9 +114,10 @@ export async function reportsPage(startTab = null) {
     const tbl = (rows, empty) => rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' }, h('tbody', {}, rows.map(reqRow)))) : h('p', { class: 'hint' }, empty);
 
     const flags = exc.filter((x) => x.state === 'open').length;
-    mount(tabBar, [['spending', 'Spending'], ['prices', 'Prices & items'], ['controls', flags ? `Controls (${flags})` : 'Controls']].map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { tab = k; draw(); } }, l)));
+    mount(tabBar, [['kpis', 'KPIs'], ['spending', 'Spending'], ['prices', 'Prices & items'], ['controls', flags ? `Controls (${flags})` : 'Controls']].map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { tab = k; draw(); } }, l)));
     rangeSel.style.display = tab === 'spending' ? '' : 'none';
     const sections = {
+      kpis: () => [kpiSheet()],
       spending: () => [
       h('div', { class: 'grid-3' },
         h('div', { class: 'sheet stat' }, h('span', { class: 'k' }, `Spent in ${pm.length === 1 ? monthLabel(pm[0] + '-01') : `the last ${pm.length} months`}`), h('span', { class: 'v' }, money(total))),
@@ -157,6 +158,55 @@ export async function reportsPage(startTab = null) {
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, multiBranch() ? `Reports · ${state.view ? branchName(state.view) : 'all branches'}` : 'Reports'), h('p', {}, 'The scorecard first; the detail when you want it.')),
       h('div', { class: 'page-actions' }, rangeSel, exportButton(lines))),
     body);
+}
+
+/** The seven KPIs and the management summary for a month, straight from the records. Also the journal export. */
+function kpiSheet() {
+  const months = lastMonths(12).reverse();
+  let month = months[0];
+  const box = h('div', {});
+  const sel = select(months.map((k) => [k, monthLabel(k + '-01')]), month, { onchange: (e) => { month = e.target.value; load(); } });
+  sel.classList.add('kpi-month');
+  const tile = (k) => h('div', { class: `box kpi kpi-${k.tone}` }, h('span', { class: 'k' }, `${k.id} · ${k.label}`), h('span', { class: 'v' }, k.value), h('span', { class: 'd' }, k.text));
+  const journal = h('button', { class: 'btn' }, 'Journal (CSV)');
+  journal.onclick = busy(journal, async () => {
+    const { data } = await sb.rpc('journal', { p_month: month + '-01' });
+    const rows = data || []; if (!rows.length) { toast('Nothing to export for that month.'); return; }
+    const cols = ['entry_date', 'reference', 'account', 'account_name', 'description', 'debit', 'credit', 'branch', 'currency', 'request_no'];
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
+    const a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `petty-cash-journal-${month}.csv` });
+    document.body.append(a); a.click(); a.remove();
+    const unmapped = rows.filter((r) => String(r.account).startsWith('UNMAPPED')).length;
+    toast(unmapped ? `Journal downloaded. ${unmapped} line${unmapped === 1 ? '' : 's'} have no account code yet – set them under Stock → Catalogue → Categories.` : 'Journal downloaded.', { ms: unmapped ? 8000 : 3000 });
+  });
+  async function load() {
+    mount(box, h('p', { class: 'hint' }, 'Working it out…'));
+    const { data: sm, error } = await sb.rpc('management_summary', { p_month: month + '-01' });
+    if (error || !sm) { mount(box, h('p', { class: 'hint' }, error?.message || 'Not available.')); return; }
+    const kp = sm.kpis || [];
+    const cats = sm.categories || []; const people = sm.people || []; const budgets = sm.budgets || []; const boxes = sm.boxes || []; const exc = sm.exceptions || []; const sav = sm.savings || [];
+    const q = (n, title, ...body) => h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, `${n}. ${title}`)), ...body);
+    const prevD = Number(sm.prev) > 0 ? (Number(sm.spent) - Number(sm.prev)) / Number(sm.prev) : null;
+    mount(box,
+      h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'The seven KPIs'), h('span', { class: 'sub' }, `${monthLabel(month + '-01')}${(sm.branches || []).length > 1 ? ' · all branches' : (sm.branches || [])[0] ? ` · ${sm.branches[0]}` : ''}`)),
+        h('div', { class: 'score kpis' }, kp.map(tile)),
+        h('p', { class: 'hint', style: { marginTop: '10px' } }, 'Targets are set in the schedule once three months of real figures exist. Until then the colours follow the limits already in the schedule.')),
+      h('h2', { style: { margin: '18px 0 6px' } }, 'Management summary'),
+      q(1, 'How much was spent', h('p', {}, h('strong', {}, money(sm.spent)), ` on ${sm.requests} request${Number(sm.requests) === 1 ? '' : 's'}`, prevD != null ? h('span', { class: 'muted' }, ` · ${prevD > 0 ? '+' : ''}${Math.round(prevD * 100)}% on last month (${money(sm.prev)})`) : null, Number(sm.avg6) > 0 ? h('span', { class: 'muted' }, ` · usual month ${money(sm.avg6)}`) : null)),
+      q(2, 'On what', cats.length ? h('div', { class: 'grid-2' }, h('div', {}, h('h3', { style: { marginBottom: '6px' } }, 'By category'), h('table', { class: 'ledger' }, h('tbody', {}, cats.map((c) => h('tr', {}, h('td', {}, c.name), h('td', { class: 'num muted' }, `${c.share}%`), h('td', { class: 'num' }, money(c.amount))))))),
+        h('div', {}, h('h3', { style: { marginBottom: '6px' } }, 'By person'), h('table', { class: 'ledger' }, h('tbody', {}, people.map((p) => h('tr', {}, h('td', {}, p.name), h('td', { class: 'num' }, money(p.amount)))))))) : h('p', { class: 'hint' }, 'Nothing spent this month.')),
+      q(3, 'Against budget', budgets.length ? h('table', { class: 'ledger' }, h('tbody', {}, budgets.map((b) => h('tr', {}, h('td', {}, b.label), h('td', { class: 'num', style: { color: b.over ? 'var(--red)' : '' } }, `${money(b.used)} of ${money(b.limit)}`), h('td', { class: 'num' }, Number(b.limit) > 0 ? `${Math.round(Number(b.used) / Number(b.limit) * 100)}%` : '—'))))) : h('p', { class: 'hint' }, 'No budgets set.')),
+      q(4, 'Are the funds and receipts accounted for', boxes.length ? h('table', { class: 'ledger' }, h('tbody', {}, boxes.map((b) => h('tr', {}, h('td', {}, h('strong', {}, b.branch), h('span', { class: 'muted' }, ` · ${b.status === 'closed' ? 'closed' : 'open'}`)),
+        h('td', {}, `${money(b.funds)} in · ${money(b.spent)} spent · ${money(b.balance)} on the book${b.counted != null ? ` · counted ${money(b.counted)}` : ''}`),
+        h('td', { style: { color: Number(b.missing_receipts) ? 'var(--amber)' : '' } }, Number(b.missing_receipts) ? `${b.missing_receipts} receipt${Number(b.missing_receipts) === 1 ? '' : 's'} outstanding` : 'every receipt in'),
+        h('td', {}, `${b.signed_off} of ${b.counts} count${Number(b.counts) === 1 ? '' : 's'} signed off${b.pack ? ` · pack ${b.pack}` : ''}`))))) : h('p', { class: 'hint' }, 'No float for this month.')),
+      q(5, 'Any irregularities', exc.length ? h('ul', { class: 'ledger-list' }, exc.slice(0, 12).map((x) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, x.title), h('span', {}, `${x.who ? x.who + ' · ' : ''}${x.detail || ''}`)), x.amount != null ? h('span', { class: 'amt' }, money(x.amount)) : null, h('span', { class: `pill ${x.state === 'open' ? 'pill-amber' : 'pill-green'}` }, x.state === 'open' ? 'Open' : 'Reviewed')))) : h('p', { class: 'hint' }, 'None recorded.'),
+        Number(sm.open_exceptions) ? h('p', { class: 'hint' }, h('a', { href: '#/reports/controls' }, `${sm.open_exceptions} open – clear them on the Controls tab`)) : null),
+      q(6, 'Where costs could fall', sav.length ? h('ul', { class: 'plain-list' }, sav.map((x) => h('li', {}, x.text))) : h('p', { class: 'hint' }, 'Nothing stands out this month: no price jumps, no budgets over, no heavy after-the-fact claims.')));
+  }
+  load();
+  return h('div', {}, h('div', { class: 'row', style: { display: 'flex', gap: '10px', alignItems: 'center', margin: '4px 0 14px', flexWrap: 'wrap' } }, sel, journal), box);
 }
 
 /** The Approval and Exception Log: every override, correction and delegated action, with who, why and whether it was reviewed. */

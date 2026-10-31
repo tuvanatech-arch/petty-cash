@@ -293,12 +293,15 @@ function settingsTab() {
   const appUrl = h('input', { class: 'input', type: 'url', value: s.app_url || '', placeholder: 'https://…' });
   const acctName = h('input', { class: 'input', value: s.accountant_name || '', placeholder: 'e.g. Maria Shilongo' });
   const acctEmail = h('input', { class: 'input', type: 'email', value: s.accountant_email || '', placeholder: 'accounts@…' });
+  const pkg = h('input', { class: 'input', value: s.accounting_package || '', placeholder: 'e.g. Sage, Pastel, Xero, QuickBooks' });
+  const cashAcct = h('input', { class: 'input', value: s.petty_cash_account || '', placeholder: 'e.g. 1020' });
   const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save settings');
   const go = busy(b, async () => {
     unwrap(await sb.from('settings').update({
       org_name: org.value.trim() || 'Petty cash', currency: currency.value.trim() || 'N$',
       headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
       accountant_name: acctName.value.trim() || null, accountant_email: acctEmail.value.trim() || null,
+      accounting_package: pkg.value.trim() || null, petty_cash_account: cashAcct.value.trim() || null,
       updated_at: new Date().toISOString(),
     }).eq('id', 1));
     state.settings = unwrap(await sb.from('settings').select('*').eq('id', 1).single());
@@ -310,6 +313,7 @@ function settingsTab() {
     block('Organisation', h('div', { class: 'row' }, field('Organisation name', org), field('Currency symbol', currency)),
       field('People in the office', headcount, 'Used for cost per head in reports.')),
     block('Month-end pack', h('div', { class: 'row' }, field('Senior accountant', acctName), field('Their email', acctEmail, 'The reviewed pack is emailed here, with the approver in copy.'))),
+    block('Accounting export', h('div', { class: 'row' }, field('Accounting package', pkg, 'Named so the journal export can match it; until then it is a generic journal.'), field('Petty cash ledger account', cashAcct, 'The account code the package uses for the cash box. Expense accounts are set per category under Stock → Catalogue → Categories.'))),
     block('Email', h('div', { class: 'row' }, field('Send emails from', emailFrom, 'Must be an address on a domain verified with the email provider; blank uses the test sender.'), field('Link to the app', appUrl, 'Used in emails so people can open the thing that needs them.'))),
     h('div', { class: 'form-actions' }, b));
 }

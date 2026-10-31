@@ -636,3 +636,9 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .branch-pick .box { cursor: pointer; }
 .branch-pick .box:hover { background: var(--paper); }
 .branch-tag { font-size: .75rem; color: var(--ink-3); border: 1px solid var(--rule); border-radius: 999px; padding: 1px 8px; margin-left: 6px; white-space: nowrap; }
+
+/* ---- KPI tiles ---- */
+.score.kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.kpi { border-left-width: 4px; }
+.kpi-green { border-left-color: var(--green); } .kpi-amber { border-left-color: var(--amber); } .kpi-red { border-left-color: var(--red); } .kpi-grey { border-left-color: var(--rule); }
+.kpi .d { display: block; margin-top: 4px; }

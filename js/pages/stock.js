@@ -518,23 +518,24 @@ async function categoriesTab(manage) {
   const rows = data || [];
   const kind = { stock: 'Stock items', cash: 'Cash expenses', both: 'Both' };
   return h('div', { class: 'sheet' }, h('p', { class: 'hint' }, 'Categories group spending in the reports. Stock items carry their own category; cash requests pick one.'),
-    h('table', { class: 'ledger' }, h('thead', {}, h('tr', {}, h('th', {}, 'Category'), h('th', {}, 'Used for'), manage ? h('th') : null)),
-      h('tbody', {}, rows.map((c) => h('tr', {}, h('td', {}, c.name, !c.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null), h('td', { class: 'muted' }, kind[c.kind]),
+    h('table', { class: 'ledger' }, h('thead', {}, h('tr', {}, h('th', {}, 'Category'), h('th', {}, 'Used for'), h('th', {}, 'Account code'), manage ? h('th') : null)),
+      h('tbody', {}, rows.map((c) => h('tr', {}, h('td', {}, c.name, !c.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null), h('td', { class: 'muted' }, kind[c.kind]), h('td', { class: 'muted' }, c.account_code || '—'),
         manage && can('catalogue') ? h('td', { class: 'num' }, h('button', { class: 'btn btn-sm btn-quiet', onclick: () => categoryDialog(c, () => refresh()) }, 'Edit')) : null)))));
 }
 function categoryDialog(c, done) {
   modal(c ? `Edit ${c.name}` : 'New category', (close) => {
     const name = h('input', { class: 'input', value: c?.name || '', required: true });
     const kind = select([['both', 'Both'], ['stock', 'Stock items'], ['cash', 'Cash expenses']], c?.kind || 'both');
+    const code = h('input', { class: 'input', value: c?.account_code || '', placeholder: 'e.g. 6210' });
     const active = h('input', { type: 'checkbox', checked: c ? !!c.active : true });
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, c ? 'Save' : 'Add category');
     const go = busy(b, async () => {
-      const row = { name: name.value.trim(), kind: kind.value, active: active.checked };
+      const row = { name: name.value.trim(), kind: kind.value, active: active.checked, account_code: code.value.trim() || null };
       if (!row.name) throw new Error('Give the category a name.');
       if (c) unwrap(await sb.from('categories').update(row).eq('id', c.id)); else unwrap(await sb.from('categories').insert(row));
       toast('Saved.'); close(); done();
     });
-    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, field('Name', name), field('Used for', kind), c ? h('label', { class: 'check', style: { marginBottom: '10px' } }, active, 'Active') : null,
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, field('Name', name), field('Used for', kind), field('Account code', code, 'The expense account in the accounting package; the journal export uses it.'), c ? h('label', { class: 'check', style: { marginBottom: '10px' } }, active, 'Active') : null,
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
