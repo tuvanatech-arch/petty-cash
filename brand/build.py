@@ -31,9 +31,9 @@ def group(text, colors, scale, tx, ty):
         p = SVGPathPen(gs); gs[cmap[ord(ch)]].draw(TransformPen(p, (scale,0,0,-scale,tx+ox*scale,ty)))
         by.setdefault(colors(i,ch), []).append(p.getCommands())
     return ''.join(f'<path fill="{c}" fill-rule="nonzero" d="{" ".join(ds)}"/>' for c,ds in by.items())
-def mark_svg(size=512, bg=GREEN, fg='#fff', radius=0.22, dot=None):
+def mark_svg(size=512, bg=GREEN, fg='#fff', radius=0.22, dot=None, fill=0.56):
     x0,y0,x1,y1 = bbox('P.')
-    s = size*0.56/(y1-y0)                       # cap height fills 56% of the square
+    s = size*fill/(y1-y0)                       # cap height as a share of the square
     w = (x1-x0)*s; tx = (size-w)/2 - x0*s; ty = size/2 + (y1+y0)/2*s
     body = group('P.', lambda i,c: (dot or SAND) if c=='.' else fg, s, tx, ty)
     r = f'<rect width="{size}" height="{size}" rx="{size*radius:.1f}" fill="{bg}"/>' if bg else ''
@@ -46,7 +46,8 @@ def word_svg(fg=GREEN, h=200):
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.1f} {h}" width="{W:.0f}" height="{h}">{body}</svg>'
 files = {
   'petti-mark.svg': mark_svg(),
-  'petti-mark-maskable.svg': mark_svg(radius=0),          # Android crops its own shape
+  'petti-mark-maskable.svg': mark_svg(radius=0, fill=0.42),   # Android may crop to a circle: keep the mark inside the safe zone
+  'petti-mark-square.svg': mark_svg(radius=0),                 # iOS rounds its own corners
   'petti-wordmark.svg': word_svg(),
   'petti-wordmark-white.svg': word_svg(fg='#ffffff'),
   'petti-wordmark-dark.svg': word_svg(fg=INK),
@@ -55,8 +56,13 @@ for n,s in files.items(): open(n,'w').write(s)
 def png(svg, px): return Image.open(io.BytesIO(cairosvg.svg2png(bytestring=svg.encode(), output_width=px, output_height=px)))
 web = '/home/claude/petty-cash-stock/web/'
 # iOS and Android draw their own rounded corners, so app icons are full-bleed squares
-png(files['petti-mark-maskable.svg'], 512).save(web+'icon-512.png'); png(files['petti-mark-maskable.svg'], 192).save(web+'icon-192.png')
-png(files['petti-mark-maskable.svg'], 180).save(web+'icon-180.png')
+png(files['petti-mark.svg'], 512).save(web+'icon-512.png'); png(files['petti-mark.svg'], 192).save(web+'icon-192.png')
+png(files['petti-mark-maskable.svg'], 512).save(web+'icon-maskable-512.png')
+png(files['petti-mark-square.svg'], 180).save(web+'icon-180.png')
+# browser tab icon, inlined into index.html
+import urllib.parse
+fav = mark_svg(size=32, radius=0.22, fill=0.6)
+open('favicon.txt','w').write('data:image/svg+xml,' + urllib.parse.quote(fav, safe=" =:/'"))
 # notification badge: Android shows it as a white silhouette, so a transparent "P." only
 png(mark_svg(bg=None, fg='#ffffff', dot='#ffffff'), 96).save(web+'badge-96.png')
 png(files['petti-mark.svg'], 1024).save('petti-mark-1024.png')

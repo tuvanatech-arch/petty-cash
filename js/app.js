@@ -141,12 +141,12 @@ export async function render() {
     : installBanner();
   const tabs = tabItems();
   const bell = h('a', { href: '#/notifications', class: `bell${activeKey === 'notifications' ? ' active' : ''}`, 'aria-label': 'Alerts' }, '🔔', h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread));
-  const topbar = h('div', { class: 'topbar' }, h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, 'P', h('span', { class: 'dot' }, '.')), h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petti')), branchSwitcher('top-branch'), bell);
+  const topbar = h('div', { class: 'topbar' }, h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, h('span', {}, 'P', h('span', { class: 'dot' }, '.'))), h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petti')), branchSwitcher('top-branch'), bell);
   mount(app,
     h('a', { class: 'skip', href: '#', onclick: (e) => { e.preventDefault(); const first = document.querySelector('main .sheet [tabindex="0"], main .sheet button, main .sheet a[href]'); (first || document.querySelector('main h1'))?.focus(); } }, 'Skip to what needs me'),
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
-        h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, 'P', h('span', { class: 'dot' }, '.')),
+        h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, h('span', {}, 'P', h('span', { class: 'dot' }, '.'))),
           h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petti', h('small', {}, 'Petti · petty cash & stock'))),
         branchSwitcher('side-branch'),
         h('nav', { class: 'nav' }, items.map(navLink)),

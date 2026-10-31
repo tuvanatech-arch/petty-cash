@@ -1,7 +1,7 @@
 import { sb, adminUsers, accountMail, cleanError } from '../api.js';
 import { h, field, busy, toast } from '../ui.js';
 
-const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, 'P', h('span', { class: 'dot' }, '.')),
+const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, h('span', {}, 'P', h('span', { class: 'dot' }, '.'))),
   h('div', { class: 'brand-name' }, 'Petti', h('span', { class: 'dot' }, '.'), h('small', {}, 'Petty cash & stock · by Tuvana Tech')));
 
 export async function authPage() {
