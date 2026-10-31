@@ -644,3 +644,56 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .kpi { border-left-width: 4px; }
 .kpi-green { border-left-color: var(--green); } .kpi-amber { border-left-color: var(--amber); } .kpi-red { border-left-color: var(--red); } .kpi-grey { border-left-color: var(--rule); }
 .kpi .d { display: block; margin-top: 4px; }
+
+/* =============================================================== loading: the Petti full stop
+   The mark is the brand: a green tile with a "P" and a sand full stop. While something loads, the full stop drops
+   in and lands like a stamp, the way a voucher gets settled. Used for the splash, page loads and dialogs. */
+.petti-loader { display: grid; justify-items: center; gap: 14px; padding: 48px 16px; color: var(--ink-3);
+  opacity: 0; animation: pl-appear .25s ease-out .18s forwards; }   /* waits a moment, so quick pages never flash it */
+.petti-loader.now { animation-delay: 0s; }
+.pl-mark { --s: 56px; width: var(--s); height: var(--s); border-radius: calc(var(--s) * .24); background: var(--green);
+  display: grid; place-items: center; position: relative; box-shadow: 0 6px 18px -8px rgb(0 0 0 / .45); overflow: hidden; }
+.pl-mark::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / .16) 50%, transparent 70%);
+  transform: translateX(-100%); animation: pl-sheen 2.4s ease-in-out infinite; }
+.pl-glyph { display: inline-flex; align-items: baseline; color: #fff; font: 800 calc(var(--s) * .56) / 1 var(--font); letter-spacing: -.04em; transform: translateX(-4%); }
+.pl-dot { display: inline-block; width: .2em; height: .2em; margin-left: .04em; border-radius: 50%; background: var(--sand);
+  transform-origin: 50% 100%; animation: pl-stamp 1.5s cubic-bezier(.3, .7, .4, 1) infinite; }
+.pl-text { font-size: .95rem; min-height: 1.4em; text-align: center; transition: opacity .25s; }
+.pl-text.fade { opacity: 0; }
+.petti-loader.small { padding: 24px 8px; gap: 10px; }
+.petti-loader.small .pl-mark { --s: 40px; }
+@keyframes pl-appear { to { opacity: 1; } }
+@keyframes pl-stamp {
+  0%   { transform: translateY(-1.6em) scale(.7); opacity: 0; }
+  22%  { opacity: 1; }
+  38%  { transform: translateY(0) scale(1.12, .88); }      /* lands */
+  50%  { transform: translateY(-.12em) scale(.92, 1.08); }  /* settles */
+  60%, 82% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 0; }
+}
+@keyframes pl-sheen { 0%, 55% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+/* the splash while the app itself starts */
+.splash { min-height: 100vh; min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: 18px; padding: 24px;
+  background: var(--paper); color: var(--ink-3); text-align: center; }
+.splash .pl-mark { --s: 88px; }
+.splash .petti-loader { padding: 0; opacity: 1; animation: none; }
+.splash-name { display: grid; gap: 2px; }
+.splash-name strong { font: 800 1.6rem/1.1 var(--font); color: var(--ink); letter-spacing: -.02em; }
+.splash-name strong i { font-style: normal; color: var(--sand); }
+.splash-name span { font-size: .8rem; letter-spacing: .04em; }
+#boot { font-size: .95rem; min-height: 1.4em; }
+
+/* the thin line across the top while a page loads */
+#nav-progress { position: fixed; top: 0; left: 0; right: 0; height: calc(3px + env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px);
+  z-index: 60; pointer-events: none; opacity: 0; transition: opacity .3s ease .1s; }
+#nav-progress::before { content: ""; display: block; height: 3px; width: var(--p, 0%); background: linear-gradient(90deg, var(--green), var(--green) 85%, var(--sand));
+  border-radius: 0 3px 3px 0; box-shadow: 0 0 8px rgb(228 184 92 / .6); transition: width .35s ease; }
+#nav-progress.on { opacity: 1; transition-delay: .12s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-dot { animation: none; } .pl-mark::after { animation: none; }
+  .pl-mark { animation: pl-breathe 2s ease-in-out infinite alternate; }
+  #nav-progress::before { transition: none; }
+}
+@keyframes pl-breathe { from { opacity: .7; } to { opacity: 1; } }

@@ -1,5 +1,5 @@
 import { sb, state, loadSessionContext, refreshUnread, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength, checkIn, signOutHere, whenSignedOutElsewhere, multiBranch, setView, scoped } from './api.js';
-import { h, mount, toast, fmtDate } from './ui.js';
+import { h, mount, toast, fmtDate, loader, progress } from './ui.js';
 import { authPage } from './pages/auth.js';
 import { homePage } from './pages/home.js';
 import { requestsPage, newRequestPage, requestDetailPage } from './pages/requests.js';
@@ -122,7 +122,7 @@ export async function render() {
   const [path] = hash.split('?');
   const route = ROUTES.find((rt) => rt.path.test(path));
   const match = route ? path.match(route.path) : null;
-  const page = h('div', { class: 'loading' }, 'Loading…');
+  const page = loader();
   const activeKey = (path.split('/')[1] || 'home');
   const items = navItems();
   const homeBadges = [];
@@ -161,6 +161,7 @@ export async function render() {
     page.replaceWith(h('div', {}, h('h1', {}, 'Page not found'), h('p', {}, h('a', { href: '#/home' }, 'Back to home'))));
     return;
   }
+  progress.start();
   try {
     const el = await route.page(match);
     if (token === renderToken) page.replaceWith(el);
@@ -168,7 +169,7 @@ export async function render() {
     console.error(err);
     log('error', `Page ${path} failed: ${err.message}`, err.stack);
     if (token === renderToken) page.replaceWith(h('div', { class: 'banner banner-red' }, h('strong', {}, 'Could not load this page'), err.message));
-  }
+  } finally { progress.done(); }
 }
 
 /** A link from an invitation, a reset or a sign-in email: the app finishes the sign-in itself with the one-time token. */
@@ -184,7 +185,7 @@ async function verifyPage() {
   await loadSessionContext();
   history.replaceState(null, '', location.pathname + (type === 'recovery' ? '#/account?recovery=1' : '#/home'));
   render();
-  return h('div', { class: 'loading' }, 'Signing you in…');
+  return loader('Signing you in…', { now: true });
 }
 
 window.addEventListener('hashchange', render);

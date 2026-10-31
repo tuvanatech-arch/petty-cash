@@ -17,7 +17,12 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="app"><div class="auth"><div class="loading" id="boot">Loading…</div></div></div>
+  <div id="nav-progress" aria-hidden="true"></div>
+  <div id="app"><div class="splash">
+    <div class="petti-loader now" aria-hidden="true"><div class="pl-mark"><span class="pl-glyph">P<span class="pl-dot"></span></span></div></div>
+    <div class="splash-name"><strong>Petti<i>.</i></strong><span>Petty cash &amp; stock · by Tuvana Tech</span></div>
+    <div id="boot" role="status">Getting things ready…</div>
+  </div></div>
   <script>
     // if the app itself has not drawn within 12 s (file blocked, script error), offer a way out instead of a dead screen
     setTimeout(function () {

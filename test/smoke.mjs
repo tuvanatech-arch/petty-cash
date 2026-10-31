@@ -27,7 +27,7 @@ for (const p of pages) {
   await sleep(80);
   const main = w.document.querySelector('main');
   const text = main?.textContent || '';
-  const loading = /Loading…/.test(text);
+  const loading = /Loading…/.test(text) || !!main?.querySelector('.petti-loader');
   const errs = errors.slice(before);
   const ok = !loading && !errs.length;
   if (!ok) failed++;

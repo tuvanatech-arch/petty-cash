@@ -44,6 +44,41 @@ export function titled(s) {
 /** The client's number format (en-NA for Namibia: 1,234.50). */
 export function locale() { return state.settings?.number_locale || 'en-NA'; }
 
+/* ---------- loading: the Petti full stop ---------- */
+const LOADING_LINES = ['Counting the float…', 'Checking the receipts…', 'Balancing the book…', 'Matching the vouchers…', 'Tallying the stock…'];
+/** The mark with its full stop landing, and a line that changes while you wait. Shows only after a short moment. */
+export function loader(text = null, { small = false, now = false } = {}) {
+  const line = h('div', { class: 'pl-text' }, text || LOADING_LINES[0]);
+  const el = h('div', { class: `petti-loader${small ? ' small' : ''}${now ? ' now' : ''}`, role: 'status', 'aria-live': 'polite' },
+    h('div', { class: 'pl-mark', 'aria-hidden': 'true' }, h('span', { class: 'pl-glyph' }, 'P', h('span', { class: 'pl-dot' }))), line);
+  if (!text) {
+    let i = 0;
+    const t = setInterval(() => {
+      if (!el.isConnected && i > 0) { clearInterval(t); return; }
+      i += 1; line.classList.add('fade');
+      setTimeout(() => { line.textContent = LOADING_LINES[i % LOADING_LINES.length]; line.classList.remove('fade'); }, 250);
+    }, 1800);
+  }
+  return el;
+}
+/** The thin line across the top while a page loads. */
+export const progress = (() => {
+  let timer = null, n = 0;
+  const bar = () => document.getElementById('nav-progress');
+  return {
+    start() {
+      const b = bar(); if (!b) return; n += 1; clearInterval(timer);
+      let p = 8; b.style.setProperty('--p', `${p}%`); b.classList.add('on');
+      timer = setInterval(() => { p += (90 - p) * 0.12; b.style.setProperty('--p', `${p}%`); }, 200);   // creeps towards 90% until done
+    },
+    done() {
+      const b = bar(); if (!b) return; n = Math.max(0, n - 1); if (n) return;
+      clearInterval(timer); b.style.setProperty('--p', '100%');
+      setTimeout(() => { b.classList.remove('on'); setTimeout(() => { if (!n) b.style.setProperty('--p', '0%'); }, 350); }, 200);
+    },
+  };
+})();
+
 /* ---------- formatting ---------- */
 export function cur() { const b = state.branches?.find((x) => x.id === (state.view || state.branches.find((y) => y.home)?.id)) || state.branches?.[0]; return b?.currency || state.settings?.currency || 'N$'; }
 export function money(v, { sign = false } = {}) {
@@ -122,7 +157,7 @@ export function modal(title, body, { wide = false } = {}) {
   const focusFirst = () => { const first = slot.querySelector('input:not([type=hidden]), select, textarea, button'); if (first) first.focus(); };
   const content = typeof body === 'function' ? body(close) : body;
   if (content instanceof Promise) {
-    mount(slot, h('div', { class: 'loading' }, 'Loading…'));
+    mount(slot, loader(null, { small: true }));
     content.then((el) => { mount(slot, el); focusFirst(); }).catch((e) => mount(slot, h('div', { class: 'error' }, e.message)));
   } else { mount(slot, content); focusFirst(); }
   const esc = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } };
