@@ -20,11 +20,11 @@ function render(name: string, rows: Row[], org: string, appUrl: string) {
   }).join("");
   const html = `<!doctype html><html><body style="margin:0;background:#eef1ec;font-family:-apple-system,Segoe UI,Roboto,sans-serif">
   <div style="max-width:560px;margin:24px auto;background:#fff;border:1px solid #d6dbd4;border-radius:8px;padding:24px">
-    <div style="font-size:13px;color:#7b857f;margin-bottom:12px">${esc(org)} · petty cash</div>
+    <div style="font-size:13px;color:#7b857f;margin-bottom:12px">${esc(org)} · Petti</div>
     <div style="font-size:16px;color:#19231f;margin-bottom:8px">Hi ${esc(name.split(" ")[0] || "there")}, ${rows.length === 1 ? "something is" : rows.length + " things are"} waiting on you.</div>
     <table style="width:100%;border-collapse:collapse">${items}</table>
     ${appUrl ? `<p style="margin:18px 0 0"><a href="${esc(appUrl)}" style="display:inline-block;background:#1b5e4b;color:#fff;padding:9px 14px;border-radius:6px;text-decoration:none;font-weight:600">Open the app</a></p>` : ""}
-    <p style="font-size:12px;color:#7b857f;margin-top:18px">You can switch these emails off under Account in the app.</p>
+    <p style="font-size:12px;color:#7b857f;margin-top:18px">You can switch these emails off under Account in the app. Petti by Tuvana Tech.</p>
   </div></body></html>`;
   const text = rows.map((r) => `• ${r.title}${r.body ? `\n  ${r.body}` : ""}${appUrl && r.link ? `\n  ${appUrl.replace(/\/+$/, "")}/${r.link}` : ""}`).join("\n\n");
   return { html, text };
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
       skipped += ids.length; continue;
     }
     const { html, text } = render(u.full_name || "", mine, settings?.org_name || "Petty cash", settings?.app_url || "");
-    const subject = mine.length === 1 ? mine[0].title : `${mine.length} things waiting for you in petty cash`;
+    const subject = mine.length === 1 ? mine[0].title : `${mine.length} things waiting for you in Petti`;
     let ok = false, detail = "";
     try {
       const res = await fetch("https://api.resend.com/emails", {

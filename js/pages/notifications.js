@@ -1,8 +1,8 @@
 import { sb, state, unwrap, rpc, refreshUnread, markAlertsRead } from '../api.js';
-import { h, mount, fmtDate, emptyState } from '../ui.js';
+import { h, mount, fmtDate, emptyState, cur } from '../ui.js';
 
-const ICON = { approval: '✓', payout: 'N$', document: '📎', payout_undone: '↩', proof: '🧾', stock_review: '📦', cash_ready: 'N$', closed: '✓', rejected: '✕', returned: '↩', physical: '📄',
-  advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'N$', approved: '✓', in_progress: '…', cancelled: '✕', stock_report: '📦', stock_report_resolved: '✓', claim: 'N$', float_warning: '⚠', pack_review: '📑', pack_sent: '📤', month_close: '📅', message: '💬', stale: '⏳', stale_escalation: '⏳', weekly_digest: '📈', security: '🔒', review: '🔍', schedule: '📋', cash_count: 'N$', cash_count_due: '⏰', top_up: 'N$', account_ready: '👤', stock_receipt: '📦', stock_adjust: '📦', stock_use: '↑', access_review: '🔍', exception: '🔍' };
+const ICON = { approval: '✓', payout: 'MONEY', document: '📎', payout_undone: '↩', proof: '🧾', stock_review: '📦', cash_ready: 'MONEY', closed: '✓', rejected: '✕', returned: '↩', physical: '📄',
+  advance_reminder: '⏰', advance_overdue: '⏰', weekly_count: '📋', price_jump: '↑', reimbursed: 'MONEY', approved: '✓', in_progress: '…', cancelled: '✕', stock_report: '📦', stock_report_resolved: '✓', claim: 'MONEY', float_warning: '⚠', pack_review: '📑', pack_sent: '📤', month_close: '📅', message: '💬', stale: '⏳', stale_escalation: '⏳', weekly_digest: '📈', security: '🔒', review: '🔍', schedule: '📋', cash_count: 'MONEY', cash_count_due: '⏰', top_up: 'MONEY', account_ready: '👤', stock_receipt: '📦', stock_adjust: '📦', stock_use: '↑', access_review: '🔍', exception: '🔍' };
 
 export async function notificationsPage() {
   const rows = unwrap(await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100));
@@ -17,7 +17,7 @@ export async function notificationsPage() {
     const groups = [['New', rows.filter((r) => !r.read_at)], ['Earlier', rows.filter((r) => r.read_at)]].filter(([, g]) => g.length);
     mount(list, rows.length ? groups.map(([title, g]) => h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, title), h('span', { class: 'sub' }, g.length)),
       h('ul', { class: 'ledger-list' }, g.map((n) => h('li', { class: 'click', onclick: () => open(n), style: { alignItems: 'flex-start' } },
-        h('span', { style: { width: '28px', height: '28px', borderRadius: '50%', background: n.read_at ? 'var(--paper)' : 'var(--green-tint)', color: n.read_at ? 'var(--ink-3)' : 'var(--green-ink)', display: 'grid', placeItems: 'center', fontSize: '.8rem', fontWeight: 600, flex: '0 0 auto' } }, ICON[n.kind] || '•'),
+        h('span', { style: { width: '28px', height: '28px', borderRadius: '50%', background: n.read_at ? 'var(--paper)' : 'var(--green-tint)', color: n.read_at ? 'var(--ink-3)' : 'var(--green-ink)', display: 'grid', placeItems: 'center', fontSize: '.8rem', fontWeight: 600, flex: '0 0 auto' } }, (ICON[n.kind] === 'MONEY' ? cur() : ICON[n.kind]) || '•'),
         h('div', { class: 'what' }, h('strong', { style: { fontWeight: n.read_at ? 500 : 600, whiteSpace: 'normal' } }, n.title), n.body ? h('span', { style: { display: 'block', whiteSpace: 'normal' } }, n.body) : null,
           h('span', { style: { display: 'block' } }, fmtDate(n.created_at, { time: true }))))))))
       : emptyState('Nothing yet', 'You will be told here when something needs you: an approval, cash ready to collect, a receipt to check.'));

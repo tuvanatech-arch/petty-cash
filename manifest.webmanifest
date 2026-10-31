@@ -1,7 +1,7 @@
 {
-  "name": "Petty Cash & Stock",
-  "short_name": "Petty Cash",
-  "description": "Petty cash requests, approvals, receipts and office stock.",
+  "name": "Petti",
+  "short_name": "Petti",
+  "description": "Petti by Tuvana Tech: petty cash requests, approvals, receipts, cash counts and office stock, with the controls an auditor expects.",
   "start_url": "./?source=pwa",
   "scope": "./",
   "display": "standalone",

@@ -78,7 +78,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   const W = 210, M = 16, LH = 5.2; let y = M;
   const pdfInserts = []; // { afterPage, bytes } – PDF invoices merged in after the voucher page
   const ink = () => doc.setTextColor(25, 35, 31), muted = () => doc.setTextColor(123, 133, 127);
-  const footer = () => { doc.setFontSize(8); muted(); doc.text(`${org} · petty cash · ${monthLabel(float.period)}`, M, 297 - 8); ink(); };
+  const footer = () => { doc.setFontSize(8); muted(); doc.text(`${org} · petty cash · ${monthLabel(float.period)} · produced with Petti by Tuvana Tech`, M, 297 - 8); ink(); };
   const newPage = () => { doc.addPage(); y = M; footer(); };
   const need = (hgt) => { if (y + hgt > 297 - M) newPage(); };
   const pdfSafe = (v) => String(v ?? '').replace(/−/g, '-').replace(/→/g, '->').replace(/·/g, '-');

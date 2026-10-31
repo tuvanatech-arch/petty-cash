@@ -104,17 +104,17 @@ Deno.serve(async (req) => {
       const url = await link("recovery", u.email, s.app);
       const first = (u.full_name || "").split(" ")[0] || "there";
       const lines = ROLE_TEXT[u.role] || ROLE_TEXT.requester;
-      const subject = `Your ${s.org} petty cash account – set your password`;
-      const text = `Hi ${first},\n\n${me.full_name || "The administrator"} has set you up on ${s.org}'s petty cash & stock app as ${ROLE_LABEL[u.role]}.\n\nWhat that means for you:\n${lines.map((l) => `• ${l}`).join("\n")}\n\nSet your password and sign in here (one-time link):\n${url}\n\nAfterwards the app lives at ${s.app} – add it to your phone's home screen from More → Account → “Put it on your phone”.\n\nIf the link has expired, ask ${me.full_name || "the administrator"} for a new one.`;
+      const subject = `Your ${s.org} Petti account – set your password`;
+      const text = `Hi ${first},\n\n${me.full_name || "The administrator"} has set you up on Petti, ${s.org}'s petty cash & stock app, as ${ROLE_LABEL[u.role]}.\n\nWhat that means for you:\n${lines.map((l) => `• ${l}`).join("\n")}\n\nSet your password and sign in here (one-time link):\n${url}\n\nAfterwards the app lives at ${s.app} – add it to your phone's home screen from More → Account → “Put it on your phone”.\n\nIf the link has expired, ask ${me.full_name || "the administrator"} for a new one.`;
       const html = shell(s.org, `Hi ${esc(first)}, your account is ready`,
-        `<p>${esc(me.full_name || "The administrator")} has set you up on <strong>${esc(s.org)}</strong>'s petty cash &amp; stock app as <strong>${esc(ROLE_LABEL[u.role])}</strong>.</p>
+        `<p>${esc(me.full_name || "The administrator")} has set you up on Petti, <strong>${esc(s.org)}</strong>'s petty cash &amp; stock app, as <strong>${esc(ROLE_LABEL[u.role])}</strong>.</p>
 <p><strong>What that means for you</strong></p><ol style="padding-left:20px;color:#4a5550">${lines.map((l) => `<li style="margin:6px 0">${esc(l)}</li>`).join("")}</ol>
 <p style="margin:20px 0"><a href="${url}" style="display:inline-block;background:#1b5e4b;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:600">Set your password and sign in</a></p>
 <p style="color:#4a5550;font-size:14px">The link works once. Afterwards the app lives at <a href="${s.app}">${s.app}</a> – add it to your phone's home screen from More → Account → “Put it on your phone”.</p>`);
       const r = await send(u.email, subject, text, html, s.from);
       await admin.from("mail_log").insert({ email: u.email, kind: "welcome", sent: r.sent, detail: r.reason });
       // the message the administrator can paste into WhatsApp when email is not available
-      const message = `Hi ${first}, your account on ${s.org}'s petty cash & stock app is ready (role: ${ROLE_LABEL[u.role]}). Open this link once to set your password and sign in: ${url}  — afterwards the app is at ${s.app}`;
+      const message = `Hi ${first}, your account on Petti, ${s.org}'s petty cash & stock app, is ready (role: ${ROLE_LABEL[u.role]}). Open this link once to set your password and sign in: ${url}  — afterwards the app is at ${s.app}`;
       return json({ sent: r.sent, reason: r.reason, link: url, email: u.email, message });
     }
 
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       if (!u || !u.active) return json({ sent: true, reason: null });            // never reveal whether an address exists
       const url = await link(action === "reset" ? "recovery" : "magiclink", u.email, s.app);
       const first = (u.full_name || "").split(" ")[0] || "there";
-      const subject = action === "reset" ? `Reset your ${s.org} petty cash password` : `Sign in to ${s.org} petty cash`;
+      const subject = action === "reset" ? `Reset your ${s.org} Petti password` : `Sign in to Petti – ${s.org}`;
       const what = action === "reset" ? "set a new password" : "sign in";
       const text = `Hi ${first},\n\nUse this one-time link to ${what}:\n${url}\n\nIt expires soon; if it has, ask for a new one from the sign-in page.`;
       const html = shell(s.org, action === "reset" ? "Set a new password" : "Sign in", `<p>Hi ${esc(first)}, use this one-time link to ${what}:</p><p style="margin:20px 0"><a href="${url}" style="display:inline-block;background:#1b5e4b;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:600">${action === "reset" ? "Set a new password" : "Sign in"}</a></p><p style="color:#4a5550;font-size:14px">It expires soon; if it has, ask for a new one from the sign-in page.</p>`);

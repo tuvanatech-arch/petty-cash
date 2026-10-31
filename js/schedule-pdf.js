@@ -20,7 +20,7 @@ export function drawSchedule(doc, v, { inPack = false, monthChanges = [] } = {})
   const ref = val.schedule_ref || 'MGP-SCH-PC-001';
   const W = 210, M = 16, LH = 5.2; let y = M;
   const ink = () => doc.setTextColor(25, 35, 31), muted = () => doc.setTextColor(123, 133, 127);
-  const footer = () => { doc.setFontSize(8); muted(); doc.text(pdfSafe(`${ref} version ${v.version_no} · in force from ${dateY(v.effective_at)} · printed from the app, which holds the master copy`), M, 297 - 8); ink(); };
+  const footer = () => { doc.setFontSize(8); muted(); doc.text(pdfSafe(`${ref} version ${v.version_no} · in force from ${dateY(v.effective_at)} · printed from Petti (Tuvana Tech), which holds the master copy`), M, 297 - 8); ink(); };
   const newPage = () => { doc.addPage(); y = M; footer(); };
   const need = (hgt) => { if (y + hgt > 297 - M) newPage(); };
   const text = (s, { size = 10, bold = false, color = null, x = M } = {}) => {
