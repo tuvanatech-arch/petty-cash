@@ -15,8 +15,15 @@ function safeNow() {
   if (document.querySelector('button[disabled][aria-busy="true"], .btn.working')) return false;
   return true;
 }
+let target = null;
 function switchOver() {
-  try { sessionStorage.setItem('pcs_just_updated', '1'); } catch {}
+  // on a weak signal the reload may still open the kept copy: try once per new version every 10 minutes, never in a loop
+  try {
+    const t = JSON.parse(sessionStorage.getItem('pcs_update_try') || 'null');
+    if (t && t.v === target && Date.now() - t.at < 10 * 60_000) return;
+    sessionStorage.setItem('pcs_update_try', JSON.stringify({ v: target, at: Date.now() }));
+    sessionStorage.setItem('pcs_just_updated', '1');
+  } catch {}
   location.reload();
 }
 function applyWhenSafe() {
@@ -31,7 +38,7 @@ export async function checkVersion({ force = false } = {}) {
     const html = await (await fetch('./index.html', { cache: 'no-store' })).text();
     const v = (html.match(/js\/app\.js\?v=([a-z0-9]+)/) || [])[1];
     if (!v || v === BUILD) return false;
-    newer = true;
+    newer = true; target = v;
     navigator.serviceWorker?.getRegistration?.().then((r) => r?.update()).catch(() => {});
     applyWhenSafe();
     return true;
@@ -46,5 +53,8 @@ export function startVersionCheck() {
   window.addEventListener('focus', () => checkVersion());
   setInterval(() => { if (document.visibilityState === 'visible') checkVersion(); }, 15 * 60_000);
   let just = null; try { just = sessionStorage.getItem('pcs_just_updated'); sessionStorage.removeItem('pcs_just_updated'); } catch {}
-  if (just) setTimeout(() => toast('Petti has been updated to the latest version.'), 1200);
+  // say "updated" only when the new version really arrived (on a weak signal the reload may have opened the kept copy)
+  let arrived = !!just;
+  try { const t = JSON.parse(sessionStorage.getItem('pcs_update_try') || 'null'); if (t) arrived = arrived && t.v === BUILD; } catch {}
+  if (arrived) setTimeout(() => toast('Petti has been updated to the latest version.'), 1200);
 }

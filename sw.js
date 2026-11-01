@@ -5,8 +5,17 @@ const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest', '
   './js/pages/auth.js', './js/pages/home.js', './js/pages/requests.js', './js/pages/stock.js', './js/pages/cash.js',
   './js/pages/reports.js', './js/pages/admin.js', './js/pages/schedule.js', './js/pages/overview.js', './js/export.js', './js/branch.js', './js/pages/account.js', './js/pages/notifications.js', './js/pages/snap.js', './js/pages/install.js', './js/pages/updates.js', './js/tour.js', './js/live.js', './js/scan.js', './js/proofs.js', './js/version.js', './js/keep.js', './js/usage.js'];
 
+const BUILD = CACHE.slice('pcs-shell-'.length);
+// Installing a new version: each file is fetched on its own, so one file that fails on a weak signal does not stop
+// the whole update (the page fetches anything missing later). The app's modules are also kept under the exact
+// address this version asks for (…/app.js?v=<build>), so the next start finds them without the network.
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => Promise.allSettled(SHELL.map(async (u) => {
+    const res = await fetch(new Request(u, { cache: 'reload' }));
+    if (!res.ok) return;
+    await c.put(u, res.clone());
+    if (u.endsWith('.js')) await c.put(`${u}?v=${BUILD}`, res.clone());
+  }))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== 'pcs-share').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -29,14 +38,29 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return; // API, storage and CDN calls go straight through
-  // network first, always revalidated with the server ('no-cache'): the browser can never mix an old module with a new one
-  // after a deploy; the shell cache is only the fallback when offline
-  // a navigation request cannot be re-built with options (the browser throws); files can
+  if (e.request.cache === 'no-store') return;   // a deliberate question to the server (the update check): never answered from the copy
+  // the app's modules carry the build in their address (…?v=<build>) and never change: the kept copy is used at once,
+  // and the network only when this version's copy is missing. One page therefore only ever runs one version.
+  if (url.searchParams.has('v')) {
+    e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+      return res;
+    }).catch(() => caches.match(e.request, { ignoreSearch: true }))));
+    return;
+  }
+  // the page itself, styles, pictures: network first, revalidated ('no-cache'). On a weak signal the kept copy is used
+  // after 4 s – and the answer that arrives late still refreshes the copy, so the next start has the newest version.
+  // (a navigation request cannot be re-built with options – the browser throws; files can)
   const fresh = e.request.mode === 'navigate' ? e.request : new Request(e.request, { cache: 'no-cache' });
-  // a request that never answers (phone just woke up, dead socket) must not hold the page: after 6 s the cached copy is used
-  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000));
-  e.respondWith(Promise.race([fetch(fresh), timeout]).then((res) => { if (res.ok) caches.open(CACHE).then((c) => c.put(e.request, res.clone())); return res; })
-    .catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html'))));
+  const net = fetch(fresh).then((res) => {
+    if (res.ok && !res.redirected) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+    return res;
+  });
+  e.waitUntil(net.then(() => {}, () => {}));   // keep working until the late answer is stored
+  const slow = new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), 4000));
+  e.respondWith(Promise.race([net, slow]).catch(() => caches.match(e.request, { ignoreSearch: true })
+    .then((hit) => hit || (e.request.mode === 'navigate' ? caches.match('./index.html') : null))
+    .then((hit) => hit || net)));
 });
 
 // ---- push: buzz the phone, show the count on the icon, open the right page on tap ----
