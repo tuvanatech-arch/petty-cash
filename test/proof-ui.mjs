@@ -104,5 +104,21 @@ for (const w of [1280, 390]) {
   await ctx.close();
 }
 
+/* 6. the same, reached from "New request" by switching to "I already paid – claim back" (as on the phone) */
+for (const role of ['requester', 'finance']) {
+  const { ctx, page, errs } = await open(role, '#/requests/new', 390);
+  await page.locator('main .tabs button', { hasText: 'claim back' }).click(); await page.waitForTimeout(800);
+  check(await page.locator('main label.upload', { hasText: 'Scan the receipt' }).isVisible() && await page.locator('#no-receipt-start').isVisible(), `${role}: switching to a claim shows the receipt section`);
+  check(await page.locator('main h1').innerText() === 'Claim back' && await page.locator('main button', { hasText: 'Submit claim' }).count() === 1, `${role}: the title and button say claim`);
+  check(!/may issue part of this from the store/.test(await page.locator('main').innerText()), `${role}: no stock wording on a claim`);
+  await page.locator('input[placeholder]').first().fill('Taxi in Oshikango');
+  await page.locator('#no-receipt-start').click(); await page.waitForTimeout(1500);
+  await page.locator('#no-receipt-why').fill('Taxi – no slips');
+  await page.locator('main .tabs ~ * input, main input').first().click();
+  check(await page.locator('#no-receipt').isChecked(), `${role}: the reason box is ready`);
+  check(!errs.length, `${role}: no page errors ${errs.join('|')}`);
+  await ctx.close();
+}
+
 await b.close(); server.close();
 console.log(fails.length ? `PROOF UI: FAIL (${fails.length})` : 'PROOF UI: PASS'); process.exit(fails.length ? 1 : 0);

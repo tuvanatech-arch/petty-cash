@@ -119,15 +119,21 @@ export async function newRequestPage(editId, presetType) {
   const err = h('div', { class: 'error' });
   const receiptBox = h('div', {});
   const intro = h('p', {});
+  const linesHint = h('span', { class: 'hint' });
+  const title = h('h1', {}, existing ? `Edit draft #${existing.request_no}` : forStore ? 'Restock order' : type === 'claim' ? 'Claim back' : 'New request');
 
   const typeBtns = h('div', { class: 'tabs' });
   function drawType() {
     mount(typeBtns, [stockAllowed ? ['stock', 'Stock item'] : null, ['cash', 'Cash for an expense'], ['claim', 'I already paid – claim back']].filter(Boolean).map(([k, l]) =>
-      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); } }, l)));
+      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); drawReceipts(); } }, l)));
     category.closest('.field').style.display = type === 'stock' ? 'none' : '';
     needed.closest('.field').style.display = type === 'claim' ? 'none' : '';
     for (const el of [spentAt, supplier, notes]) el.closest('.field').style.display = type === 'claim' ? '' : 'none';
     receiptBox.style.display = type === 'claim' ? '' : 'none';
+    // the words that depend on the kind of request follow the switch too
+    linesHint.textContent = type === 'stock' ? 'The stock manager may issue part of this from the store instead of buying.' : type === 'claim' ? 'Enter exactly what the receipt says.' : 'Estimates are fine – the real amounts go on the receipt afterwards.';
+    if (!submitBtn.disabled) submitBtn.textContent = type === 'claim' ? 'Submit claim' : 'Submit request';
+    if (!existing && !forStore) title.textContent = type === 'claim' ? 'Claim back' : 'New request';
     amountBox.style.display = type === 'cash' && simpleCash ? '' : 'none';
     linesBox.parentElement && (linesBox.parentElement.style.display = type === 'cash' && simpleCash ? 'none' : '');
     const seen = (() => { try { return localStorage.getItem(`pcs_hint_newreq_${forStore ? 'store' : type}`); } catch { return null; } })();
@@ -216,6 +222,13 @@ export async function newRequestPage(editId, presetType) {
     err.textContent = '';
     if (submit && type === 'cash' && simpleCash && num(amountIn.value) <= 0) throw new Error('Enter the amount.');
     const id = await saveHead(submit);
+    // "I have no receipt" ticked: make sure the reason is saved before the claim goes
+    const nr = type === 'claim' ? receiptBox.querySelector('#no-receipt') : null;
+    if (submit && nr?.checked && !receiptBox.querySelector('.paper-q')) {
+      const why = receiptBox.querySelector('#no-receipt-why')?.value.trim();
+      if (!why) throw new Error('Say why there is no receipt.');
+      await rpc('claim_without_receipt', { p_request: id, p_note: why });
+    }
     if (submit) { await rpc('submit_request', { p_request: id }); toast(type === 'claim' ? (state.settings?.claims_need_approval === false && currentTotal() <= thr() ? 'Claim submitted – finance will pay you back.' : 'Claim submitted – the approver signs it off, then finance pays you back.') : 'Request submitted.'); }
     else toast('Draft saved.');
     location.hash = `#/requests/${id}`;
@@ -306,7 +319,7 @@ export async function newRequestPage(editId, presetType) {
   purpose.addEventListener('input', checkStore);
 
   const page = h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, existing ? `Edit draft #${existing.request_no}` : forStore ? 'Restock order' : type === 'claim' ? 'Claim back' : 'New request'), intro)),
+    h('div', { class: 'page-head' }, h('div', {}, title, intro)),
     expense?.proof_status === 'returned' && expense.finance_note ? h('div', { class: 'banner banner-red' }, h('strong', {}, 'Finance returned this claim'), expense.finance_note) : null,
     h('div', { class: 'sheet' },
       typeBtns,
@@ -317,7 +330,7 @@ export async function newRequestPage(editId, presetType) {
         field('Notes for finance', notes),
         amountBox,
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Lines'), linesBox, budgetBox,
-          h('span', { class: 'hint' }, type === 'stock' ? 'The stock manager may issue part of this from the store instead of buying.' : type === 'claim' ? 'Enter exactly what the receipt says.' : 'Estimates are fine – the real amounts go on the receipt afterwards.')),
+          linesHint),
         receiptBox),
       err,
       h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-quiet', href: existing ? `#/requests/${existing.id}` : '#/requests' }, 'Cancel'), saveBtn, submitBtn)));
