@@ -15,7 +15,7 @@ Whenever a release changes what someone sees or does, tell exactly those people,
 1. **Who:** target by role (`requester`, `stock_manager`, `finance`, `approver` = GM, `managing_director` = MD), by branch, or by named person. Use "everyone" only when it really affects everyone.
 2. **What changes for them:** one or two plain sentences written for that role. If the impact differs by role, send one note per role.
 3. **How to use it:** short numbered steps, with the exact screen and button names from the code (check them before writing).
-4. **Show me:** a link to the screen it is about.
+4. **Show me:** a walk-through on the person's own screen (`tour`: steps of `{at, css, text, say}` that spotlight the real button or section), plus a picture of that screen with the part ringed. `node ops/tour-check.mjs ops/shots/<release>-tours.json` must say `ok` for every step, as that role, before announcing; `node ops/update-shots.mjs ops/shots/<release>.json` makes the pictures into `web/updates/` (deployed with the app).
 5. **When:** the next working morning (`public.next_working_morning(10)`, 10:00 local, Mon–Fri), never at night or on weekends, unless it is urgent. A scheduled note can be cancelled under Admin → Updates until it goes out.
 6. At most one or two notes per person per release. Combine small things.
 
@@ -29,7 +29,10 @@ select public.announce_update(
   array['stock_manager']::public.user_role[],     -- roles ('{}' = every role)
   '{}', '{}',                                     -- branches, named people
   public.next_working_morning(10));               -- null = send now
+select public.set_update_extras('<id>', '[{"at":"#/stock/deliveries","css":"main .tabs button","text":"Deliveries","say":"Tap here."}]'::jsonb, 'updates/deliveries.png');
 ```
+
+Pop-up appears only when someone lands on Home (never when they arrive from an alert with a job to do) and has a Later. Notes about a role's own duties that stay unread get one reminder after three working days.
 
 Notes appear as an alert (pushed to phones that have alerts on, never emailed), as a one-time window when the app opens, and under What's new. Admin → Updates shows who has read each note.
 

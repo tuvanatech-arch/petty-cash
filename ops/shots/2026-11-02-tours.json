@@ -1,0 +1,5 @@
+{"requester":[{"at":"#/account","css":"main .sheet","text":"Alerts"},{"at":"#/account","text":"Devices"}],
+ "stock_manager":[{"at":"#/stock/deliveries","css":"main .tabs button","text":"Deliveries"},{"at":"#/stock/deliveries","css":"main .sheet","text":"To check"},{"at":"#/stock/corrections","css":"main .tabs button","text":"Corrections"}],
+ "finance":[{"at":"#/stock/deliveries","css":"main .tabs button","text":"Deliveries"},{"at":"#/reports/kpis","text":"Journal (CSV)"}],
+ "approver":[{"at":"#/reports/controls","css":"main .tabs button","text":"Controls"},{"at":"#/reports/controls","css":"main .sheet","text":"Approval and exception log"},{"at":"#/reports/kpis","css":"main .sheet","text":"The seven KPIs"},{"at":"#/admin/signins","css":"main .tabs button","text":"Sign-ins"},{"at":"#/admin/updates","css":"main .tabs button","text":"Updates"}],
+ "managing_director":[{"at":"#/reports/kpis","css":"main .sheet","text":"The seven KPIs"},{"at":"#/reports/controls","css":"main .tabs button","text":"Controls"},{"at":"#/schedule","css":"main .sheet","text":"Access review"}]}
