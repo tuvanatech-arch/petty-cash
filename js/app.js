@@ -11,6 +11,7 @@ import { schedulePage } from './pages/schedule.js';
 import { accountPage } from './pages/account.js';
 import { notificationsPage } from './pages/notifications.js';
 import { snapPage } from './pages/snap.js';
+import { updatesPage, showUnseenUpdate, syncUpdateBadge, myUpdates } from './pages/updates.js';
 import { installPage, installBanner, captureInstallPrompt } from './pages/install.js';
 import { startAdapting } from './adapt.js';
 import { startDiagnostics, bootFinished, startPullToRefresh, log, BUILD } from './diag.js';
@@ -35,6 +36,7 @@ const ROUTES = [
   { path: /^\/schedule$/, page: () => (can('admin') ? adminPage('schedule') : schedulePage()), guard: 'schedule' },
   { path: /^\/account$/, page: () => accountPage() },
   { path: /^\/notifications$/, page: () => notificationsPage() },
+  { path: /^\/updates(?:\/([0-9a-f-]{36}))?$/, page: (m) => updatesPage(m[1] || null) },
   { path: /^\/snap$/, page: () => snapPage() },
   { path: /^\/install$/, page: () => installPage() },
   { path: /^\/how$/, page: () => howPage() },
@@ -55,6 +57,7 @@ function navItems() {
   if (can('reports')) items.push({ href: '#/reports', label: 'Reports', key: 'reports' });
   if (can('admin')) items.push({ href: '#/admin', label: 'Admin', key: 'admin' });
   else if (has('managing_director') || role() === 'finance') items.push({ href: '#/schedule', label: 'Schedule', key: 'schedule' });
+  items.push({ href: '#/updates', label: 'What’s new', key: 'updates', badge: 'updates' });
   items.push({ href: '#/account', label: 'Account', key: 'account' });
   return items;
 }
@@ -129,6 +132,7 @@ export async function render() {
   const navLink = (it) => {
     let badge = null;
     if (it.key === 'home') { badge = h('span', { class: 'count', style: { display: 'none' } }); homeBadges.push(badge); }
+    if (it.badge === 'updates') badge = h('span', { class: 'count', 'data-updates': '1', style: { display: 'none' } });
     if (it.badge === 'unread') badge = h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread);
     const active = it.key === activeKey || (it.key === 'more' && tabItems().rest.some((x) => x.key === activeKey));
     return h('a', { href: it.href, class: active ? 'active' : '' }, it.label, badge);
@@ -170,7 +174,10 @@ export async function render() {
     log('error', `Page ${path} failed: ${err.message}`, err.stack);
     if (token === renderToken) page.replaceWith(h('div', { class: 'banner banner-red' }, h('strong', {}, 'Could not load this page'), err.message));
   } finally { progress.done(); }
+  syncUpdateBadge();
+  if (!updatesChecked) { updatesChecked = true; myUpdates().then(() => { syncUpdateBadge(); showUnseenUpdate(); }).catch(() => {}); }
 }
+let updatesChecked = false;
 
 /** A link from an invitation, a reset or a sign-in email: the app finishes the sign-in itself with the one-time token. */
 async function verifyPage() {

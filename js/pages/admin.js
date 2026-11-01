@@ -1,3 +1,4 @@
+import { updatesAdminTab } from './updates.js';
 import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, rpc, ROLE_LABEL, personName, multiBranch, myBranch, branchName } from '../api.js';
 import { devicesDialog } from '../devices.js';
 import { schedulePage } from './schedule.js';
@@ -5,9 +6,9 @@ import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refre
 
 export async function adminPage(tab = 'users') {
   if (tab === 'budgets') tab = 'schedule';   // budgets live in the schedule now
-  const tabs = [['users', 'People'], ['branches', 'Branches'], ['signins', 'Sign-ins'], ['standins', 'Stand-ins'], ['schedule', 'Schedule'], ['settings', 'Settings']];
+  const tabs = [['users', 'People'], ['branches', 'Branches'], ['signins', 'Sign-ins'], ['standins', 'Stand-ins'], ['schedule', 'Schedule'], ['updates', 'Updates'], ['settings', 'Settings']];
   const bar = h('div', { class: 'tabs' }, tabs.map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { location.hash = `#/admin/${k}`; } }, l)));
-  const body = tab === 'settings' ? settingsTab() : tab === 'standins' ? await standinsTab() : tab === 'signins' ? await signInsTab() : tab === 'branches' ? await branchesTab() : tab === 'schedule' ? await schedulePage({ embedded: true }) : await usersTab();
+  const body = tab === 'updates' ? await updatesAdminTab() : tab === 'settings' ? settingsTab() : tab === 'standins' ? await standinsTab() : tab === 'signins' ? await signInsTab() : tab === 'branches' ? await branchesTab() : tab === 'schedule' ? await schedulePage({ embedded: true }) : await usersTab();
   const action = { users: ['Add person', () => userDialog(null)], standins: ['Add stand-in', () => standinDialog(null)], branches: ['Add branch', () => branchDialog(null)] }[tab];
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Admin'), h('p', {}, 'Who can sign in, the branches, who covers for whom, the authority schedule, and the organisation’s details.')),

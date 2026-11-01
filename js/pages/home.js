@@ -269,9 +269,10 @@ function alertsAsk() {
   try {
     if (document.querySelector('.main > .banner')) return null;
     const sup = pushSupport(); const asked = localStorage.getItem('pcs_push_asked');
-    if (!sup.ok || sup.granted || asked) return null;
+    const lost = localStorage.getItem('pcs_push_lost') === '1' && asked !== 'off';   // alerts were on, but this phone could not sign up again after a change
+    if (!sup.ok || (!lost && (sup.granted || asked))) return null;
     const b = h('button', { class: 'btn btn-primary btn-sm' }, 'Turn on');
-    const el = h('div', { class: 'banner banner-green install-banner' }, h('div', {}, h('strong', {}, 'Get a buzz when something needs you'), 'Even with the app closed.'),
+    const el = h('div', { class: 'banner banner-green install-banner' }, h('div', {}, h('strong', {}, lost ? 'Phone alerts stopped on this phone' : 'Get a buzz when something needs you'), lost ? 'One tap turns them back on.' : 'Even with the app closed.'),
       h('div', { class: 'form-actions', style: { margin: 0 } }, h('button', { class: 'btn btn-quiet btn-sm', onclick: () => { try { localStorage.setItem('pcs_push_asked', 'later'); } catch {} el.remove(); } }, 'Not now'), b));
     b.onclick = busy(b, async () => { await enablePush(); toast('Alerts are on.'); el.remove(); });
     return el;

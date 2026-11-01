@@ -697,3 +697,16 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
   #nav-progress::before { transition: none; }
 }
 @keyframes pl-breathe { from { opacity: .7; } to { opacity: 1; } }
+
+/* =============================================================== what's new */
+.update-note { scroll-margin-top: 80px; }
+.update-note.fresh { box-shadow: inset 3px 0 0 var(--sand); }
+.update-note.focus { outline: 2px solid var(--green); outline-offset: 2px; }
+.update-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+.update-head h2 { margin: 0 0 2px; text-wrap: balance; }
+.update-head .sub { color: var(--ink-3); font-size: .85rem; }
+.update-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 14px 0 4px; font-weight: 600; }
+.update-steps { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
+.update-steps li { padding-left: 2px; }
+.update-pop h3 { margin: 0 0 4px; }
+.update-pop .form-actions { flex-wrap: wrap; }

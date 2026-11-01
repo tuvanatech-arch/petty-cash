@@ -192,7 +192,8 @@ async function relinkPush(sid) {
   if (key && sub.options?.applicationServerKey && bytesToB64(sub.options.applicationServerKey) !== key.replace(/=+$/, '')) {
     await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
     await sub.unsubscribe().catch(() => {});
-    try { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) }); } catch { return; }   // Account → Phone alerts turns it back on
+    try { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) }); }
+    catch { try { localStorage.setItem('pcs_push_lost', '1'); } catch {} return; }   // Home asks to turn alerts back on (one tap)
   }
   const j = sub.toJSON();
   await sb.from('push_subscriptions').upsert({ user_id: state.me.id, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), session_id: sid }, { onConflict: 'endpoint' });
@@ -274,7 +275,7 @@ export async function enablePush() {
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
   const j = sub.toJSON();
   unwrap(await sb.from('push_subscriptions').upsert({ user_id: state.me.id, endpoint: sub.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), session_id: currentSessionId() }, { onConflict: 'endpoint' }));
-  try { localStorage.setItem('pcs_push_asked', 'on'); } catch {}
+  try { localStorage.setItem('pcs_push_asked', 'on'); localStorage.removeItem('pcs_push_lost'); } catch {}
   return true;
 }
 export async function disablePush() {
