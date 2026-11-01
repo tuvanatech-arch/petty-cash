@@ -1,3 +1,19 @@
+# Petti on Netlify (a second home next to GitHub Pages, for networks that cannot reach github.io).
 [build]
   publish = "."
-  command = ""
+  command = "sh netlify-build.sh"
+
+# the page and the offline copy-keeper are always checked with the server; the app's modules carry their version
+# in the address, so they can be kept
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
