@@ -36,6 +36,10 @@ Pop-up appears only when someone lands on Home (never when they arrive from an a
 
 Notes appear as an alert (pushed to phones that have alerts on, never emailed), as a one-time window when the app opens, and under What's new. Admin → Updates shows who has read each note.
 
+## At the start of every session
+
+Run `select public.update_feedback(30)` on the live database: what people said about recent notes (thumbs, comments). Fix unclear wording in the next release. The administrator's own notices (`announce_notice`, Admin → Updates → Send a notice) use the same delivery; they are listed there with the software updates.
+
 ## Releasing
 
 1. A database change is always a new numbered file in `db/` (applied to live with the same content). Never change the live database by hand without saving the file. That is how the files and live drifted apart before `029z`.
