@@ -29,6 +29,11 @@ const moving = (page) => page.evaluate(() => document.getAnimations().filter((a)
   check(await page.locator('#proof-reason').isVisible() && await page.evaluate(() => document.activeElement?.id) === 'proof-reason', 'pay-out: …and puts the cursor on it');
   await page.selectOption('#proof-reason', 'Other'); await page.waitForTimeout(400);
   check(await page.locator('#proof-other').isVisible() && await page.evaluate(() => document.activeElement?.id) === 'proof-other', 'pay-out: “Other” opens a box to say what it is for');
+  check(await page.locator('#proof-reason optgroup').count() >= 4 && await page.locator('#proof-reason option').count() >= 10, 'pay-out: the reasons are grouped, with more to choose from');
+  await page.selectOption('#proof-reason', 'Taxi or bus fare'); await page.waitForTimeout(400);
+  check(/from where to where/.test(await page.locator('.proof-choice .hint').innerText()) && !(await page.locator('#proof-other').isVisible()), 'pay-out: each reason says what the spender must write instead');
+  await page.selectOption('#proof-reason', 'Casual labour'); await page.waitForTimeout(400);
+  check(/who did the work/.test(await page.locator('.proof-choice .hint').innerText()), 'pay-out: …and it follows the reason');
   await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Fiona Shikongo' }) }).first().selectOption({ label: 'Fiona Shikongo' }); await page.waitForTimeout(500);
   check(await page.locator('#proof-rule').inputValue() === 'required' && await page.locator('#proof-rule option[value=none]').isDisabled(), 'pay-out: handing the cash to yourself switches back to “Proof required” and locks it');
   check(/to yourself/.test(await page.locator('.proof-choice .hint').innerText()) && !(await page.locator('#proof-reason').isVisible()), 'pay-out: …says why, and the reason folds away');

@@ -2,7 +2,7 @@ import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofU
 import { branchTag } from '../branch.js';
 import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted } from '../ui.js';
 import { outlookBox } from './cash.js';
-import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox } from '../proofs.js';
+import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } from '../proofs.js';
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -835,14 +835,15 @@ async function expensePanel(q, lines, expense, reload) {
   if (snapped) setTimeout(() => applyExtract(snapped.extracted), 0);
 
   const noProof = q.proof_rule === 'none';
-  if (noProof) notes.placeholder = 'Where did you spend it, and on what? (for example: taxi from the office to FNB, Independence Ave)';
+  const mustSay = noteFor(q.proof_reason);   // what the spender writes instead of a receipt, for finance's reason
+  if (noProof) notes.placeholder = mustSay.charAt(0).toUpperCase() + mustSay.slice(1);
   let slip = expense?.paper_slip ?? null;
   const slipBox = h('div', {});
   drawSlip = () => mount(slipBox, !noProof && (expense?.proofs || []).length ? paperSlipQuestion(q.id, slip, (v) => { slip = v; if (expense) expense.paper_slip = v; }) : null);
   drawSlip();
   const submit = h('button', { class: 'btn btn-primary' }, 'Submit expense to finance');
   submit.onclick = busy(submit, async () => {
-    if (noProof && !notes.value.trim()) throw new Error('Say in the notes where you spent the money and on what.');
+    if (noProof && !notes.value.trim()) throw new Error(`Say in the notes ${mustSay}.`);
     if (!noProof && (expense?.proofs || []).length && slip === null) throw new Error('Say whether you have the paper slip.');
     const clean = exLines.filter((l) => l.description.trim()).map((l) => ({ item_id: l.item_id || null, description: l.description.trim(), qty: num(l.qty), unit_price: num(l.unit_price), supplier_id: l.supplier_id && l.supplier_id !== '__other' ? l.supplier_id : null, supplier_name: l.supplier_name.trim() || null }));
     if (!clean.length) throw new Error('Add at least one line.');
@@ -859,7 +860,7 @@ async function expensePanel(q, lines, expense, reload) {
   return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
     h('div', { class: 'sheet-head' }, h('h2', {}, `Record what you spent of the ${money(q.disbursed_amount)}`), h('span', { class: 'sub' }, `paid out ${fmtDate(q.disbursed_at)} by ${personName(q.disbursed_by)}`, undo ? [' · ', undo] : null)),
     returned ? h('div', { class: 'banner banner-red' }, h('strong', {}, 'Finance returned this for correction'), expense.finance_note) : null,
-    noProof ? h('div', { class: 'banner banner-green' }, h('strong', {}, 'No receipt needed for this one'), `${q.proof_reason || 'Finance decided no proof is possible'}. Fill in what you spent, and say in the notes where.`)
+    noProof ? h('div', { class: 'banner banner-green' }, h('strong', {}, 'No receipt needed for this one'), `${q.proof_reason || 'Finance decided no proof is possible'}. Fill in what you spent, and say in the notes ${mustSay}.`)
       : h('div', { class: 'field' }, h('span', { class: 'label' }, '1. Scan the receipt'), h('span', { class: 'hint' }, 'Hold the slip flat in good light – Petti straightens it, cleans it up and reads it. A PDF or e-receipt works too. A blurred or cut-off picture is refused, with the reason.'), gallery, slipBox),
     h('div', { class: 'field' }, h('span', { class: 'label' }, '2. What was bought'),
       h('div', { class: 'table-wrap lines-edit' }, h('table', { class: 'ledger' },

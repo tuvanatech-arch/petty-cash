@@ -46,10 +46,10 @@ async function receiptPng(page, blur) {
   check(await page.locator('#proof-reason').isVisible(), 'finance: choosing “No proof possible” asks why');
   await page.locator('button', { hasText: /^Pay out$/ }).click(); await page.waitForTimeout(600);
   check(/why no proof/i.test(await page.locator('.toast').last().innerText().catch(() => '')), 'finance: no reason – refused with a clear message');
-  await page.selectOption('#proof-reason', 'Informal / street seller');
+  await page.selectOption('#proof-reason', 'Street vendor or market stall');
   await page.locator('button', { hasText: /^Pay out$/ }).click(); await page.waitForTimeout(1500);
   const t = await page.locator('main').innerText();
-  check(/No receipt needed for this one/.test(t) && /Informal \/ street seller/.test(t), 'finance: after paying, the expense says no receipt is needed, and why');
+  check(/No receipt needed for this one/.test(t) && /Street vendor or market stall/.test(t) && /what was bought, from whom and where/.test(t), 'finance: after paying, the expense says no receipt is needed, and why');
   await page.evaluate(() => { location.hash = '#/reports/controls'; }); await page.waitForTimeout(2000);
   const np = page.locator('#no-proof');
   check(await np.count() === 1 && /Flowers for reception/.test(await np.innerText()) && /Taxi to the Ministry/.test(await np.innerText()), 'reports: Spent without proof lists the new one and the earlier one');

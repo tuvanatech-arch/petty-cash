@@ -17,6 +17,7 @@ import { installPage, installBanner, captureInstallPrompt } from './pages/instal
 import { startAdapting } from './adapt.js';
 import { startDiagnostics, bootFinished, startPullToRefresh, log, BUILD } from './diag.js';
 import { howPage } from './learn.js';
+import { startVersionCheck } from './version.js';
 
 startDiagnostics();
 
@@ -267,6 +268,7 @@ window.addEventListener('online', syncQueue);
 // installable on a phone; the shell works offline
 startAdapting();
 captureInstallPrompt();
+startVersionCheck();   // a phone resuming Petti picks up a new version without being closed
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
