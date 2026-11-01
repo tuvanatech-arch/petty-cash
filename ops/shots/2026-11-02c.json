@@ -1,0 +1,5 @@
+[
+  { "name": "scan-receipt", "role": "requester", "step": { "at": "#/requests/new/claim", "css": "main label.upload", "text": "Scan the receipt" } },
+  { "name": "proof-payout", "role": "finance", "step": { "at": "#/requests/00000121-0000-4000-8000-000000000000", "css": ".proof-choice", "text": "Proof of payment" } },
+  { "name": "no-proof-list", "role": "approver", "step": { "at": "#/reports/controls", "css": "#no-proof", "text": "Spent without proof" } }
+]
