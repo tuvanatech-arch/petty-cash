@@ -2,6 +2,7 @@
 // Each note also arrives as an alert (and on your phone); opening this page counts as reading them.
 import { state, rpc } from '../api.js';
 import { h, mount, fmtDate, emptyState, modal, toast, busy, confirmDialog } from '../ui.js';
+import { runTour } from '../tour.js';
 
 let cache = null;
 /** My notes (newest first), fetched once and kept for the session. */
@@ -21,6 +22,15 @@ export function syncUpdateBadge() {
   document.querySelectorAll('[data-updates]').forEach((el) => { el.textContent = n; el.style.display = n ? '' : 'none'; });
 }
 
+/** "Show me": the walk-through on this screen when the note has one, otherwise the screen itself. */
+function showMe(u, { then = null } = {}) {
+  const label = u.link_label || 'Show me';
+  const b = h('button', { class: 'btn btn-primary' }, u.tour?.length ? `${label} ▸` : label);
+  b.onclick = async () => { then?.(); if (u.tour?.length) await runTour(u.tour, { title: u.title }); else if (u.link) location.hash = u.link; };
+  return b;
+}
+const picture = (u) => (u.image ? h('img', { class: 'update-pic', src: u.image, alt: '', loading: 'lazy' }) : null);
+
 function noteCard(u, { open = false, fresh = false } = {}) {
   return h('article', { class: `sheet update-note${fresh ? ' fresh' : ''}${open ? ' focus' : ''}`, id: `u-${u.id}` },
     h('div', { class: 'update-head' },
@@ -28,8 +38,9 @@ function noteCard(u, { open = false, fresh = false } = {}) {
       fresh ? h('span', { class: 'pill pill-green' }, 'New') : null),
     h('h3', { class: 'update-label' }, 'What changes for you'),
     h('p', {}, u.impact),
+    picture(u),
     u.steps?.length ? h('div', {}, h('h3', { class: 'update-label' }, 'How to use it'), h('ol', { class: 'update-steps' }, u.steps.map((s) => h('li', {}, s)))) : null,
-    u.link ? h('p', {}, h('a', { class: 'btn', href: u.link }, u.link_label || 'Show me')) : null);
+    u.link || u.tour?.length ? h('p', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, showMe(u)) : null);
 }
 
 export async function updatesPage(focusId = null) {
@@ -43,11 +54,12 @@ export async function updatesPage(focusId = null) {
   return el;
 }
 
-/** Once per session, on opening the app: the newest note you have not read yet, in a window. */
+/** Once per session, when someone lands on Home (not when they arrive from an alert with a job to do): the newest unread note. */
 export async function showUnseenUpdate() {
   try {
     if (sessionStorage.getItem('pcs_update_shown')) return;
-    if (/^#\/updates/.test(location.hash)) return;
+    if (!/^#?\/?(home)?$/.test(location.hash)) return;
+    if (document.querySelector('.modal, .tour')) return;
     const list = await myUpdates();
     syncUpdateBadge();
     const unseen = list.filter((u) => !u.seen_at);
@@ -55,16 +67,19 @@ export async function showUnseenUpdate() {
     sessionStorage.setItem('pcs_update_shown', '1');
     const u = unseen[0];
     const close = modal('What’s new', (done) => {
-      const got = h('button', { class: 'btn btn-primary' }, 'Got it');
+      const got = h('button', { class: u.tour?.length ? 'btn' : 'btn btn-primary' }, 'Got it');
       got.onclick = busy(got, async () => { await markSeen([u.id]); done(); });
+      const later = h('button', { class: 'btn btn-quiet', onclick: () => done() }, 'Later');   // comes back next time
       return h('div', { class: 'update-pop' },
         h('h3', {}, u.title),
         h('h4', { class: 'update-label' }, 'What changes for you'), h('p', {}, u.impact),
+        picture(u),
         u.steps?.length ? h('div', {}, h('h4', { class: 'update-label' }, 'How to use it'), h('ol', { class: 'update-steps' }, u.steps.map((s) => h('li', {}, s)))) : null,
         unseen.length > 1 ? h('p', { class: 'hint' }, `${unseen.length - 1} more under More → What’s new.`) : null,
         h('div', { class: 'form-actions' },
+          later,
           unseen.length > 1 ? h('a', { class: 'btn', href: '#/updates', onclick: () => close() }, `See all ${unseen.length}`) : null,
-          u.link ? h('a', { class: 'btn', href: u.link, onclick: () => { markSeen([u.id]); close(); } }, u.link_label || 'Show me') : null,
+          u.link || u.tour?.length ? showMe(u, { then: () => { markSeen([u.id]); close(); } }) : null,
           got));
     });
   } catch { /* never block the app over a note */ }

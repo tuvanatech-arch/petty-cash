@@ -17,15 +17,39 @@ for (const w of [1280, 390]) {
   const pt = await pop.innerText();
   check(/What changes for you/i.test(pt) && /How to use it/i.test(pt) && /See all 2/.test(pt), `${w}: it says what changes, how to use it, and that there is one more`);
   check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].some((e) => e.textContent === '2' && e.style.display !== 'none')), `${w}: the menu counts 2 unread`);
-  await pop.getByRole('button', { name: 'Got it' }).click(); await page.waitForTimeout(500);
+  check(await pop.locator('img.update-pic').count() === 1, `${w}: the note carries a picture`);
+  // Later: closes without marking read, back next session
+  await pop.getByRole('button', { name: 'Later' }).click(); await page.waitForTimeout(300);
+  check(await page.locator('.modal').count() === 0 && await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].some((e) => e.textContent === '2')), `${w}: Later closes it and keeps it unread`);
+  await page.evaluate(() => sessionStorage.removeItem('pcs_update_shown')); await page.reload(); await page.waitForTimeout(1500);
+  check(await page.locator('.modal').count() === 1, `${w}: it comes back next time`);
+  // Show me runs the walk-through on the person's own screen
+  await page.locator('.modal button', { hasText: 'Show me' }).click(); await page.waitForTimeout(2500);
+  check(await page.locator('.tour .tour-spot').count() === 1 && /Step 1 of 2/i.test(await page.locator('.tour-bubble').innerText()) && /^#\/account/.test(await page.evaluate(() => location.hash)), `${w}: Show me opens Account and spotlights the Alerts box`);
+  const spot = await page.locator('.tour-spot').boundingBox(); const target = await page.locator('main .sheet', { hasText: 'Alerts' }).first().boundingBox();
+  check(spot && target && Math.abs(spot.x + 6 - target.x) < 2 && Math.abs(spot.y + 6 - target.y) < 2, `${w}: the spotlight sits on the element`);
+  await page.locator('.tour-bubble button', { hasText: 'Next' }).click(); await page.waitForTimeout(900);
+  check(/Step 2 of 2/i.test(await page.locator('.tour-bubble').innerText()) && /phone or computer/.test(await page.locator('.tour-bubble').innerText()), `${w}: Next moves to step 2`);
+  await page.locator('.tour-bubble button', { hasText: 'Done' }).click(); await page.waitForTimeout(300);
+  check(await page.locator('.tour').count() === 0, `${w}: Done ends the walk-through`);
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].some((e) => e.textContent === '1')), `${w}: Show me counted as read`);
+  await page.goto(base + '#/home'); await page.waitForTimeout(600);
+  await page.evaluate(() => sessionStorage.removeItem('pcs_update_shown')); await page.reload(); await page.waitForTimeout(1500);
+  check(await page.locator('.modal').count() === 1, `${w}: the next unread note pops up`);
+  await page.locator('.modal').getByRole('button', { name: 'Got it' }).click(); await page.waitForTimeout(500);
   check(await page.locator('.modal').count() === 0, `${w}: Got it closes it`);
-  check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].some((e) => e.textContent === '1')), `${w}: the count drops to 1`);
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].every((e) => e.style.display === 'none')), `${w}: the count is gone`);
   await page.reload(); await page.waitForTimeout(1300);
   check(await page.locator('.modal').count() === 0, `${w}: it does not pop up again in the same session`);
-  await page.goto(base + '#/updates'); await page.waitForTimeout(1100);
+  // arriving from an alert with a job to do: no pop-up
+  await page.evaluate(() => { sessionStorage.removeItem('pcs_update_shown'); localStorage.setItem('demo_role', 'finance'); }); await page.goto(base + '#/cash'); await page.reload(); await page.waitForTimeout(1500);
+  check(await page.locator('.modal').count() === 0, `${w}: no pop-up when landing on Petty cash from an alert`);
+  if (w === 390) check(await page.evaluate(() => { const b = document.querySelector('.tabbar [data-updates]'); return b && b.style.display !== 'none' && b.textContent === '1'; }), `${w}: the phone's More tab shows the unread count`);
+  await page.evaluate(() => localStorage.setItem('demo_role', 'approver'));
+  await page.goto(base + '#/updates'); await page.reload(); await page.waitForTimeout(1100);
   let t = await page.locator('main').innerText();
   check(/A place for updates/.test(t) && /Petti’s new look/.test(t) && !/Deliveries to confirm/.test(t), `${w}: the GM sees the two notes for everyone, not finance's`);
-  check(await page.locator('main .update-steps li').count() >= 4 && await page.locator('main a.btn', { hasText: /Open/ }).count() >= 2, `${w}: steps and a Show-me button on each`);
+  check(await page.locator('main .update-steps li').count() >= 4 && await page.locator('main button.btn', { hasText: /Show me|Open/ }).count() >= 2, `${w}: steps and a Show-me button on each`);
   check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].every((e) => e.style.display === 'none')), `${w}: opening What's new reads them all`);
   // finance sees its own note too
   await page.evaluate(() => localStorage.setItem('demo_role', 'finance')); await page.goto(base + '#/updates'); await page.reload(); await page.waitForTimeout(1300);

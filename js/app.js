@@ -156,7 +156,7 @@ export async function render() {
         h('nav', { class: 'nav' }, items.map(navLink)),
         h('div', { class: 'me' }, h('strong', {}, me.full_name || me.email), h('span', {}, ROLE_LABEL[me.role]))),
       h('main', { class: 'main' }, topbar, banner, page)),
-    h('nav', { class: 'tabbar' }, tabs.main.map(navLink), tabs.rest.length ? navLink({ href: '#/more', label: 'More', key: 'more' }) : null));
+    h('nav', { class: 'tabbar' }, tabs.main.map(navLink), tabs.rest.length ? navLink({ href: '#/more', label: 'More', key: 'more', badge: 'updates' }) : null));
   window.scrollTo(0, 0);
 
   actionCounts().then((count) => { for (const b of homeBadges) { b.textContent = count; b.style.display = count ? '' : 'none'; } }).catch(() => {});

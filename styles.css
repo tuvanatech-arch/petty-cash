@@ -710,3 +710,17 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .update-steps li { padding-left: 2px; }
 .update-pop h3 { margin: 0 0 4px; }
 .update-pop .form-actions { flex-wrap: wrap; }
+
+/* =============================================================== guided walk-through */
+.tour { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+.tour-shade { position: absolute; inset: 0; background: rgba(25,35,31,.45); }
+.tour-spot { position: absolute; border-radius: 10px; box-shadow: 0 0 0 9999px rgba(25,35,31,.5), 0 0 0 3px var(--sand); transition: left .25s, top .25s, width .25s, height .25s; }
+.tour-bubble { position: absolute; pointer-events: auto; background: var(--sheet); color: var(--ink); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); max-width: calc(100vw - 24px); }
+.tour-bubble::before { content: ""; position: absolute; top: -8px; left: 22px; border: 8px solid transparent; border-top: 0; border-bottom-color: var(--sheet); }
+.tour-bubble.above::before { top: auto; bottom: -8px; border: 8px solid transparent; border-bottom: 0; border-top-color: var(--sheet); }
+.tour-bubble p { margin: 4px 0 10px; font-size: .98rem; }
+.tour-step { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }
+.tour-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.tour-wait .tour-bubble { left: 50%; top: 40%; transform: translateX(-50%); }
+.update-pic { width: 100%; max-width: 360px; border-radius: 10px; border: 1px solid var(--rule); display: block; margin: 8px 0 4px; }
+.update-pop .update-pic { max-width: 100%; }

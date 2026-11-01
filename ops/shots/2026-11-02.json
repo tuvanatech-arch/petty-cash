@@ -1,0 +1,7 @@
+[
+  { "name": "alerts", "role": "requester", "push": true, "step": { "at": "#/account", "text": "Alerts", "css": "main .sheet" } },
+  { "name": "deliveries", "role": "stock_manager", "step": { "at": "#/stock/deliveries", "css": "main .tabs button", "text": "Deliveries" } },
+  { "name": "journal", "role": "finance", "step": { "at": "#/reports/kpis", "text": "Journal (CSV)" } },
+  { "name": "controls", "role": "approver", "step": { "at": "#/reports/controls", "css": "main .tabs button", "text": "Controls" } },
+  { "name": "access-review", "role": "managing_director", "step": { "at": "#/schedule", "css": "main .sheet", "text": "Access review" } }
+]
