@@ -740,3 +740,32 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .continue-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--rule); }
 .continue-row:first-of-type { border-top: 0; }
 .continue-link { flex: 1 1 200px; min-width: 0; color: inherit; text-decoration: none; }
+/* searchable pickers: tap, type two letters, tap – the most-used first */
+.picker { position: relative; }
+.picker-native { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.picker-face { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; cursor: pointer; background: var(--sheet); color: var(--ink); }
+.picker-face .picker-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-face .picker-label.muted { color: var(--ink-3); }
+.picker-face .picker-chev { color: var(--ink-3); transition: transform .15s; }
+.picker.open .picker-chev { transform: rotate(180deg); }
+.picker-panel { margin-top: 6px; border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--sheet); padding: 6px; box-shadow: var(--shadow); }
+.picker-search { width: 100%; margin-bottom: 6px; }
+.picker-list { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; }
+.picker-group { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); padding: 8px 8px 4px; }
+.picker-opt { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 4px; padding: 10px 8px; min-height: 40px; color: var(--ink); font: inherit; cursor: pointer; }
+.picker-opt.active { background: var(--green-tint); }
+.picker-opt.chosen { font-weight: 600; }
+.picker-empty { padding: 10px 8px; color: var(--ink-3); }
+/* one tap: earlier requests to repeat, suggestions while typing, and what was filled in */
+.again { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: -4px 0 14px; }
+.again .k { font-size: .82rem; color: var(--ink-3); width: 100%; }
+.again-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--rule-strong); background: var(--sheet); color: var(--ink); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: .9rem; cursor: pointer; min-height: 40px; max-width: 100%; white-space: nowrap; }
+.again-chip .p { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.again-chip .amt { color: var(--ink-3); flex: none; }
+.again-chip:hover { border-color: var(--green); }
+.suggest { border: 1px solid var(--rule); border-radius: var(--radius); margin-top: 4px; overflow: hidden; }
+.suggest-opt { display: flex; gap: 8px; justify-content: space-between; align-items: baseline; width: 100%; text-align: left; background: var(--sheet); border: 0; border-top: 1px solid var(--rule); padding: 10px 12px; min-height: 40px; font: inherit; color: var(--ink); cursor: pointer; }
+.suggest-opt:first-child { border-top: 0; }
+.suggest-opt:hover, .suggest-opt:focus-visible { background: var(--green-tint); }
+.suggest-opt .muted { font-size: .82rem; white-space: nowrap; }
+.filled-from { font-size: .88rem; color: var(--green-ink); margin-top: 4px; }

@@ -229,6 +229,77 @@ export function retext(el, text) {
   if (el.isConnected && el.animate && !calm()) el.animate([{ opacity: 0, transform: 'translateY(-2px)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: 'ease-out' });
 }
 
+/**
+ * A long dropdown made easy on a phone: tap it, type two letters, tap the one you want. The ones this person
+ * uses most (`top`, a list of option values) are listed first. The ordinary <select> stays underneath and keeps
+ * its value and change events, so the code around it does not change. Short lists stay ordinary dropdowns.
+ */
+export function picker(sel, { top = [], topLabel = 'You use these most', placeholder = 'Type to search…', min = 8 } = {}) {
+  const opts = () => [...sel.options].filter((o) => o.value !== '' && !o.disabled);
+  if (opts().length < min) return sel;
+  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const label = h('span', { class: 'picker-label' });
+  const face = h('button', { type: 'button', class: 'input picker-face', 'aria-haspopup': 'listbox', 'aria-expanded': 'false' }, label, h('span', { class: 'picker-chev', 'aria-hidden': 'true' }, '▾'));
+  const search = h('input', { class: 'input picker-search', type: 'search', placeholder, autocomplete: 'off', 'aria-label': placeholder });
+  const list = h('div', { class: 'picker-list', role: 'listbox' });
+  const panel = h('div', { class: 'picker-panel', style: { display: 'none' } }, search, list);
+  const wrap = h('div', { class: 'picker' }, face, panel);
+  sel.classList.add('picker-native'); sel.tabIndex = -1; sel.setAttribute('aria-hidden', 'true');
+  wrap.prepend(sel);
+  let active = 0; let shown = [];
+  const sync = () => {
+    const o = sel.options[sel.selectedIndex];
+    label.textContent = o ? o.textContent : '';
+    label.classList.toggle('muted', !o || o.value === '');
+    face.disabled = sel.disabled;
+  };
+  const choose = (v) => {
+    if (sel.value !== v) { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    sync(); close(); face.focus();
+  };
+  const row = (o, i) => h('button', { type: 'button', role: 'option', class: `picker-opt${i === active ? ' active' : ''}${o.value === sel.value ? ' chosen' : ''}`, 'aria-selected': String(o.value === sel.value),
+    onclick: () => choose(o.value), onmousemove: () => { if (active !== i) { active = i; paint(); } } }, o.textContent);
+  function paint() {
+    const q = norm(search.value).trim(); const words = q.split(/\s+/).filter(Boolean);
+    const all = opts(); const topSet = new Set(top.map(String));
+    const hits = words.length ? all.filter((o) => words.every((w) => norm(o.textContent).includes(w))) : all;
+    const first = hits.filter((o) => topSet.has(o.value)).sort((a, b) => top.map(String).indexOf(a.value) - top.map(String).indexOf(b.value));
+    const rest = hits.filter((o) => !topSet.has(o.value));
+    shown = [...first, ...rest].slice(0, 60);
+    if (active >= shown.length) active = 0;
+    const kids = [];
+    if (first.length) kids.push(h('div', { class: 'picker-group' }, topLabel));
+    shown.forEach((o, i) => { if (i === first.length && first.length && rest.length) kids.push(h('div', { class: 'picker-group' }, words.length ? 'Other matches' : 'Everything else')); kids.push(row(o, i)); });
+    if (!shown.length) kids.push(h('div', { class: 'picker-empty' }, `Nothing matches “${search.value.trim()}”.`));
+    mount(list, kids);
+    list.querySelector('.picker-opt.active')?.scrollIntoView?.({ block: 'nearest' });
+  }
+  const outside = (e) => { if (!wrap.contains(e.target)) close(); };
+  function open() {
+    if (sel.disabled) return;
+    search.value = ''; active = 0; paint();
+    showIf(panel, true); face.setAttribute('aria-expanded', 'true'); wrap.classList.add('open');
+    setTimeout(() => search.focus(), 30);
+    document.addEventListener('pointerdown', outside, true);
+  }
+  function close() {
+    showIf(panel, false); face.setAttribute('aria-expanded', 'false'); wrap.classList.remove('open');
+    document.removeEventListener('pointerdown', outside, true);
+  }
+  face.onclick = () => (wrap.classList.contains('open') ? close() : open());
+  search.oninput = () => { active = 0; paint(); };
+  search.onkeydown = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, shown.length - 1); paint(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); paint(); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (shown[active]) choose(shown[active].value); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); face.focus(); }
+  };
+  sel.addEventListener('change', sync);
+  sync();
+  wrap.sync = sync;
+  return wrap;
+}
+
 export function select(options, value, attrs = {}) {
   const sel = h('select', { class: 'input', ...attrs });
   for (const o of options) {

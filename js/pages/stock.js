@@ -1,6 +1,7 @@
 import { sb, state, can, personName, unwrap, rpc, queueOffline, scoped, multiBranch, myBranch, branchName } from '../api.js';
 import { branchGate } from '../branch.js';
-import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint, showIf } from '../ui.js';
+import { myTopReported } from '../usage.js';
+import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint, showIf, picker } from '../ui.js';
 import { barChart } from '../charts.js';
 
 export async function stockPage(tab = 'items') {
@@ -143,7 +144,7 @@ export function reportDialog(item) {
       toast('Reported – the stock manager has been told.'); close(); refresh();
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      field('Item', sel), h('div', { class: 'field' }, h('label', {}, 'How bad is it?'), lvl), field('Note', note),
+      field('Item', picker(sel, { top: item ? [] : await myTopReported().catch(() => []), topLabel: 'You report these most', placeholder: 'Type the item…', min: 6 })), h('div', { class: 'field' }, h('label', {}, 'How bad is it?'), lvl), field('Note', note),
       h('p', { class: 'hint' }, 'Need something from the store right now? Ask the stock manager – they hand it over and log it.'),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });

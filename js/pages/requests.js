@@ -1,9 +1,10 @@
 import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
 import { branchTag } from '../branch.js';
-import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted, refresh } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted, refresh, picker } from '../ui.js';
 import { outlookBox } from './cash.js';
 import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } from '../proofs.js';
 import { keepForm, keepRead, keepDrop, whenText } from '../keep.js';
+import { myHistory, forgetHistory, repeats, matching, amountOf, myTopItems, myTopPayees } from '../usage.js';
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -97,6 +98,8 @@ export async function newRequestPage(editId, presetType) {
     if (existing.type === 'claim') expense = (await sb.from('expenses').select('*, proofs:expense_proofs(*)').eq('request_id', editId).maybeSingle()).data;
   }
   const stockAllowed = can('manage_stock');   // the team asks for stock by reporting it; only the stock manager raises stock purchases
+  const history = editId ? [] : await myHistory().catch(() => []);
+  const topItems = stockAllowed ? await myTopItems().catch(() => []) : [];
   let type = existing?.type || (presetType === 'claim' ? 'claim' : presetType === 'cash' || !stockAllowed ? 'cash' : 'stock');
   const forStore = existing?.for_store || false;
   let notStock = !!existing?.not_stock;   // the requester said a cash request that names a store item is not from the store
@@ -129,7 +132,7 @@ export async function newRequestPage(editId, presetType) {
   const typeBtns = h('div', { class: 'tabs' });
   function drawType() {
     mount(typeBtns, [stockAllowed ? ['stock', 'Stock item'] : null, ['cash', 'Cash for an expense'], ['claim', 'I already paid – claim back']].filter(Boolean).map(([k, l]) =>
-      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); drawReceipts(); } }, l)));
+      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); drawReceipts(); dropFill(); drawAgain(); drawSuggest(); } }, l)));
     showIf(category.closest('.field'), type !== 'stock');
     showIf(needed.closest('.field'), type !== 'claim');
     for (const el of [spentAt, supplier, notes]) showIf(el.closest('.field'), type === 'claim');
@@ -157,12 +160,12 @@ export async function newRequestPage(editId, presetType) {
       const priceIn = h('input', { class: 'input num', type: 'number', min: '0', step: '0.01', value: ln.est_unit_price, inputmode: 'decimal', oninput: (e) => { ln.est_unit_price = num(e.target.value); total(); } });
       let first; const hint = h('div', {});
       if (type === 'stock') {
-        first = select([['', 'Choose an item…'], ...items.map((it) => [it.id, `${it.name} (${it.unit})`])], ln.item_id, {
+        first = picker(select([['', 'Choose an item…'], ...items.map((it) => [it.id, `${it.name} (${it.unit})`])], ln.item_id, {
           onchange: (e) => {
             ln.item_id = e.target.value; const it = items.find((x) => x.id === ln.item_id);
             ln.description = it?.name || ''; if (it?.last_unit_price != null) { ln.est_unit_price = Number(it.last_unit_price); priceIn.value = ln.est_unit_price; adapted(priceIn); }
             mount(hint, priceHint(prices, ln.item_id)); total();
-          } });
+          } }), { top: topItems, topLabel: 'You ask for these most', placeholder: 'Type the item…', min: 6 });
         mount(hint, priceHint(prices, ln.item_id));
       } else {
         first = h('input', { class: 'input', placeholder: type === 'claim' ? 'What you bought' : 'What is it for?', value: ln.description, oninput: (e) => { ln.description = e.target.value; checkStore(); } });
@@ -236,6 +239,7 @@ export async function newRequestPage(editId, presetType) {
     if (submit) { await rpc('submit_request', { p_request: id }); toast(type === 'claim' ? (state.settings?.claims_need_approval === false && currentTotal() <= thr() ? 'Claim submitted – finance will pay you back.' : 'Claim submitted – the approver signs it off, then finance pays you back.') : 'Request submitted.'); }
     else toast('Draft saved.');
     formKeep?.done();   // saved or sent: the copy on the phone is no longer needed
+    forgetHistory();
     location.hash = `#/requests/${id}`;
   }
 
@@ -325,6 +329,44 @@ export async function newRequestPage(editId, presetType) {
   }
   purpose.addEventListener('input', checkStore);
 
+  // ---- fewer taps: earlier requests to repeat with one tap, and suggestions while typing what it is for
+  const againId = existing ? null : new URLSearchParams(location.hash.split('?')[1] || '').get('again');
+  const againBox = h('div', { class: 'again-wrap' }); const suggestBox = h('div', {}); const filledNote = h('div', { class: 'filled-from', id: 'filled-from', style: { display: 'none' } });
+  let undoFill = null;
+  function fillFrom(r) {
+    const before = { purpose: purpose.value, category: category.value, picked: userPickedCategory, amount: amountIn.value, simpleCash, lines: lines.map((l) => ({ ...l })) };
+    purpose.value = r.purpose; adapted(purpose);
+    if (type !== 'stock' && r.category_id && [...category.options].some((o) => o.value === r.category_id)) { category.value = r.category_id; userPickedCategory = true; guessed.textContent = ''; adapted(category); }
+    const ls = (r.lines || []).filter((l) => l.description || l.item_id).map((l) => ({ item_id: l.item_id || '', description: l.description || '', qty: Number(l.qty) || 1, est_unit_price: Number(l.est_unit_price) || 0 }));
+    if (type === 'cash' && ls.length <= 1 && !ls[0]?.item_id) { simpleCash = true; amountIn.value = amountOf(r).toFixed(2); adapted(amountIn); }
+    else { simpleCash = false; lines = ls.length ? ls : [blankLine()]; }
+    drawType(); drawLines(); checkStore();
+    undoFill = () => {
+      purpose.value = before.purpose; category.value = before.category; userPickedCategory = before.picked; amountIn.value = before.amount; simpleCash = before.simpleCash; lines = before.lines;
+      dropFill(); drawType(); drawLines(); checkStore(); drawAgain(); purpose.focus();
+    };
+    mount(filledNote, `Filled in from #${r.request_no} (${fmtDate(r.created_at)}). Check the amount${type === 'claim' ? ' and the date' : ''} before sending. `,
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); undoFill?.(); } }, 'Undo'));
+    showIf(filledNote, true); mount(suggestBox, null); drawAgain();
+  }
+  function dropFill() { undoFill = null; showIf(filledNote, false); }
+  function drawAgain() {
+    const list = existing || forStore ? [] : repeats(history, type).slice(0, 4);
+    const show = list.length > 0 && !purpose.value.trim() && !undoFill;
+    if (show) mount(againBox, h('div', { class: 'again', id: 'again' }, h('span', { class: 'k' }, type === 'claim' ? 'Claim one of these again?' : 'Ask for one of these again?'),
+      list.map((r) => h('button', { type: 'button', class: 'again-chip', title: r.purpose, onclick: () => fillFrom(r) }, h('span', { class: 'p' }, r.purpose), h('span', { class: 'amt' }, `· ${money(amountOf(r))}`)))));
+    showIf(againBox, show);
+  }
+  function drawSuggest() {
+    const hits = existing || undoFill || document.activeElement !== purpose ? [] : matching(repeats(history, type), purpose.value).slice(0, 4);
+    mount(suggestBox, hits.length ? h('div', { class: 'suggest', id: 'suggest', role: 'listbox', 'aria-label': 'You asked for these before' },
+      hits.map((r) => h('button', { type: 'button', class: 'suggest-opt', onpointerdown: (e) => e.preventDefault(), onclick: () => fillFrom(r) },
+        h('span', {}, r.purpose), h('span', { class: 'muted' }, `${money(amountOf(r))} · #${r.request_no}`)))) : null);
+  }
+  purpose.addEventListener('input', () => { drawSuggest(); drawAgain(); });
+  purpose.addEventListener('focus', drawSuggest);
+  purpose.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== purpose) mount(suggestBox, null); }, 150));
+
   // ---- nothing typed is lost: kept on the phone as it is typed; a draft is saved when Petti goes to the background
   const keepName = () => (existing ? `req_${existing.id}` : 'req_new');
   const snap = () => ({
@@ -336,7 +378,7 @@ export async function newRequestPage(editId, presetType) {
   const asOpened = snap();
   const kept = forStore ? null : keepRead(keepName());
   let restored = null;
-  if (kept && (kept.id || null) === (existing?.id || null)) {
+  if (kept && !againId && (kept.id || null) === (existing?.id || null)) {
     if (!existing && kept.type && (kept.type !== 'stock' || stockAllowed)) type = kept.type;
     purpose.value = kept.purpose || ''; category.value = kept.category || ''; userPickedCategory = !!kept.category;
     needed.value = kept.needed || ''; if (kept.spentAt) spentAt.value = kept.spentAt; supplier.value = kept.supplier || ''; notes.value = kept.notes || '';
@@ -353,7 +395,8 @@ export async function newRequestPage(editId, presetType) {
     expense?.proof_status === 'returned' && expense.finance_note ? h('div', { class: 'banner banner-red' }, h('strong', {}, 'Finance returned this claim'), expense.finance_note) : null,
     h('div', { class: 'sheet' },
       typeBtns,
-      field('What is it for?', purpose),
+      againBox,
+      field('What is it for?', h('div', {}, purpose, suggestBox, filledNote)),
       storeBox,
       cashPart = h('div', {},
         h('div', { class: 'row' }, field('Needed by', needed, 'Optional'), field('Category', category), field('Date you paid', spentAt), field('Shop / supplier', supplier)),
@@ -367,7 +410,12 @@ export async function newRequestPage(editId, presetType) {
   mount(amountBox, h('div', { class: 'row' }, field('Amount', amountIn, 'The amount of cash you need.')),
     h('p', { class: 'hint', style: { marginTop: '-6px' } }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); simpleCash = false; if (num(amountIn.value) > 0 && lines.every((l) => !l.description.trim())) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }]; drawType(); drawLines(); } }, 'Several things? Add them as separate lines')));
   category.closest('.field').append(guessed);
-  drawType(); drawLines(); drawStore(); await drawReceipts();
+  drawType(); drawLines(); drawStore(); await drawReceipts(); drawAgain();
+  if (againId) {   // "Request this again": fill the form from that request
+    let src = history.find((r) => r.id === againId);
+    if (!src) src = (await sb.from('requests').select('id, request_no, type, purpose, category_id, estimated_total, created_at, lines:request_lines(item_id, description, qty, est_unit_price)').eq('id', againId).maybeSingle()).data;
+    if (src) fillFrom(src);
+  }
   if (restored && kept.noReceipt) { const t = receiptBox.querySelector('#no-receipt-why'); if (t && !t.value) t.value = kept.noReceipt; }
   let drafting = false;
   formKeep = forStore ? null : keepForm(page, keepName, snap, {
@@ -470,6 +518,8 @@ export async function requestDetailPage(id) {
       del.onclick = busy(del, async () => { if (!(await confirmDialog('Delete draft?', 'This cannot be undone.', { ok: 'Delete', danger: true }))) return; unwrap(await sb.from('requests').delete().eq('id', id)); location.hash = '#/requests'; });
       a.push(del);
     }
+    if (isRequester && q.status !== 'draft' && !q.for_store && (q.type !== 'stock' || can('manage_stock')))
+      a.push(h('a', { class: 'btn btn-quiet', id: 'again-btn', href: `#/requests/new/${q.type}?again=${q.id}` }, isClaim ? 'Claim this again' : 'Request this again'));
     if (['stock_review', 'pending_approval', 'awaiting_disbursement'].includes(q.status) && (isRequester || can('admin'))) {
       const c = h('button', { class: 'btn btn-quiet' }, isClaim ? 'Withdraw claim' : 'Cancel request');
       c.onclick = busy(c, async () => { const n = await confirmDialog(isClaim ? 'Withdraw this claim?' : 'Cancel this request?', 'It will be withdrawn from the queue.', { ok: isClaim ? 'Withdraw' : 'Cancel request', danger: true, note: { label: 'Reason (optional)' } }); if (n === null) return; await rpc('cancel_request', { p_request: id, p_note: n }); toast('Withdrawn.'); reload(); });
@@ -699,7 +749,10 @@ function disbursePanel(q, reload) {
   const invoice = (q.docs || []).filter((d) => d.kind === 'invoice' && Number(d.extracted?.total) > 0).slice(-1)[0];
   const invTotal = invoice ? Number(invoice.extracted.total) : null;
   const amount = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01', value: (invTotal ?? Number(q.estimated_total)).toFixed(2) });
-  const to = select(state.people.filter((p) => p.active).map((p) => [p.id, p.full_name || p.email]), defaultTo);
+  const toSel = select(state.people.filter((p) => p.active).map((p) => [p.id, p.full_name || p.email]), defaultTo);
+  const to = toSel; const topPay = [defaultTo];
+  myTopPayees().then((ps) => { for (const p of ps) if (!topPay.includes(p)) topPay.push(p); }).catch(() => {});
+  const toPick = picker(toSel, { top: topPay, topLabel: 'Usually paid', placeholder: 'Type a name…' });
   const note = h('input', { class: 'input', placeholder: 'Note (optional)' });
   const warn = h('div', { class: 'hint' });
   const tol = 1 + Number(state.settings?.change_tolerance_pct ?? 10) / 100;
@@ -747,7 +800,7 @@ function disbursePanel(q, reload) {
     h('div', { class: 'sheet-head' }, h('h2', {}, 'Pay out from petty cash'), h('span', { class: 'sub' }, q.approved_by ? `Approved by ${personName(q.approved_by)}` : `Within the ${money(thr())} limit – no approval needed`)),
     q.over_budget && q.budget_note ? h('p', { class: 'hint', style: { color: 'var(--amber)' } }, q.budget_note) : null,
     invNote,
-    h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', to), field('Note', note)),
+    h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', toPick), field('Note', note)),
     proof,
     owing,
     h('div', { class: 'form-actions' }, rej, esc, pay));
@@ -844,7 +897,8 @@ async function expensePanel(q, lines, expense, reload) {
       const warn = h('div', { class: 'hint', style: { color: 'var(--amber)' } });
       const checkPrice = () => { const it = items.find((x) => x.id === l.item_id); const last = Number(it?.last_unit_price || 0); warn.textContent = last > 0 && num(l.unit_price) > last * 1.1 ? `${Math.round((num(l.unit_price) / last - 1) * 100)}% above the last price paid (${money(last)})` : ''; };
       const desc = q.type === 'stock' && items.length
-        ? select([['', 'Not a catalogue item'], ...items.map((it) => [it.id, it.name])], l.item_id, { onchange: (e) => { l.item_id = e.target.value; const it = items.find((x) => x.id === l.item_id); if (it) { l.description = it.name; descIn.value = l.description; adapted(descIn); } checkPrice(); } })
+        ? picker(select([['', 'Not a catalogue item'], ...items.map((it) => [it.id, it.name])], l.item_id, { onchange: (e) => { l.item_id = e.target.value; const it = items.find((x) => x.id === l.item_id); if (it) { l.description = it.name; descIn.value = l.description; adapted(descIn); } checkPrice(); } }),
+          { top: lines.map((x) => x.item_id).filter(Boolean), topLabel: 'On this request', placeholder: 'Type the item…', min: 6 })
         : null;
       const descIn = h('input', { class: 'input', placeholder: 'Description', value: l.description, oninput: (e) => { l.description = e.target.value; } });
       const qtyIn = h('input', { class: 'input num', type: 'number', min: '0.01', step: 'any', value: l.qty, inputmode: 'decimal', oninput: (e) => { l.qty = num(e.target.value); total(); } });

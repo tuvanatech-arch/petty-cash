@@ -3,7 +3,8 @@ import { branchGate } from '../branch.js';
 import { buildMonthEndPack } from '../pack.js';
 import { downloadFullExport } from '../export.js';
 import { proofChoice } from '../proofs.js';
-import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog, titled, retext } from '../ui.js';
+import { myTopPayees } from '../usage.js';
+import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog, titled, retext, picker } from '../ui.js';
 
 export function floatStrip(f) {
   const cell = (k, v, cls = '') => h('div', {}, h('span', { class: 'k' }, k), h('span', { class: `v ${cls}` }, money(v)));
@@ -252,7 +253,7 @@ function payoutNowDialog(f) {
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       h('p', { class: 'hint' }, `For an urgent one-off up to ${money(thr)}: it is recorded as a request on their behalf and paid in one step. They still upload the receipt and record what was spent. Balance in the box: ${money(f.balance)}.`),
-      field('Hand the cash to', to), owing, h('div', { class: 'row' }, field('Amount', amount, warn), field('Category', cat)), field('What is it for?', purpose), field('Note', note), proof,
+      field('Hand the cash to', picker(to, { top: await myTopPayees().catch(() => []), topLabel: 'Usually paid', placeholder: 'Type a name…' })), owing, h('div', { class: 'row' }, field('Amount', amount, warn), field('Category', cat)), field('What is it for?', purpose), field('Note', note), proof,
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
