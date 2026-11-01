@@ -724,3 +724,6 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .tour-wait .tour-bubble { left: 50%; top: 40%; transform: translateX(-50%); }
 .update-pic { width: 100%; max-width: 360px; border-radius: 10px; border: 1px solid var(--rule); display: block; margin: 8px 0 4px; }
 .update-pop .update-pic { max-width: 100%; }
+.check-list { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 0; }
+.clear-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule); }
+.clear-ask textarea { flex: 1 1 100%; }

@@ -51,6 +51,12 @@ for (const w of [1280, 390]) {
   check(/A place for updates/.test(t) && /Petti’s new look/.test(t) && !/Deliveries to confirm/.test(t), `${w}: the GM sees the two notes for everyone, not finance's`);
   check(await page.locator('main .update-steps li').count() >= 4 && await page.locator('main button.btn', { hasText: /Show me|Open/ }).count() >= 2, `${w}: steps and a Show-me button on each`);
   check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].every((e) => e.style.display === 'none')), `${w}: opening What's new reads them all`);
+  // was this clear?
+  await page.locator('main .clear-ask button', { hasText: 'Not really' }).first().click(); await page.locator('main .clear-ask textarea').fill('Which tab?');
+  await page.locator('main .clear-ask button', { hasText: 'Send' }).click(); await page.waitForTimeout(400);
+  check(/administrator/.test(await page.locator('main .clear-ask').first().innerText()), `${w}: thumbs down with a comment is sent`);
+  await page.locator('main .clear-ask button', { hasText: 'Yes' }).first().click(); await page.waitForTimeout(300);
+  check(/glad it was clear/.test(await page.locator('main .clear-ask').nth(1).innerText()), `${w}: thumbs up is sent`);
   // finance sees its own note too
   await page.evaluate(() => localStorage.setItem('demo_role', 'finance')); await page.goto(base + '#/updates'); await page.reload(); await page.waitForTimeout(1300);
   t = await page.locator('main').innerText();
@@ -59,6 +65,17 @@ for (const w of [1280, 390]) {
   await page.evaluate(() => localStorage.setItem('demo_role', 'approver')); await page.goto(base + '#/admin/updates'); await page.reload(); await page.waitForTimeout(1200);
   t = await page.locator('main').innerText();
   check(/Read by 4 of 7/.test(t) && /Not read yet: Nangula Iipinge/.test(t) && /Goes out/.test(t), `${w}: Admin → Updates shows who has read what, and what is still to go out`);
+  check(/👎 Fiona Shikongo: “Which tab\?”/.test(t) || /Which tab/.test(t), `${w}: the administrator sees the comment`);
+  // the administrator's own notice
+  await page.locator('main button', { hasText: 'Send a notice' }).click(); await page.waitForTimeout(400);
+  await page.fill('#nt-title', 'Petty cash closed Friday afternoon'); await page.fill('#nt-msg', 'No pay-outs after 12:00 on Friday.'); await page.fill('#nt-steps', 'Ask on Thursday.\n'); await page.check('#nt-role-finance');
+  await page.locator('.modal button', { hasText: 'Send' }).last().click(); await page.waitForTimeout(800);
+  t = await page.locator('main').innerText();
+  check(/Petty cash closed Friday afternoon/.test(t) && /To finance · Notice from/.test(t), `${w}: the notice is sent to finance and listed`);
+  await page.evaluate(() => localStorage.setItem('demo_role', 'finance')); await page.goto(base + '#/updates'); await page.reload(); await page.waitForTimeout(1200);
+  t = await page.locator('main').innerText();
+  check(/Petty cash closed Friday afternoon/.test(t) && /notice from Ada Nangolo/.test(t) && /The message/i.test(t), `${w}: finance reads it as a notice from Ada`);
+  await page.evaluate(() => localStorage.setItem('demo_role', 'approver')); await page.goto(base + '#/admin/updates'); await page.reload(); await page.waitForTimeout(1200);
   await page.locator('main button', { hasText: 'Cancel' }).first().click(); await page.waitForTimeout(400);
   await page.locator('.modal button', { hasText: 'Cancel it' }).click(); await page.waitForTimeout(800);
   check(/Cancelled/.test(await page.locator('main').innerText()), `${w}: a scheduled update can be cancelled`);
