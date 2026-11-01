@@ -731,6 +731,7 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 /* proof of payment */
 .paper-q .paper-opt { align-items: flex-start; margin: 6px 0; font-weight: 400; }
 .paper-q .paper-opt span { display: grid; gap: 1px; }
-.proof-choice .row { gap: 8px; }
+.proof-choice .row { gap: 8px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .proof-choice .row { grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1.4fr); } }
 .scan-tips { margin: 12px 0; font-size: .92rem; }
 .scan-tips ul { margin: 4px 0 0; padding-left: 1.2em; }

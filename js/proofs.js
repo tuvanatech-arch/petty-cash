@@ -1,6 +1,6 @@
 // Proof of payment, the same everywhere a receipt is added: scan it, upload it, and keep it only if Petti can read it.
 import { rpc, uploadProof, removeProof, readReceipt } from './api.js';
-import { h, mount, toast } from './ui.js';
+import { h, toast, showIf, retext, adapted } from './ui.js';
 import { scanReceipt, unreadable } from './scan.js';
 
 /** Scan, upload and read each file. Returns the proofs that were kept; says why any were refused. */
@@ -49,14 +49,25 @@ export function proofChoice(current = 'required', reason = '') {
   const why = h('select', { class: 'input', id: 'proof-reason' }, h('option', { value: '' }, 'Why…'), NO_PROOF_REASONS.map((r) => h('option', { value: r, selected: r === known }, r)));
   const other = h('input', { class: 'input', id: 'proof-other', placeholder: 'Say what it is for', value: known === 'Other' ? reason : '' });
   const hint = h('span', { class: 'hint' });
+  let lockedWhy = null;
   const draw = () => {
     const none = rule.value === 'none';
-    why.style.display = none ? '' : 'none'; other.style.display = none && why.value === 'Other' ? '' : 'none';
-    hint.textContent = none ? 'They say where they spent it instead. It is listed for the GM, the MD and the month-end pack.' : 'A receipt or invoice, scanned in Petti. If there is a paper slip, it comes to you too.';
+    showIf(why, none); showIf(other, none && why.value === 'Other');
+    retext(hint, lockedWhy || (none ? 'They say where they spent it instead. It is listed for the GM, the MD and the month-end pack.' : 'A receipt or invoice, scanned in Petti. If there is a paper slip, it comes to you too.'));
   };
-  rule.onchange = draw; why.onchange = draw; draw();
+  rule.onchange = () => { draw(); if (rule.value === 'none' && !why.value) why.focus(); };
+  why.onchange = () => { draw(); if (why.value === 'Other') other.focus(); };
+  draw();
   const el = h('div', { class: 'field proof-choice' }, h('span', { class: 'label' }, 'Proof of payment'), h('div', { class: 'row' }, rule, why, other), hint);
   el.value = () => ({ rule: rule.value, reason: rule.value !== 'none' ? null : why.value === 'Other' ? other.value.trim() : why.value });
+  /** The cash goes to the person paying it out: proof is always required, so "No proof possible" is not offered. */
+  el.lock = (on, text = 'You are handing the cash to yourself, so proof is required.') => {
+    const was = rule.value;
+    lockedWhy = on ? text : null;
+    rule.options[1].disabled = !!on;
+    if (on && was === 'none') { rule.value = 'required'; adapted(rule); }
+    draw();
+  };
   return el;
 }
 
@@ -67,7 +78,7 @@ export function noReceiptBox(requestId, current, onChange = () => {}, { open = f
   const wrap = h('div', { style: { display: current || open ? '' : 'none', marginTop: '6px' } }, why);
   if (open && !current) setTimeout(() => why.focus(), 50);
   const save = async () => { try { await rpc('claim_without_receipt', { p_request: requestId, p_note: box.checked ? why.value : '' }); onChange(box.checked ? why.value : null); } catch (e) { toast(e.message, { error: true }); } };
-  box.onchange = () => { wrap.style.display = box.checked ? '' : 'none'; if (!box.checked) save(); else why.focus(); };
+  box.onchange = () => { showIf(wrap, box.checked); if (!box.checked) save(); else why.focus(); };
   why.onchange = save;
   return h('div', { class: 'field' }, h('label', { class: 'check' }, box, 'I have no receipt for this'), wrap, h('span', { class: 'hint' }, 'Finance decides whether it can be paid without one.'));
 }

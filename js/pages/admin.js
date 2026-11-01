@@ -2,7 +2,7 @@ import { updatesAdminTab } from './updates.js';
 import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, rpc, ROLE_LABEL, personName, multiBranch, myBranch, branchName } from '../api.js';
 import { devicesDialog } from '../devices.js';
 import { schedulePage } from './schedule.js';
-import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, today, isoDate, emptyState } from '../ui.js';
+import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, today, isoDate, emptyState, showIf, retext } from '../ui.js';
 
 export async function adminPage(tab = 'users') {
   if (tab === 'budgets') tab = 'schedule';   // budgets live in the schedule now
@@ -160,7 +160,7 @@ function userDialog(p) {
     const home = select(branches.map((b) => [b.id, b.name]), p?.branch_id || myBranch());
     const extra = branches.map((b) => { const cb = h('input', { type: 'checkbox', value: b.id, checked: (p?.extra_branches || []).includes(b.id) }); return { id: b.id, cb, el: h('label', { class: 'check' }, cb, ` ${b.name}`) }; });
     const extraWrap = h('div', { class: 'row', style: { gap: '12px', flexWrap: 'wrap', display: 'flex' } }, extra.map((x) => x.el));
-    const syncExtra = () => { for (const x of extra) { x.el.style.display = x.id === home.value || ['approver', 'managing_director'].includes(role.value) ? 'none' : ''; } };
+    const syncExtra = () => { for (const x of extra) showIf(x.el, !(x.id === home.value || ['approver', 'managing_director'].includes(role.value))); };
     home.onchange = syncExtra; role.onchange = syncExtra; syncExtra();
     const pass = p ? null : h('input', { class: 'input', type: 'text', value: tempPassword(), autocomplete: 'off' });
     const err = h('div', { class: 'error' });
@@ -259,6 +259,8 @@ export function standinDialog(d, { fixedFrom = null } = {}) {
     const fromPeople = fixedFrom ? people.filter((p) => p.id === fixedFrom.id) : people.filter((p) => p.role !== 'requester');
     const from = select(fromPeople.map((p) => [p.id, `${p.full_name || p.email} (${ROLE_LABEL[p.role].replace(' (admin)', '')})`]), d?.from_user || fixedFrom?.id || fromPeople[0]?.id, { disabled: !!fixedFrom || !!d });
     const to = select([['', 'Choose…'], ...people.map((p) => [p.id, p.full_name || p.email])], d?.to_user || '');
+    const syncTo = () => { for (const o of to.options) o.disabled = !!o.value && o.value === from.value; if (to.value && to.value === from.value) to.value = ''; };
+    from.addEventListener('change', syncTo); syncTo();
     const starts = h('input', { class: 'input', type: 'date', value: d?.starts_on || today(), required: true });
     const ends = h('input', { class: 'input', type: 'date', value: d?.ends_on || '', required: true });
     const note = h('input', { class: 'input', value: d?.note || '', placeholder: 'e.g. Annual leave' });
@@ -308,6 +310,14 @@ function settingsTab() {
   const locNow = s.number_locale || 'en-NA';
   if (!locales.some(([l]) => l === locNow)) locales.unshift([locNow, locNow]);
   const loc = h('select', { class: 'input', id: 'set-locale' }, locales.map(([l, name]) => { let ex = ''; try { ex = (1234.5).toLocaleString(l, { minimumFractionDigits: 2 }); } catch {} return h('option', { value: l, selected: l === locNow }, `${name} (${ex})`); }));
+  const regionNow = h('p', { class: 'hint', id: 'region-now' });
+  const showRegion = () => {
+    let clock = '', amount = '';
+    try { clock = new Date().toLocaleString('en-GB', { timeZone: tz.value, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch {}
+    try { amount = (1234.5).toLocaleString(loc.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } catch {}
+    retext(regionNow, `With these settings: it is now ${clock} there, and money reads ${(s.currency || 'N$')}${amount}.`);
+  };
+  tz.onchange = showRegion; loc.onchange = showRegion; showRegion();
   // what this organisation calls the two approving positions; the app's own words are GM and MD
   const t = s.titles || {};
   const tGm = h('input', { class: 'input', id: 'set-title-gm', value: t.gm || 'GM', maxlength: 20 });
@@ -333,7 +343,7 @@ function settingsTab() {
     h('div', { class: 'banner banner-grey' }, 'Limits, the float, reminders and budgets are on the ', h('a', { href: '#/admin/schedule' }, 'Schedule'), ' tab, where every change is a version and the MD approves what needs approving.'),
     block('Organisation', h('div', { class: 'row' }, field('Organisation name', org), field('Currency symbol', currency)),
       field('People in the office', headcount, 'Used for cost per head in reports.')),
-    block('Region', h('div', { class: 'row' }, field('Time zone', tz, 'Sets when a day and a month start, and when reminders go out.'), field('How numbers are written', loc))),
+    block('Region', h('div', { class: 'row' }, field('Time zone', tz, 'Sets when a day and a month start, and when reminders go out.'), field('How numbers are written', loc)), regionNow),
     block('Position titles', h('p', { class: 'muted' }, 'What your organisation calls the two approving positions. Every screen, alert, email and document uses these words.'),
       h('div', { class: 'row' }, field('Approver, short', tGm, raw('Default: GM')), field('Approver, in full', tGmLong, raw('Default: General Manager'))),
       h('div', { class: 'row' }, field('Top approver, short', tMd, raw('Default: MD')), field('Top approver, in full', tMdLong, raw('Default: Managing Director')))),

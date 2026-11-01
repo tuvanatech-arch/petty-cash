@@ -1,7 +1,7 @@
 // The authority schedule : limits, the float, reminder periods, budgets and who holds each position,
 // in one versioned place. The administrator changes it; the Managing Director approves what needs approving.
 import { sb, state, unwrap, rpc, role, has, personName, ROLE_LABEL, mdInPlace, multiBranch, branchName } from '../api.js';
-import { h, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today } from '../ui.js';
+import { h, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today, showIf } from '../ui.js';
 import { ITEMS, SECTIONS, WEEKDAYS, EVERY, BUDGET_MODES, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText } from '../schedule-meta.js';
 import { downloadSchedulePdf } from '../schedule-pdf.js';
 
@@ -290,7 +290,7 @@ function budgetDialog(b, cats) {
     const note = h('input', { class: 'input', value: b?.note || '', placeholder: 'Optional' });
     const reason = h('input', { class: 'input', placeholder: b ? 'e.g. Two more people in the office' : 'e.g. Cleaning costs agreed at 1,200 a month' });
     const err = h('div', { class: 'error' });
-    const sync = () => { cat.closest('.field').style.display = kind.value === 'category' ? '' : 'none'; person.closest('.field').style.display = kind.value === 'person' ? '' : 'none'; };
+    const sync = () => { showIf(cat.closest('.field'), kind.value === 'category'); showIf(person.closest('.field'), kind.value === 'person'); };
     kind.onchange = sync;
     const btn = h('button', { class: 'btn btn-primary', type: 'submit' }, b ? 'Save' : 'Add budget');
     const go = busy(btn, async () => {

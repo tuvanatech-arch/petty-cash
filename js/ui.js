@@ -199,6 +199,36 @@ export function busy(btn, fn) {
 export function field(label, input, hint) {
   return h('div', { class: 'field' }, h('label', {}, label), input, hint ? h('span', { class: 'hint' }, hint) : null);
 }
+/* ---- forms that adapt to a choice: the parts that come and go slide in and out, filled-in values glow briefly ---- */
+const calm = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+/** Show or hide part of a form. Changes after the form is on screen slide and fade; the first draw is instant. */
+export function showIf(el, show) {
+  if (!el) return;
+  show = !!show;
+  const was = el.dataset.shown ? el.dataset.shown === '1' : el.style.display !== 'none';
+  el.dataset.shown = show ? '1' : '0';
+  if (was === show) { if (show) el.style.display = ''; return; }
+  el.getAnimations?.().forEach((a) => a.cancel());
+  if (!el.isConnected || calm() || !el.animate || !el.getClientRects) { el.style.display = show ? '' : 'none'; return; }
+  if (show) el.style.display = '';
+  const cs = getComputedStyle(el);
+  const full = { height: `${el.offsetHeight}px`, opacity: 1, marginTop: cs.marginTop, marginBottom: cs.marginBottom, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, overflow: 'hidden' };
+  const none = { height: '0px', opacity: 0, marginTop: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px', overflow: 'hidden' };
+  const a = el.animate(show ? [none, full] : [full, none], { duration: show ? 220 : 170, easing: show ? 'cubic-bezier(.2,.7,.3,1)' : 'ease-in' });
+  if (!show) a.onfinish = () => { if (el.dataset.shown === '0') el.style.display = 'none'; };
+}
+/** A field Petti has just filled in or changed because of another choice: a short sand glow, so the eye follows. */
+export function adapted(el) {
+  if (!el?.animate || calm()) return;
+  el.animate([{ boxShadow: '0 0 0 3px rgb(228 184 92 / .7)' }, { boxShadow: '0 0 0 3px rgb(228 184 92 / 0)' }], { duration: 1100, easing: 'ease-out' });
+}
+/** Change a hint's words with a quick fade instead of a jump. */
+export function retext(el, text) {
+  if (!el || el.textContent === text) return;
+  el.textContent = text;
+  if (el.isConnected && el.animate && !calm()) el.animate([{ opacity: 0, transform: 'translateY(-2px)' }, { opacity: 1, transform: 'none' }], { duration: 200, easing: 'ease-out' });
+}
+
 export function select(options, value, attrs = {}) {
   const sel = h('select', { class: 'input', ...attrs });
   for (const o of options) {

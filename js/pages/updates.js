@@ -1,7 +1,7 @@
 // "What's new": every update that affects you, in your words – what changes for you and how to use it.
 // Each note also arrives as an alert (and on your phone); opening this page counts as reading them.
 import { state, rpc, ROLE_LABEL } from '../api.js';
-import { h, mount, fmtDate, emptyState, modal, toast, busy, confirmDialog, field } from '../ui.js';
+import { h, mount, fmtDate, emptyState, modal, toast, busy, confirmDialog, field, retext } from '../ui.js';
 import { runTour } from '../tour.js';
 
 let cache = null;
@@ -150,6 +150,13 @@ function noticeDialog() {
     const when = h('select', { class: 'input', id: 'nt-when' }, h('option', { value: 'now' }, 'Now'), h('option', { value: 'morning' }, 'Next working morning, 10:00'));
     const err = h('div', { class: 'error' });
     const send = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Send');
+    const whenHint = h('span', { class: 'hint' }, 'Notices sent now also buzz phones now.');
+    when.onchange = async () => {
+      if (when.value === 'now') { retext(whenHint, 'Notices sent now also buzz phones now.'); send.textContent = 'Send'; return; }
+      send.textContent = 'Schedule';
+      try { const at = await rpc('next_working_morning', { p_hour: 10 }); retext(whenHint, `Goes out ${new Date(at).toLocaleString('en-GB', { timeZone: state.settings?.time_zone || 'Africa/Windhoek', weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. You can cancel it until then.`); }
+      catch { retext(whenHint, 'Goes out at 10:00 on the next working day. You can cancel it until then.'); }
+    };
     const go = busy(send, async () => {
       err.textContent = '';
       const rs = roles.map((l) => l.firstChild).filter((c) => c.checked).map((c) => c.value);
@@ -166,7 +173,7 @@ function noticeDialog() {
       field('Title', title), field('Message', msg), field('Steps, if any', steps),
       field('Who gets it', h('div', { class: 'check-list' }, ...roles, ...branches), 'Tick roles or branches, or pick people below. Nothing ticked = everyone.'),
       field('Or these people', people),
-      field('When', when, 'Notices sent now also buzz phones now.'),
+      h('div', { class: 'field' }, h('label', {}, 'When'), when, whenHint),
       err, h('div', { class: 'form-actions' }, h('button', { class: 'btn', type: 'button', onclick: close }, 'Cancel'), send));
   }, { wide: true });
 }

@@ -1,6 +1,6 @@
 import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
 import { branchTag } from '../branch.js';
-import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted } from '../ui.js';
 import { outlookBox } from './cash.js';
 import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox } from '../proofs.js';
 
@@ -126,16 +126,16 @@ export async function newRequestPage(editId, presetType) {
   function drawType() {
     mount(typeBtns, [stockAllowed ? ['stock', 'Stock item'] : null, ['cash', 'Cash for an expense'], ['claim', 'I already paid – claim back']].filter(Boolean).map(([k, l]) =>
       h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); drawReceipts(); } }, l)));
-    category.closest('.field').style.display = type === 'stock' ? 'none' : '';
-    needed.closest('.field').style.display = type === 'claim' ? 'none' : '';
-    for (const el of [spentAt, supplier, notes]) el.closest('.field').style.display = type === 'claim' ? '' : 'none';
-    receiptBox.style.display = type === 'claim' ? '' : 'none';
+    showIf(category.closest('.field'), type !== 'stock');
+    showIf(needed.closest('.field'), type !== 'claim');
+    for (const el of [spentAt, supplier, notes]) showIf(el.closest('.field'), type === 'claim');
+    showIf(receiptBox, type === 'claim');
     // the words that depend on the kind of request follow the switch too
     linesHint.textContent = type === 'stock' ? 'The stock manager may issue part of this from the store instead of buying.' : type === 'claim' ? 'Enter exactly what the receipt says.' : 'Estimates are fine – the real amounts go on the receipt afterwards.';
     if (!submitBtn.disabled) submitBtn.textContent = type === 'claim' ? 'Submit claim' : 'Submit request';
     if (!existing && !forStore) title.textContent = type === 'claim' ? 'Claim back' : 'New request';
-    amountBox.style.display = type === 'cash' && simpleCash ? '' : 'none';
-    linesBox.parentElement && (linesBox.parentElement.style.display = type === 'cash' && simpleCash ? 'none' : '');
+    showIf(amountBox, type === 'cash' && simpleCash);
+    if (linesBox.parentElement) showIf(linesBox.parentElement, !(type === 'cash' && simpleCash));
     const seen = (() => { try { return localStorage.getItem(`pcs_hint_newreq_${forStore ? 'store' : type}`); } catch { return null; } })();
     try { localStorage.setItem(`pcs_hint_newreq_${forStore ? 'store' : type}`, '1'); } catch {}
     intro.style.display = seen ? 'none' : '';
@@ -156,7 +156,7 @@ export async function newRequestPage(editId, presetType) {
         first = select([['', 'Choose an item…'], ...items.map((it) => [it.id, `${it.name} (${it.unit})`])], ln.item_id, {
           onchange: (e) => {
             ln.item_id = e.target.value; const it = items.find((x) => x.id === ln.item_id);
-            ln.description = it?.name || ''; if (it?.last_unit_price != null) { ln.est_unit_price = Number(it.last_unit_price); priceIn.value = ln.est_unit_price; }
+            ln.description = it?.name || ''; if (it?.last_unit_price != null) { ln.est_unit_price = Number(it.last_unit_price); priceIn.value = ln.est_unit_price; adapted(priceIn); }
             mount(hint, priceHint(prices, ln.item_id)); total();
           } });
         mount(hint, priceHint(prices, ln.item_id));
@@ -284,8 +284,8 @@ export async function newRequestPage(editId, presetType) {
   function drawStore() {
     const found = routes() ? storeMatches(askText(), items) : [];
     const route = found.length && !notStock;
-    saveBtn.style.display = submitBtn.style.display = route ? 'none' : '';
-    if (cashPart) cashPart.style.display = route ? 'none' : '';   // amount, category and lines do not apply to a store item
+    showIf(saveBtn, !route); showIf(submitBtn, !route);
+    if (cashPart) showIf(cashPart, !route);   // amount, category and lines do not apply to a store item
     if (!route) {
       storeKey = null;
       mount(storeBox, found.length && notStock ? h('p', { class: 'hint', style: { marginTop: '-6px' } }, `Sent as a cash request – ${keeperName} is told it is not from the store. `,
@@ -678,10 +678,12 @@ function disbursePanel(q, reload) {
     const rows = data || [];
     owing.textContent = rows.length ? `${personName(to.value)} still has ${money(rows.reduce((s, r) => s + Number(r.disbursed_amount), 0))} out with no receipt recorded (${rows.map((r) => `#${r.request_no}`).join(', ')})${state.settings.block_with_outstanding ? ' – pay-outs to them are on hold until that is recorded.' : '.'}` : '';
   };
-  to.onchange = checkOwing; checkOwing().catch(() => {});
+  to.onchange = () => { checkOwing(); proof?.lock(to.value === state.me.id); };
+  checkOwing().catch(() => {});
   // finance decides what proof comes back (never waived on their own request)
   // (an invoice attached beforehand is already the proof)
   const proof = !invoice && has('finance') && q.requester_id !== state.me.id ? proofChoice(q.proof_rule, q.proof_reason || '') : null;
+  proof?.lock(to.value === state.me.id);
   const pay = h('button', { class: 'btn btn-primary' }, 'Pay out');
   pay.onclick = busy(pay, async () => {
     if (proof) {
@@ -788,13 +790,13 @@ async function expensePanel(q, lines, expense, reload) {
       const warn = h('div', { class: 'hint', style: { color: 'var(--amber)' } });
       const checkPrice = () => { const it = items.find((x) => x.id === l.item_id); const last = Number(it?.last_unit_price || 0); warn.textContent = last > 0 && num(l.unit_price) > last * 1.1 ? `${Math.round((num(l.unit_price) / last - 1) * 100)}% above the last price paid (${money(last)})` : ''; };
       const desc = q.type === 'stock' && items.length
-        ? select([['', 'Not a catalogue item'], ...items.map((it) => [it.id, it.name])], l.item_id, { onchange: (e) => { l.item_id = e.target.value; const it = items.find((x) => x.id === l.item_id); if (it) l.description = it.name; descIn.value = l.description; checkPrice(); } })
+        ? select([['', 'Not a catalogue item'], ...items.map((it) => [it.id, it.name])], l.item_id, { onchange: (e) => { l.item_id = e.target.value; const it = items.find((x) => x.id === l.item_id); if (it) { l.description = it.name; descIn.value = l.description; adapted(descIn); } checkPrice(); } })
         : null;
       const descIn = h('input', { class: 'input', placeholder: 'Description', value: l.description, oninput: (e) => { l.description = e.target.value; } });
       const qtyIn = h('input', { class: 'input num', type: 'number', min: '0.01', step: 'any', value: l.qty, inputmode: 'decimal', oninput: (e) => { l.qty = num(e.target.value); total(); } });
       const priceIn = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', value: l.unit_price, inputmode: 'decimal', oninput: (e) => { l.unit_price = num(e.target.value); total(); checkPrice(); } });
       const supName = h('input', { class: 'input', placeholder: 'Supplier name', value: l.supplier_name, style: { display: l.supplier_id === '__other' || (!l.supplier_id && l.supplier_name) ? '' : 'none', marginTop: '4px' }, oninput: (e) => { l.supplier_name = e.target.value; } });
-      const sup = select(supplierOpts, l.supplier_id || (l.supplier_name ? '__other' : ''), { onchange: (e) => { l.supplier_id = e.target.value; supName.style.display = l.supplier_id === '__other' ? '' : 'none'; if (l.supplier_id !== '__other') l.supplier_name = ''; } });
+      const sup = select(supplierOpts, l.supplier_id || (l.supplier_name ? '__other' : ''), { onchange: (e) => { l.supplier_id = e.target.value; showIf(supName, l.supplier_id === '__other'); if (l.supplier_id === '__other') supName.focus(); else l.supplier_name = ''; } });
       checkPrice();
       return h('tr', {}, h('td', {}, desc, h('div', { style: { marginTop: desc ? '4px' : 0 } }, descIn), warn), h('td', {}, sup, supName),
         h('td', { class: 'num', style: { width: '80px' } }, qtyIn), h('td', { class: 'num', style: { width: '110px' } }, priceIn),

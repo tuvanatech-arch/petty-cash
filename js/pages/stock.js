@@ -1,6 +1,6 @@
 import { sb, state, can, personName, unwrap, rpc, queueOffline, scoped, multiBranch, myBranch, branchName } from '../api.js';
 import { branchGate } from '../branch.js';
-import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint, showIf } from '../ui.js';
 import { barChart } from '../charts.js';
 
 export async function stockPage(tab = 'items') {
@@ -415,6 +415,10 @@ function itemDialog(item, done) {
     const opening = item ? null : h('input', { class: 'input num', type: 'number', min: 0, step: 'any', value: 0 });
     const active = h('input', { type: 'checkbox', checked: item ? !!item.active : true });
     const err = h('div', { class: 'error' });
+    // the monthly quantity only matters for things bought every month (it sets their restock order)
+    const monthlyField = field('Expected monthly quantity', monthly, 'Starting point for the restock order until usage has been measured for two weeks');
+    showIf(monthlyField, recurring.checked);
+    recurring.addEventListener('change', () => { showIf(monthlyField, recurring.checked); if (recurring.checked && !num(monthly.value)) monthly.focus(); });
     const save = h('button', { class: 'btn btn-primary', type: 'submit' }, item ? 'Save' : 'Add item');
     const form = h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       h('datalist', { id: 'units' }, ['each', 'box', 'pack', 'ream', 'bottle', 'litre', 'kg', 'roll', 'bag', 'tin'].map((u) => h('option', { value: u }))),
@@ -423,7 +427,7 @@ function itemDialog(item, done) {
       h('div', { class: 'row' }, field('Reorder when below', reorder), field('Last known price', price, 'Per unit')),
       field('How it is tracked', tracking, 'Things worth more than N$100 each are usually issued.'),
       h('label', { class: 'check', style: { marginBottom: '10px' } }, recurring, 'Bought every month'),
-      field('Expected monthly quantity', monthly, 'Starting point for the restock order until usage has been measured for two weeks'),
+      monthlyField,
       opening ? field('Opening stock on hand', opening) : h('label', { class: 'check', style: { marginBottom: '10px' } }, active, 'Active (shown when raising requests)'),
       err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), save));
     const go = busy(save, async () => {

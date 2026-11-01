@@ -3,7 +3,7 @@ import { branchGate } from '../branch.js';
 import { buildMonthEndPack } from '../pack.js';
 import { downloadFullExport } from '../export.js';
 import { proofChoice } from '../proofs.js';
-import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog, titled } from '../ui.js';
+import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog, titled, retext } from '../ui.js';
 
 export function floatStrip(f) {
   const cell = (k, v, cls = '') => h('div', {}, h('span', { class: 'k' }, k), h('span', { class: `v ${cls}` }, money(v)));
@@ -232,6 +232,14 @@ function payoutNowDialog(f) {
     const warn = h('div', { class: 'hint' });
     amount.oninput = () => { warn.textContent = num(amount.value) > thr ? `Above ${money(thr)} – that needs the approver. Raise a request instead.` : ''; warn.style.color = warn.textContent ? 'var(--purple)' : ''; };
     const proof = proofChoice('required', '');
+    const owing = h('div', { class: 'hint', style: { color: 'var(--amber)' } });
+    to.onchange = async () => {
+      proof.lock(to.value === state.me.id);
+      if (!to.value) { retext(owing, ''); return; }
+      const { data } = await sb.from('requests').select('request_no, disbursed_amount').eq('status', 'disbursed').eq('disbursed_to', to.value);
+      const rows = data || [];
+      retext(owing, rows.length ? `${personName(to.value)} still has ${money(rows.reduce((s, r) => s + Number(r.disbursed_amount), 0))} out with no receipt recorded (${rows.map((r) => `#${r.request_no}`).join(', ')}).` : '');
+    };
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Pay out');
     const go = busy(b, async () => {
       if (!to.value) throw new Error('Choose who gets the cash.');
@@ -244,7 +252,7 @@ function payoutNowDialog(f) {
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       h('p', { class: 'hint' }, `For an urgent one-off up to ${money(thr)}: it is recorded as a request on their behalf and paid in one step. They still upload the receipt and record what was spent. Balance in the box: ${money(f.balance)}.`),
-      field('Hand the cash to', to), h('div', { class: 'row' }, field('Amount', amount, warn), field('Category', cat)), field('What is it for?', purpose), field('Note', note), proof,
+      field('Hand the cash to', to), owing, h('div', { class: 'row' }, field('Amount', amount, warn), field('Category', cat)), field('What is it for?', purpose), field('Note', note), proof,
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
