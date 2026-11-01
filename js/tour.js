@@ -32,7 +32,7 @@ export async function runTour(steps, { title = 'Show me' } = {}) {
   const onKey = (e) => { if (e.key === 'Escape') stopTour(); };
   document.addEventListener('keydown', onKey);
   const onResize = () => { if (active?.el) place(active.el, active.steps[active.i]); };
-  const onRedraw = new MutationObserver(() => { if (active?.el && !active.el.isConnected) place(active.el, active.steps[active.i]); });
+  const onRedraw = typeof MutationObserver === 'undefined' ? { observe() {}, disconnect() {} } : new MutationObserver(() => { if (active?.el && !active.el.isConnected) place(active.el, active.steps[active.i]); });
   onRedraw.observe(document.getElementById('app') || document.body, { childList: true, subtree: true });
   window.addEventListener('resize', onResize); window.addEventListener('scroll', onResize, true);
   showStep();

@@ -12,6 +12,7 @@ import { accountPage } from './pages/account.js';
 import { notificationsPage } from './pages/notifications.js';
 import { snapPage } from './pages/snap.js';
 import { updatesPage, showUnseenUpdate, syncUpdateBadge, myUpdates } from './pages/updates.js';
+import { startLive, liveDrawn } from './live.js';
 import { installPage, installBanner, captureInstallPrompt } from './pages/install.js';
 import { startAdapting } from './adapt.js';
 import { startDiagnostics, bootFinished, startPullToRefresh, log, BUILD } from './diag.js';
@@ -110,6 +111,20 @@ function branchSwitcher(cls) {
 }
 
 let renderToken = 0;
+let shown = null;   // the screen on display: { el, path, route, match, token }
+
+/** Redraw the current screen in place from fresh data: same scroll position, no loading screen. */
+async function quietRefresh() {
+  if (!shown || !shown.el.isConnected || shown.token !== renderToken) return;
+  const [path] = (location.hash.replace(/^#/, '') || '/home').split('?');
+  if (path !== shown.path) return;
+  const { route, match } = shown; const token = renderToken; const y = window.scrollY;
+  const el = await route.page(match);
+  if (token !== renderToken || !shown.el.isConnected) return;   // they moved on meanwhile
+  shown.el.replaceWith(el); shown = { ...shown, el };
+  window.scrollTo(0, y);
+  refreshUnread().catch(() => {}); syncUpdateBadge();
+}
 export async function render() {
   const hash = location.hash.replace(/^#/, '') || '/home';
   const me = state.me;
@@ -168,16 +183,18 @@ export async function render() {
   progress.start();
   try {
     const el = await route.page(match);
-    if (token === renderToken) page.replaceWith(el);
+    if (token === renderToken) { page.replaceWith(el); shown = { el, path, match, route, token }; liveDrawn(); }
   } catch (err) {
     console.error(err);
     log('error', `Page ${path} failed: ${err.message}`, err.stack);
     if (token === renderToken) page.replaceWith(h('div', { class: 'banner banner-red' }, h('strong', {}, 'Could not load this page'), err.message));
   } finally { progress.done(); }
   syncUpdateBadge();
+  if (!liveStarted) { liveStarted = true; startLive(quietRefresh); }
   if (!updatesChecked) { updatesChecked = true; myUpdates().then(() => { syncUpdateBadge(); showUnseenUpdate(); }).catch(() => {}); }
 }
 let updatesChecked = false;
+let liveStarted = false;
 
 /** A link from an invitation, a reset or a sign-in email: the app finishes the sign-in itself with the one-time token. */
 async function verifyPage() {
