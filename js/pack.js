@@ -46,7 +46,8 @@ export async function packSummary(float, requests) {
   const top = {}; for (const l of lines) if (monthKey(l.spent_at) === cur) top[l.description] = (top[l.description] || 0) + Number(l.line_total);
   const ex = (r) => (Array.isArray(r.expense) ? r.expense[0] : r.expense);
   const vouchers = requests.length;
-  const missing = requests.filter((r) => !(ex(r)?.proofs || []).length).length;
+  const noProof = requests.filter((r) => r.proof_rule === 'none');
+  const missing = requests.filter((r) => r.proof_rule !== 'none' && !(ex(r)?.proofs || []).length).length;
   const physical = requests.filter((r) => ex(r)?.physical_received_at).length;
   const catName = (id) => cats.find((c) => c.id === id)?.name || '—';
   return {
@@ -54,6 +55,7 @@ export async function packSummary(float, requests) {
     spent: Number(float.spent), outstanding: Number(float.outstanding), balance: Number(float.balance), counted_cash: float.counted_cash != null ? Number(float.counted_cash) : null,
     adjusted: Number(float.adjusted || 0),
     vouchers, missing_proofs: missing, physical_receipts: physical,
+    no_proof: noProof.length, no_proof_amount: Math.round(noProof.reduce((a, r) => a + Number(ex(r)?.total || r.disbursed_amount || 0), 0) * 100) / 100,
     months: months.map((m) => ({ month: m, spent: Math.round(byMonth[m].spent * 100) / 100, vouchers: byMonth[m].vouchers.size })),
     by_category: Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([name, v]) => ({ name, amount: Math.round(v * 100) / 100, previous: Math.round((byCatPrev[name] || 0) * 100) / 100 })),
     top_lines: Object.entries(top).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, v]) => ({ name, amount: Math.round(v * 100) / 100 })),
@@ -193,6 +195,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
     ['Restock orders by the stock manager', String(s.requests.restock_orders)],
     ['Vouchers in this pack', String(s.vouchers)],
     ['Vouchers without a scanned receipt', String(s.missing_proofs)],
+    ['Spent without proof (finance decided none was possible)', s.no_proof ? `${s.no_proof} · ${money(s.no_proof_amount)}` : '0'],
     ['Paper originals handed to finance', String(s.physical_receipts)],
   ]);
   if (s.top_lines.length) {
@@ -218,7 +221,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   if (!requests.length) text('No cash was paid out from this float.', { size: 10, color: [123, 133, 127] });
   else {
     table([{ label: '#', w: 11 }, { label: 'Purpose', w: 55 }, { label: 'Paid to', w: 32 }, { label: 'Paid', w: 22, align: 'right' }, { label: 'Spent', w: 22, align: 'right' }, { label: 'Status', w: 36 }],
-      requests.map((r) => { const e = ex(r); return [String(r.request_no), `${r.purpose}${r.type === 'claim' ? ' (claim)' : ''}${r.approved_by ? `\napproved by ${personName(r.approved_by)}` : ''}`, personName(r.disbursed_to), money(r.disbursed_amount), e && Number(e.total) > 0 ? money(e.total) : '—', STATUS[r.status]?.label || r.status]; }));
+      requests.map((r) => { const e = ex(r); return [String(r.request_no), `${r.purpose}${r.type === 'claim' ? ' (claim)' : ''}${r.proof_rule === 'none' ? `\nno proof: ${r.proof_reason}` : ''}${r.approved_by ? `\napproved by ${personName(r.approved_by)}` : ''}`, personName(r.disbursed_to), money(r.disbursed_amount), e && Number(e.total) > 0 ? money(e.total) : '—', STATUS[r.status]?.label || r.status]; }));
     y += 2;
     const totPaid = requests.reduce((a, r) => a + Number(r.disbursed_amount || 0), 0);
     const totSpent = requests.reduce((a, r) => a + Number(ex(r)?.total || 0), 0);
@@ -241,6 +244,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
       [r.type === 'claim' ? 'Reimbursed' : 'Cash paid', `${money(r.disbursed_amount)} to ${personName(r.disbursed_to)} by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`],
       e && Number(e.total) > 0 ? ['Spent', `${money(e.total)} on ${fmtDate(e.spent_at)}${e.supplier_name ? ` at ${e.supplier_name}` : ''}${r.type !== 'claim' ? ` · change ${money(e.change_returned)}` : ''}`] : ['Spent', 'Not yet recorded'],
       e?.confirmed_by ? ['Receipt confirmed', `${personName(e.confirmed_by)}, ${fmtDate(e.confirmed_at)}${e.physical_received_at ? ` · paper original received ${fmtDate(e.physical_received_at)}` : ''}`] : null,
+      r.proof_rule === 'none' ? ['Proof', `No proof possible – ${r.proof_reason} (decided by ${personName(r.proof_set_by)}, ${fmtDate(r.proof_set_at)})`] : null,
       e?.notes ? ['Notes', e.notes] : null,
     ].filter(Boolean);
     for (const [k, v] of details) { doc.setFontSize(9); need(LH); muted(); doc.text(k, M, y); ink(); const lines = doc.splitTextToSize(pdfSafe(v), W - M - 42); doc.text(lines, M + 42, y); y += lines.length * LH; }
@@ -251,7 +255,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
         lines.map((l) => [l.description, l.supplier_name || '', qty(l.qty), money(l.unit_price), money(l.line_total)]), { size: 8.5 });
     }
     const proofs = e?.proofs || [];
-    if (!proofs.length) { y += 3; text('No scanned proof uploaded.', { size: 9, color: [167, 84, 26] }); continue; }
+    if (!proofs.length) { y += 3; text(r.proof_rule === 'none' ? 'No receipt: finance decided none was possible (see Proof above).' : 'No scanned proof uploaded.', { size: 9, color: r.proof_rule === 'none' ? [123, 133, 127] : [167, 84, 26] }); continue; }
     for (const p of proofs) {
       const got = await fetchProof(p);
       y += 4;

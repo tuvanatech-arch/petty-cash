@@ -42,6 +42,7 @@ export async function reportsPage(startTab = null) {
   // money spent before anyone approved it (claims), per person: this month and the last 12
   const m12from = months[Math.max(0, months.length - 12)] + '-01';
   const [{ data: claimsNow }, { data: claims12 }, { data: exceptions }] = await Promise.all([sb.rpc('claims_summary'), sb.rpc('claims_summary', { p_from: m12from }), sb.rpc('exceptions_log', { p_from: m12from })]);
+  const { data: noProof } = await sb.rpc('no_proof_list', { p_from: m12from });   // older databases: none
   const exc = Array.isArray(exceptions) ? exceptions : [];
   const scorecard = buildScorecard({ months, lines, requests, items, events, budgets: (budgets || []).filter((b) => b.active) });
 
@@ -145,6 +146,7 @@ export async function reportsPage(startTab = null) {
       controls: () => [
       exceptionsSheet(exc),
       claimsSheet(claimsNow || [], claims12 || []),
+      noProofSheet(noProof || []),
       h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Around the limit'), h('span', { class: 'sub' }, `the ${money(thr())} threshold, last 12 months`)),
         h('h3', { style: { margin: '8px 0 6px' } }, `Spent above ${money(thr())} without approval`), h('p', { class: 'hint' }, 'The estimate was under the limit but the receipt came in over it.'), tbl(overUnapproved, 'None.'),
         h('h3', { style: { margin: '16px 0 6px' } }, `Just under the limit (${money(thr() * 0.9)} – ${money(thr())})`), tbl(nearMiss, 'None.'))],
@@ -232,6 +234,21 @@ export function exceptionsSheet(rows, { compact = false } = {}) {
   return h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Approval and exception log'), h('span', { class: 'sub' }, 'last 12 months')),
     h('p', { class: 'hint' }, 'Every override, correction and delegated action: money spent before approval, approvals over budget, spending looked at after payment, possible split purchases, undone pay-outs, stock corrections, cash differences, overdue receipts, actions by stand-ins, and changes to the schedule, people and branches. Open ones wait for the General Manager to mark them justified or resolved.'),
     compact ? null : chips, list);
+}
+
+/** Spending finance marked "No proof possible": for information, so nobody is surprised at month end. */
+function noProofSheet(rows) {
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const now = rows.filter((r) => String(r.decided_at || '').slice(0, 7) === thisMonth);
+  const tot = now.reduce((s, r) => s + Number(r.amount || 0), 0);
+  return h('div', { class: 'sheet', id: 'no-proof' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Spent without proof'), h('span', { class: 'sub' }, now.length ? `this month: ${money(tot)} across ${now.length}` : 'none this month')),
+    h('p', { class: 'hint' }, 'Finance decided no receipt was possible (a taxi, a street seller, a tip). The spender said where the money went. For information – nothing to approve.'),
+    rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Request'), h('th', {}, 'Why no proof'), h('th', {}, 'Spent by'), h('th', {}, 'Decided by'), h('th', { class: 'num' }, 'Amount'))),
+      h('tbody', {}, rows.map((r) => h('tr', { class: 'click', onclick: () => { location.hash = `#/requests/${r.id}`; } },
+        h('td', {}, `#${r.request_no} ${r.purpose}`, r.note ? h('div', { class: 'muted' }, r.note) : null), h('td', {}, r.reason), h('td', { class: 'muted' }, r.who || '—'),
+        h('td', { class: 'muted' }, `${r.decided_by || '—'}${r.decided_at ? ` · ${fmtDate(r.decided_at)}` : ''}`), h('td', { class: 'num amt' }, money(r.amount)))))))
+      : h('p', { class: 'hint' }, 'Nothing in the last 12 months.'));
 }
 
 /** Claims are money spent before approval: how much of each person's spend went that way. */

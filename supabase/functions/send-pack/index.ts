@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
     ["Spent", money(s.spent)], ["Closing balance (book)", money(s.balance)], s.counted_cash != null ? ["Cash counted", money(s.counted_cash)] : null,
     s.counted_cash != null ? ["Difference", money(Number(s.counted_cash) - Number(s.balance))] : null,
     ["Vouchers", String(s.vouchers ?? "")], s.missing_proofs > 0 ? ["Vouchers without a scanned receipt", String(s.missing_proofs)] : null,
+    s.no_proof > 0 ? ["Spent without proof (finance decided)", `${s.no_proof} · ${money(s.no_proof_amount)}`] : null,
   ].filter(Boolean) as string[][];
   const html = `<!doctype html><html><body style="margin:0;background:#eef1ec;font-family:-apple-system,Segoe UI,Roboto,sans-serif">
   <div style="max-width:560px;margin:24px auto;background:#fff;border:1px solid #d6dbd4;border-radius:8px;padding:24px">

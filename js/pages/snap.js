@@ -1,5 +1,6 @@
 // Snap or upload a receipt or invoice: the file comes first, then the app proposes where it belongs –
 // cash you are holding, a purchase that is approved but not yet paid, or a new claim.
+import { scanReceipt, unreadable } from '../scan.js';
 import { sb, state, unwrap, rpc, readReceipt, uploadToInbox, fileInboxReceipt, fileInboxDocument, discardInboxReceipt, proofUrl, personName } from '../api.js';
 import { h, mount, money, fmtDate, toast, busy, emptyState, today, isoDate, num, confirmDialog } from '../ui.js';
 import { takeSharedFile } from '../share.js';
@@ -77,12 +78,26 @@ export async function snapPage() {
 
   async function start(file) {
     if (file.size > 10 * 1024 * 1024) { toast('That file is larger than 10 MB.', { error: true }); return; }
+    mount(stage, h('div', { class: 'loading' }, 'Scanning…'));
+    // the picture becomes a clean scan; a picture that cannot is refused, with what to do
+    const scan = await scanReceipt(file).catch((e) => ({ ok: false, problems: [e.message] }));
+    if (!scan.ok) { refused(scan.problems.join(' ')); return; }
+    file = scan.file;
     mount(stage, h('div', { class: 'loading' }, 'Uploading…'));
     let ib;
     try { ib = await uploadToInbox(file); }
     catch (e) { toast(e.message, { error: true }); drawStart(); return; }
     if (ib.used_on) toast(`This photo is already on #${ib.used_on}. If it is a different purchase, take a new photo; otherwise finance will ask about it.`, { error: true, ms: 7000 });
     await resume(ib);
+  }
+
+  /** Not accepted: say why, and offer to scan again. */
+  function refused(why) {
+    mount(stage, h('div', { class: 'banner banner-red' }, h('strong', {}, 'Not accepted – scan it again'), why),
+      h('div', { class: 'scan-tips' }, h('strong', {}, 'For a good scan'), h('ul', {},
+        h('li', {}, 'Lay the slip flat on a dark table, in good light.'), h('li', {}, 'Fill the screen with the slip, with a little space around it.'),
+        h('li', {}, 'Hold still and tap the slip on the screen to focus.'), h('li', {}, 'A PDF or e-receipt is accepted as it is.'))),
+      chooser);
   }
 
   async function resume(ib) {
@@ -95,6 +110,9 @@ export async function snapPage() {
       try { reading = await readReceipt({ inbox_id: ib.id }); ib.extracted = reading; }
       catch (e) { reading = null; status.textContent = `${e.message} You can still file it by hand below.`; status.style.color = 'var(--amber)'; }
     }
+    // Petti must be able to read it: otherwise it is not kept
+    const why = unreadable(reading);
+    if (why) { await discardInboxReceipt(ib).catch(() => {}); refused(why); return; }
     propose(ib, reading, thumb);
   }
 

@@ -727,3 +727,10 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .check-list { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 0; }
 .clear-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule); }
 .clear-ask textarea { flex: 1 1 100%; }
+
+/* proof of payment */
+.paper-q .paper-opt { align-items: flex-start; margin: 6px 0; font-weight: 400; }
+.paper-q .paper-opt span { display: grid; gap: 1px; }
+.proof-choice .row { gap: 8px; }
+.scan-tips { margin: 12px 0; font-size: .92rem; }
+.scan-tips ul { margin: 4px 0 0; padding-left: 1.2em; }

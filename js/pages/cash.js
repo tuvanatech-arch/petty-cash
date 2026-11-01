@@ -2,6 +2,7 @@ import { sb, state, can, has, personName, unwrap, rpc, uploadPack, packUrl, send
 import { branchGate } from '../branch.js';
 import { buildMonthEndPack } from '../pack.js';
 import { downloadFullExport } from '../export.js';
+import { proofChoice } from '../proofs.js';
 import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog, titled } from '../ui.js';
 
 export function floatStrip(f) {
@@ -230,15 +231,20 @@ function payoutNowDialog(f) {
     const note = h('input', { class: 'input', placeholder: 'Optional' });
     const warn = h('div', { class: 'hint' });
     amount.oninput = () => { warn.textContent = num(amount.value) > thr ? `Above ${money(thr)} – that needs the approver. Raise a request instead.` : ''; warn.style.color = warn.textContent ? 'var(--purple)' : ''; };
+    const proof = proofChoice('required', '');
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Pay out');
     const go = busy(b, async () => {
       if (!to.value) throw new Error('Choose who gets the cash.');
+      const p = proof.value();
+      if (p.rule === 'none' && !p.reason) throw new Error('Say why no proof is possible.');
+      if (p.rule === 'none' && to.value === state.me.id) throw new Error('You are handing the cash to yourself, so proof is required.');
       const r = await rpc('quick_payout', { p_to: to.value, p_amount: num(amount.value), p_purpose: purpose.value.trim(), p_category: cat.value || null, p_note: note.value });
+      if (p.rule === 'none') await rpc('set_proof_rule', { p_request: r.id, p_rule: 'none', p_reason: p.reason });
       toast(`Paid out ${money(num(amount.value))} – they owe the receipt.`); close(); location.hash = `#/requests/${r.id}`;
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       h('p', { class: 'hint' }, `For an urgent one-off up to ${money(thr)}: it is recorded as a request on their behalf and paid in one step. They still upload the receipt and record what was spent. Balance in the box: ${money(f.balance)}.`),
-      field('Hand the cash to', to), h('div', { class: 'row' }, field('Amount', amount, warn), field('Category', cat)), field('What is it for?', purpose), field('Note', note),
+      field('Hand the cash to', to), h('div', { class: 'row' }, field('Amount', amount, warn), field('Category', cat)), field('What is it for?', purpose), field('Note', note), proof,
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }

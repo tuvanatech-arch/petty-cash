@@ -33,6 +33,7 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
 insert into public.expense_proofs (expense_id, storage_path, file_name, mime, uploaded_by)
   select e.id, 'proofs/test.jpg', 'test.jpg', 'image/jpeg', '00000000-0000-0000-0000-0000000000c1'
   from public.expenses e where e.request_id = '00000000-0000-0000-0000-00000000aaaa';
+select public.set_paper_slip('00000000-0000-0000-0000-00000000aaaa', false);   -- 035: the spender says whether there is a paper slip
 select 'spent' as step, (public.record_expense('00000000-0000-0000-0000-00000000aaaa', current_date, '[{"description":"Toner","qty":1,"unit_price":430}]'::jsonb)).total;
 
 -- what everyone was told, and how money reads in this client's currency

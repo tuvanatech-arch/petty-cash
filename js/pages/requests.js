@@ -2,6 +2,7 @@ import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofU
 import { branchTag } from '../branch.js';
 import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint } from '../ui.js';
 import { outlookBox } from './cash.js';
+import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox } from '../proofs.js';
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -221,21 +222,28 @@ export async function newRequestPage(editId, presetType) {
   }
 
   // claim receipts live on the draft, so the draft is saved on the first upload
+  let noReceiptOpen = false;
   async function drawReceipts() {
     if (type !== 'claim') return;
     if (!expense) {
+      const noneBtn = h('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: 'no-receipt-start', style: { alignSelf: 'flex-start' } }, 'I have no receipt');
+      noneBtn.onclick = busy(noneBtn, async () => { await saveHead(false); noReceiptOpen = true; drawReceipts(); });
       mount(receiptBox, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Receipt'),
         h('label', { class: 'upload' }, h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, onchange: async (e) => {
           const files = Array.from(e.target.files || []); if (!files.length) return;
-          try { await saveHead(false); let dup = null; for (const f of files) { const row = await uploadProof(existing.id, expense.id, f); dup = dup || row.used_on; expense.proofs = [...(expense.proofs || []), row]; } toast(dup ? `Attached – but this photo is already on #${dup}. Finance will ask about it.` : 'Receipt attached.', { error: !!dup }); }
+          try { await saveHead(false); const kept = await addProofFiles(files, { requestId: existing.id, expenseId: expense.id, onExtract: applyExtract }); expense.proofs = [...(expense.proofs || []), ...kept]; }
           catch (ex) { toast(ex.message, { error: true }); }
           drawReceipts();
-        } }), '📷 Take a photo or upload the receipt'),
-        h('span', { class: 'hint' }, 'Required before the claim can be submitted.')));
+        } }), '📷 Scan the receipt or upload it'),
+        h('span', { class: 'hint' }, 'Hold the slip flat in good light – Petti straightens and cleans it up. A PDF or e-receipt works too.'),
+        noneBtn));
       return;
     }
+    const hasProof = (expense.proofs || []).length > 0;
     mount(receiptBox, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Receipt'), await proofGallery(expense, existing, true, drawReceipts, drawReceipts, { onExtract: applyExtract }),
-      h('span', { class: 'hint' }, 'Required before the claim can be submitted. “Read receipt” fills the lines in for you.')));
+      h('span', { class: 'hint' }, 'Required before the claim can be sent. Petti reads it and fills the lines in for you.')),
+      hasProof ? paperSlipQuestion(existing.id, expense.paper_slip ?? null, (v) => { expense.paper_slip = v; })
+        : noReceiptBox(existing.id, expense.no_receipt_note || null, (v) => { expense.no_receipt_note = v; }, { open: noReceiptOpen }));
   }
   function applyExtract(x) {
     if (x.supplier && !supplier.value) supplier.value = x.supplier;
@@ -658,8 +666,19 @@ function disbursePanel(q, reload) {
     owing.textContent = rows.length ? `${personName(to.value)} still has ${money(rows.reduce((s, r) => s + Number(r.disbursed_amount), 0))} out with no receipt recorded (${rows.map((r) => `#${r.request_no}`).join(', ')})${state.settings.block_with_outstanding ? ' – pay-outs to them are on hold until that is recorded.' : '.'}` : '';
   };
   to.onchange = checkOwing; checkOwing().catch(() => {});
+  // finance decides what proof comes back (never waived on their own request)
+  // (an invoice attached beforehand is already the proof)
+  const proof = !invoice && has('finance') && q.requester_id !== state.me.id ? proofChoice(q.proof_rule, q.proof_reason || '') : null;
   const pay = h('button', { class: 'btn btn-primary' }, 'Pay out');
-  pay.onclick = busy(pay, async () => { await rpc('disburse_request', { p_request: q.id, p_amount: num(amount.value), p_to: to.value, p_note: note.value }); toast(`Paid out ${money(num(amount.value))}.`); reload(); });
+  pay.onclick = busy(pay, async () => {
+    if (proof) {
+      const p = proof.value();
+      if (p.rule === 'none' && to.value === state.me.id) throw new Error('You are handing the cash to yourself, so proof is required.');
+      if (p.rule === 'none' && !p.reason) throw new Error('Say why no proof is possible.');
+      if (p.rule !== (q.proof_rule || 'required') || (p.reason || null) !== (q.proof_reason || null)) await rpc('set_proof_rule', { p_request: q.id, p_rule: p.rule, p_reason: p.reason });
+    }
+    await rpc('disburse_request', { p_request: q.id, p_amount: num(amount.value), p_to: to.value, p_note: note.value }); toast(`Paid out ${money(num(amount.value))}.`); reload();
+  });
   const esc = h('button', { class: 'btn' }, 'Send for approval');
   esc.onclick = busy(esc, async () => {
     const n = await confirmDialog('Send for approval', `The approver will see the revised amount of ${money(num(amount.value))}.`, { ok: 'Send', note: { label: 'Why', required: true } });
@@ -672,6 +691,7 @@ function disbursePanel(q, reload) {
     q.over_budget && q.budget_note ? h('p', { class: 'hint', style: { color: 'var(--amber)' } }, q.budget_note) : null,
     invNote,
     h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', to), field('Note', note)),
+    proof,
     owing,
     h('div', { class: 'form-actions' }, rej, esc, pay));
 }
@@ -702,7 +722,21 @@ async function claimPanel(q, expense, reload, check = null) {
   const pay = h('button', { class: 'btn btn-primary' }, `Reimburse ${money(expense?.total)}`);
   pay.onclick = busy(pay, async () => { if (!(await explainIfDuplicate(q, check))) return; await rpc('disburse_request', { p_request: q.id, p_amount: Number(expense.total), p_note: note.value }); toast(`Reimbursed ${money(expense.total)}.`); reload(); });
   const physicalPending = expense?.proof_status === 'physical_required' && !expense.physical_received_at;
+  const noReceipt = !(expense?.proofs || []).length;
+  let noProofBox = null;
+  if (noReceipt) {
+    if (q.proof_rule === 'none') noProofBox = h('div', { class: 'banner banner-green' }, h('strong', {}, 'No proof possible'), `${q.proof_reason}${q.proof_set_by ? ` – decided by ${personName(q.proof_set_by)}` : ''}.`);
+    else if (q.requester_id === state.me.id || !has('finance')) noProofBox = h('div', { class: 'banner banner-amber' }, h('strong', {}, 'No receipt'), 'Finance decides whether this can be paid without one.');
+    else {
+      const choice = proofChoice('none', '');
+      const ok = h('button', { class: 'btn' }, 'No proof possible');
+      ok.onclick = busy(ok, async () => { const p = choice.value(); if (p.rule !== 'none' || !p.reason) throw new Error('Choose why no proof is possible.'); await rpc('set_proof_rule', { p_request: q.id, p_rule: 'none', p_reason: p.reason }); toast('Marked: no proof possible.'); reload(); });
+      noProofBox = h('div', { class: 'banner banner-amber' }, h('strong', {}, 'Sent without a receipt'), `${personName(q.requester_id)} says: “${expense?.no_receipt_note || 'no reason given'}”. Decide: no proof possible (then reimburse), or return it.`,
+        choice, h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, ok));
+    }
+  }
   return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
+    noProofBox,
     h('div', { class: 'sheet-head' }, h('h2', {}, 'Reimburse from petty cash'), h('span', { class: 'sub' }, `${money(expense?.total)} claimed by ${personName(q.requester_id)}${q.approved_by ? ` · approved by ${personName(q.approved_by)}` : ''}`)),
     q.over_budget && q.budget_note ? h('p', { class: 'hint', style: { color: 'var(--amber)' } }, q.budget_note) : null,
     check?.status === 'duplicate' ? checkLineFor(check) : null,
@@ -715,8 +749,8 @@ async function claimPanel(q, expense, reload, check = null) {
     h('div', { style: { margin: '12px 0' } }, h('h3', { style: { marginBottom: '8px' } }, 'Receipt'), await proofGallery(expense, q, false, reload)),
     h('div', { class: 'field' }, note),
     h('div', { class: 'form-actions' }, act('Return for correction', 'return', 'btn-danger', true),
-      physicalPending ? act('Paper receipt received', 'physical_received', '') : act('Require paper receipt', 'require_physical', ''),
-      physicalPending ? null : pay));
+      physicalPending ? act('Paper receipt received', 'physical_received', '') : noReceipt ? null : act('Require paper receipt', 'require_physical', ''),
+      physicalPending || (noReceipt && q.proof_rule !== 'none') ? null : pay));
 }
 
 /* ---- spender: record expense + proofs ---- */
@@ -777,15 +811,24 @@ async function expensePanel(q, lines, expense, reload) {
   }
   draw();
   const gallery = h('div', {});
-  async function drawGallery() { mount(gallery, await proofGallery(expense, q, true, reload, drawGallery, { onExtract: applyExtract })); }
+  let drawSlip = () => {};
+  async function drawGallery() { mount(gallery, await proofGallery(expense, q, true, reload, drawGallery, { onExtract: applyExtract })); drawSlip(); }
   await drawGallery();
   // arrived from "Snap a receipt": apply that photo's reading straight away
   const applyId = new URLSearchParams(location.hash.split('?')[1] || '').get('apply');
   const snapped = applyId && (expense?.proofs || []).find((p) => p.id === applyId && p.extracted && !p.extracted.error);
   if (snapped) setTimeout(() => applyExtract(snapped.extracted), 0);
 
+  const noProof = q.proof_rule === 'none';
+  if (noProof) notes.placeholder = 'Where did you spend it, and on what? (for example: taxi from the office to FNB, Independence Ave)';
+  let slip = expense?.paper_slip ?? null;
+  const slipBox = h('div', {});
+  drawSlip = () => mount(slipBox, !noProof && (expense?.proofs || []).length ? paperSlipQuestion(q.id, slip, (v) => { slip = v; if (expense) expense.paper_slip = v; }) : null);
+  drawSlip();
   const submit = h('button', { class: 'btn btn-primary' }, 'Submit expense to finance');
   submit.onclick = busy(submit, async () => {
+    if (noProof && !notes.value.trim()) throw new Error('Say in the notes where you spent the money and on what.');
+    if (!noProof && (expense?.proofs || []).length && slip === null) throw new Error('Say whether you have the paper slip.');
     const clean = exLines.filter((l) => l.description.trim()).map((l) => ({ item_id: l.item_id || null, description: l.description.trim(), qty: num(l.qty), unit_price: num(l.unit_price), supplier_id: l.supplier_id && l.supplier_id !== '__other' ? l.supplier_id : null, supplier_name: l.supplier_name.trim() || null }));
     if (!clean.length) throw new Error('Add at least one line.');
     await rpc('record_expense', { p_request: q.id, p_spent_at: spentAt.value, p_lines: clean, p_notes: notes.value });
@@ -801,7 +844,8 @@ async function expensePanel(q, lines, expense, reload) {
   return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
     h('div', { class: 'sheet-head' }, h('h2', {}, `Record what you spent of the ${money(q.disbursed_amount)}`), h('span', { class: 'sub' }, `paid out ${fmtDate(q.disbursed_at)} by ${personName(q.disbursed_by)}`, undo ? [' · ', undo] : null)),
     returned ? h('div', { class: 'banner banner-red' }, h('strong', {}, 'Finance returned this for correction'), expense.finance_note) : null,
-    h('div', { class: 'field' }, h('span', { class: 'label' }, '1. Scan the receipt'), h('span', { class: 'hint' }, 'Take a photo or upload a PDF, then “Read receipt” to fill the lines in. Finance may still ask for the paper original.'), gallery),
+    noProof ? h('div', { class: 'banner banner-green' }, h('strong', {}, 'No receipt needed for this one'), `${q.proof_reason || 'Finance decided no proof is possible'}. Fill in what you spent, and say in the notes where.`)
+      : h('div', { class: 'field' }, h('span', { class: 'label' }, '1. Scan the receipt'), h('span', { class: 'hint' }, 'Hold the slip flat in good light – Petti straightens it, cleans it up and reads it. A PDF or e-receipt works too. A blurred or cut-off picture is refused, with the reason.'), gallery, slipBox),
     h('div', { class: 'field' }, h('span', { class: 'label' }, '2. What was bought'),
       h('div', { class: 'table-wrap lines-edit' }, h('table', { class: 'ledger' },
         h('thead', {}, h('tr', {}, h('th', {}, 'Line'), h('th', {}, 'Supplier'), h('th', { class: 'num' }, 'Qty'), h('th', { class: 'num' }, 'Unit price'), h('th'))), tbody,
@@ -829,20 +873,13 @@ async function proofGallery(expense, q, canEdit, reload, redraw, { onExtract = n
   let uploader = null;
   if (canEdit && expense) {
     const input = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true });
-    const label = h('label', { class: 'upload' }, input, proofs.length ? '+ Add another scan or photo' : '📷 Take a photo or upload the receipt');
+    const label = h('label', { class: 'upload' }, input, proofs.length ? '+ Add another page or receipt' : '📷 Scan the receipt or upload it');
     input.onchange = async () => {
       const files = Array.from(input.files || []);
       if (!files.length) return;
-      label.textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`;
       try {
-        let dup = null;
-        for (const f of files) {
-          if (f.size > 10 * 1024 * 1024) throw new Error(`${f.name} is larger than 10 MB.`);
-          const row = await uploadProof(q.id, expense.id, f);
-          dup = dup || row.used_on;
-          expense.proofs = [...(expense.proofs || []), row];
-        }
-        toast(dup ? `Uploaded – but this photo is already on #${dup}. Finance will ask about it.` : 'Uploaded.', { error: !!dup });
+        const kept = await addProofFiles(files, { requestId: q.id, expenseId: expense.id, onExtract, onProgress: (m) => { if (m) label.textContent = m; } });
+        expense.proofs = [...(expense.proofs || []), ...kept];
       } catch (e) { toast(e.message, { error: true }); }
       redraw ? redraw() : reload();
     };
