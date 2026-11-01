@@ -1,0 +1,1 @@
+[{ "name": "send-notice", "role": "approver", "step": { "at": "#/admin/updates", "text": "Send a notice", "css": "main button" } }]
