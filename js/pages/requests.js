@@ -1,8 +1,9 @@
 import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
 import { branchTag } from '../branch.js';
-import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted, refresh } from '../ui.js';
 import { outlookBox } from './cash.js';
 import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } from '../proofs.js';
+import { keepForm, keepRead, keepDrop, whenText } from '../keep.js';
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -86,9 +87,12 @@ export async function newRequestPage(editId, presetType) {
     loadBudgets(), loadPrices(),
   ]);
   let existing = null; let lines = []; let expense = null;
+  let formKeep = null; let routeShown = false;   // the copy kept on the phone; a store item shown instead of the form
   if (editId) {
-    existing = unwrap(await sb.from('requests').select('*').eq('id', editId).single());
-    if (existing.status !== 'draft' || existing.requester_id !== state.me.id) { location.hash = `#/requests/${editId}`; return h('div'); }
+    existing = (await sb.from('requests').select('*').eq('id', editId).maybeSingle()).data;
+    // sent or deleted meanwhile (perhaps on another device): the copy kept on this phone is no longer wanted
+    if (!existing) { keepDrop(`req_${editId}`); toast('That draft is no longer there – it was sent or deleted.'); location.hash = '#/requests'; return h('div'); }
+    if (existing.status !== 'draft' || existing.requester_id !== state.me.id) { keepDrop(`req_${editId}`); location.hash = `#/requests/${editId}`; return h('div'); }
     lines = unwrap(await sb.from('request_lines').select('*').eq('request_id', editId).order('line_no'));
     if (existing.type === 'claim') expense = (await sb.from('expenses').select('*, proofs:expense_proofs(*)').eq('request_id', editId).maybeSingle()).data;
   }
@@ -231,6 +235,7 @@ export async function newRequestPage(editId, presetType) {
     }
     if (submit) { await rpc('submit_request', { p_request: id }); toast(type === 'claim' ? (state.settings?.claims_need_approval === false && currentTotal() <= thr() ? 'Claim submitted – finance will pay you back.' : 'Claim submitted – the approver signs it off, then finance pays you back.') : 'Request submitted.'); }
     else toast('Draft saved.');
+    formKeep?.done();   // saved or sent: the copy on the phone is no longer needed
     location.hash = `#/requests/${id}`;
   }
 
@@ -284,6 +289,7 @@ export async function newRequestPage(editId, presetType) {
   function drawStore() {
     const found = routes() ? storeMatches(askText(), items) : [];
     const route = found.length && !notStock;
+    routeShown = !!route;
     showIf(saveBtn, !route); showIf(submitBtn, !route);
     if (cashPart) showIf(cashPart, !route);   // amount, category and lines do not apply to a store item
     if (!route) {
@@ -305,6 +311,7 @@ export async function newRequestPage(editId, presetType) {
       if (num(qIn.value) <= 0) throw new Error('Enter how many you need.');
       await rpc('ask_for_stock', { p_item: sel.value, p_qty: num(qIn.value), p_level: 'out', p_note: purpose.value.trim() || null });
       if (existing?.id) await sb.from('requests').delete().eq('id', existing.id);   // the draft became an ask
+      formKeep?.done();
       toast(`Sent to ${keeperName}. You get an alert when it is sorted.`, { ms: 5000 });
       location.hash = '#/stock/reports';
     });
@@ -318,8 +325,31 @@ export async function newRequestPage(editId, presetType) {
   }
   purpose.addEventListener('input', checkStore);
 
+  // ---- nothing typed is lost: kept on the phone as it is typed; a draft is saved when Petti goes to the background
+  const keepName = () => (existing ? `req_${existing.id}` : 'req_new');
+  const snap = () => ({
+    label: purpose.value.trim() || (type === 'claim' ? 'A claim' : 'A new request'), link: existing ? `#/requests/${existing.id}/edit` : `#/requests/new${type === 'claim' ? '/claim' : ''}`,
+    id: existing?.id || null, type, purpose: purpose.value, category: category.value, needed: needed.value, spentAt: spentAt.value, supplier: supplier.value, notes: notes.value,
+    amount: amountIn.value, simpleCash, notStock, lines: lines.map((l) => ({ item_id: l.item_id || '', description: l.description || '', qty: l.qty, est_unit_price: l.est_unit_price })),
+    noReceipt: receiptBox.querySelector('#no-receipt-why')?.value || '',
+  });
+  const asOpened = snap();
+  const kept = forStore ? null : keepRead(keepName());
+  let restored = null;
+  if (kept && (kept.id || null) === (existing?.id || null)) {
+    if (!existing && kept.type && (kept.type !== 'stock' || stockAllowed)) type = kept.type;
+    purpose.value = kept.purpose || ''; category.value = kept.category || ''; userPickedCategory = !!kept.category;
+    needed.value = kept.needed || ''; if (kept.spentAt) spentAt.value = kept.spentAt; supplier.value = kept.supplier || ''; notes.value = kept.notes || '';
+    amountIn.value = kept.amount || ''; simpleCash = !!kept.simpleCash; notStock = !!kept.notStock;
+    if (Array.isArray(kept.lines) && kept.lines.length) lines = kept.lines.map((l) => ({ ...l }));
+    if (existing && kept.noReceipt) noReceiptOpen = true;
+    const again = h('a', { href: '#', onclick: (e) => { e.preventDefault(); keepDrop(keepName()); refresh(); } }, existing ? 'Undo my changes' : 'Start over');
+    restored = h('div', { class: 'banner banner-green', id: 'kept-banner' }, h('strong', {}, 'Brought back what you were filling in'), ` – as you left it at ${whenText(kept.at)}. `, again);
+  }
+
   const page = h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, title, intro)),
+    restored,
     expense?.proof_status === 'returned' && expense.finance_note ? h('div', { class: 'banner banner-red' }, h('strong', {}, 'Finance returned this claim'), expense.finance_note) : null,
     h('div', { class: 'sheet' },
       typeBtns,
@@ -333,11 +363,23 @@ export async function newRequestPage(editId, presetType) {
           linesHint),
         receiptBox),
       err,
-      h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-quiet', href: existing ? `#/requests/${existing.id}` : '#/requests' }, 'Cancel'), saveBtn, submitBtn)));
+      h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-quiet', href: existing ? `#/requests/${existing.id}` : '#/requests', onclick: () => formKeep?.done() }, 'Cancel'), saveBtn, submitBtn)));
   mount(amountBox, h('div', { class: 'row' }, field('Amount', amountIn, 'The amount of cash you need.')),
     h('p', { class: 'hint', style: { marginTop: '-6px' } }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); simpleCash = false; if (num(amountIn.value) > 0 && lines.every((l) => !l.description.trim())) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }]; drawType(); drawLines(); } }, 'Several things? Add them as separate lines')));
   category.closest('.field').append(guessed);
   drawType(); drawLines(); drawStore(); await drawReceipts();
+  if (restored && kept.noReceipt) { const t = receiptBox.querySelector('#no-receipt-why'); if (t && !t.value) t.value = kept.noReceipt; }
+  let drafting = false;
+  formKeep = forStore ? null : keepForm(page, keepName, snap, {
+    initial: asOpened,
+    onHide: () => {
+      // a phone may close Petti while it is in the background: put what is there on the server as a draft
+      if (drafting || !purpose.value.trim() || routeShown || saveBtn.disabled || submitBtn.disabled) return;
+      const before = keepName(); drafting = true;
+      saveHead(false).then(() => { if (before !== keepName()) keepDrop(before); formKeep?.save(); }).catch(() => {}).finally(() => { drafting = false; });
+    },
+  });
+  if (restored) formKeep?.save();
   return page;
 }
 
@@ -782,6 +824,18 @@ async function expensePanel(q, lines, expense, reload) {
   const spentAt = h('input', { class: 'input', type: 'date', value: expense?.spent_at && Number(expense.total) > 0 ? expense.spent_at : today(), max: today() });
   const notes = h('textarea', { class: 'input', placeholder: 'Anything finance should know (optional)', value: expense?.notes || '' });
   const supplierOpts = [['', 'Supplier…'], ...suppliers.map((s) => [s.id, s.name]), ['__other', 'Other (type a name)']];
+  // nothing typed is lost: what was spent is kept on the phone until it is submitted
+  const keepName = `exp_${q.id}`;
+  const snap = () => ({ label: `What you spent: #${q.request_no} ${q.purpose}`, link: `#/requests/${q.id}`, lines: exLines.map((l) => ({ ...l })), spentAt: spentAt.value, notes: notes.value });
+  const asOpened = snap();
+  const kept = keepRead(keepName);
+  let restored = null;
+  if (kept) {
+    if (Array.isArray(kept.lines) && kept.lines.length) exLines = kept.lines.map((l) => ({ ...l }));
+    if (kept.spentAt) spentAt.value = kept.spentAt; notes.value = kept.notes || '';
+    restored = h('div', { class: 'banner banner-green', id: 'kept-banner' }, h('strong', {}, 'Brought back what you were filling in'), ` – as you left it at ${whenText(kept.at)}. `,
+      h('a', { href: '#', onclick: (e) => { e.preventDefault(); keepDrop(keepName); reload(); } }, 'Start over'));
+  }
   const tbody = h('tbody', {}); const totalEl = h('td', { class: 'num' });
   let receiptTotal = null;
   const mismatch = h('div', { class: 'hint' });
@@ -848,6 +902,7 @@ async function expensePanel(q, lines, expense, reload) {
     const clean = exLines.filter((l) => l.description.trim()).map((l) => ({ item_id: l.item_id || null, description: l.description.trim(), qty: num(l.qty), unit_price: num(l.unit_price), supplier_id: l.supplier_id && l.supplier_id !== '__other' ? l.supplier_id : null, supplier_name: l.supplier_name.trim() || null }));
     if (!clean.length) throw new Error('Add at least one line.');
     await rpc('record_expense', { p_request: q.id, p_spent_at: spentAt.value, p_lines: clean, p_notes: notes.value });
+    keeper.done();
     toast('Expense submitted – finance will check the receipt.'); reload();
   });
   // finance: a pay-out recorded by mistake can be undone while nothing has been spent against it
@@ -857,7 +912,8 @@ async function expensePanel(q, lines, expense, reload) {
     const n = await confirmDialog(`Undo the pay-out of ${money(q.disbursed_amount)}?`, `${personName(q.disbursed_to)} will be told, the money goes back into the float and the request returns to your pay-out queue. The history keeps a record.`, { ok: 'Undo pay-out', danger: true, note: { label: 'Why', required: true } });
     if (!n) return; await rpc('undo_disbursement', { p_request: q.id, p_note: n }); toast('Pay-out undone.'); reload();
   });
-  return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
+  const panel = h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
+    restored,
     h('div', { class: 'sheet-head' }, h('h2', {}, `Record what you spent of the ${money(q.disbursed_amount)}`), h('span', { class: 'sub' }, `paid out ${fmtDate(q.disbursed_at)} by ${personName(q.disbursed_by)}`, undo ? [' · ', undo] : null)),
     returned ? h('div', { class: 'banner banner-red' }, h('strong', {}, 'Finance returned this for correction'), expense.finance_note) : null,
     noProof ? h('div', { class: 'banner banner-green' }, h('strong', {}, 'No receipt needed for this one'), `${q.proof_reason || 'Finance decided no proof is possible'}. Fill in what you spent, and say in the notes ${mustSay}.`)
@@ -868,6 +924,9 @@ async function expensePanel(q, lines, expense, reload) {
         h('tfoot', {}, h('tr', {}, h('td', { colspan: 3 }, h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { exLines.push({ item_id: '', description: '', qty: 1, unit_price: 0, supplier_id: '', supplier_name: '' }); draw(); } }, '+ Add line')), h('td', { class: 'num muted' }, 'Spent'), totalEl)))), mismatch),
     h('div', { class: 'row' }, field('Date of purchase', spentAt)), field('Notes', notes),
     h('div', { class: 'form-actions' }, submit));
+  const keeper = keepForm(panel, keepName, snap, { initial: asOpened });
+  if (restored) keeper.save();
+  return panel;
 }
 
 /* ---- proofs gallery (shared) ---- */

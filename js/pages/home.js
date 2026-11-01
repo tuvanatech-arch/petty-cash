@@ -5,6 +5,7 @@ import { floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, re
 import { reportDialog, confirmReceiptDialog, decideAdjustmentActions } from './stock.js';
 import { setupCard, welcomeStrip } from '../learn.js';
 import { overviewSection, liveRoot } from './overview.js';
+import { keepAll, keepDrop, whenText } from '../keep.js';
 
 /** A duty is a role you hold today: your own, or one you are standing in for. The approver can see everything but only approving is theirs. */
 const duty = (r) => role() === r || state.standingIn.some((d) => d.role === r);
@@ -205,6 +206,7 @@ async function buildHome() {
       h('div', {}, h('h1', {}, `${greet}, ${(me.full_name || me.email).split(' ')[0]}`),
         h('p', {}, n ? `${n} thing${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} you.` : 'You are all caught up.')),
       h('div', { class: 'page-actions' }, actions)),
+    continueCard(),
     setup,
     welcome,
     alertsAsk(),
@@ -311,4 +313,23 @@ function confirmAllButton(matched) {
   const b = h('button', { class: 'btn btn-sm btn-primary' }, `Confirm ${matched.length} matched`);
   b.onclick = busy(b, async () => { for (const q of matched) await rpc('finance_review_expense', { p_request: q.id, p_action: 'confirm', p_note: 'Matches the scanned receipt' }); toast(`${matched.length} closed.`); refresh(); });
   return b;
+}
+
+/** Forms left unfinished on this phone (the app closed, a call came in, they tapped away): pick up where they were. */
+function continueCard() {
+  const left = keepAll();
+  if (!left.length) return null;
+  const card = h('div', { class: 'sheet continue-card', id: 'continue-card' },
+    h('div', { class: 'sheet-head' }, h('h2', {}, 'Continue where you left off'), h('span', { class: 'sub' }, 'kept on this phone')),
+    left.map((k) => {
+      const row = h('div', { class: 'continue-row' },
+        h('a', { href: k.link, class: 'continue-link' }, h('strong', {}, k.label), h('span', { class: 'muted' }, ` · ${whenText(k.at)}`)),
+        h('a', { class: 'btn btn-sm btn-primary', href: k.link }, 'Continue'),
+        h('button', { class: 'btn btn-sm btn-quiet', onclick: async () => {
+          const ok = await confirmDialog('Discard what you were filling in?', k.id ? 'The draft saved on Petti stays under Requests; only the newer changes on this phone are thrown away.' : 'It has not been sent or saved anywhere else.', { ok: 'Discard' });
+          if (!ok) return; keepDrop(k.name); row.remove(); if (!card.querySelector('.continue-row')) card.remove();
+        } }, 'Discard'));
+      return row;
+    }));
+  return card;
 }
