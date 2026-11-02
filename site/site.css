@@ -1,0 +1,220 @@
+/* Petti – usepetti.com. Petti's own colours: bottle green, the sand full stop, cool sage paper.
+   One bold thing: the printed slip in the hero. Everything else stays quiet. */
+/* fonts are served with the site: quick on a weak signal, no outside service */
+@font-face { font-family: 'Bricolage Grotesque'; src: url(fonts/bricolage.woff2) format('woff2'); font-weight: 200 800; font-stretch: 75% 100%; font-display: swap; }
+@font-face { font-family: 'Public Sans'; src: url(fonts/public-sans-400.woff2) format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Public Sans'; src: url(fonts/public-sans-500.woff2) format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Public Sans'; src: url(fonts/public-sans-600.woff2) format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url(fonts/plex-mono-400.woff2) format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url(fonts/plex-mono-600.woff2) format('woff2'); font-weight: 600; font-display: swap; }
+:root {
+  --bottle: #123f33;      /* hero and footer: the deep green of the cash box */
+  --bottle-2: #0d2f26;
+  --green: #1b5e4b;       /* actions, as in the app */
+  --green-ink: #0f4a3a;
+  --sand: #e4b85c;        /* the Petti full stop; used sparingly */
+  --sage: #eef1ec;        /* page paper */
+  --white: #ffffff;
+  --slip: #f8f9f6;        /* thermal paper: a cool white, not cream */
+  --ink: #19231f;
+  --muted: #56615b;
+  --rule: #d6dbd4;
+  --on-dark: #e9efe9;
+  --on-dark-2: #b9c8c0;
+  --display: 'Bricolage Grotesque', 'Public Sans', system-ui, sans-serif;
+  --text: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --wrap: 1120px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--sage); color: var(--ink); font: 400 1.0625rem/1.6 var(--text); -webkit-font-smoothing: antialiased; }
+img { max-width: 100%; display: block; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--sand); outline-offset: 3px; border-radius: 4px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: 16px; top: -60px; background: var(--sand); color: var(--ink); padding: 10px 14px; border-radius: 8px; z-index: 10; text-decoration: none; font-weight: 600; }
+.skip:focus { top: 12px; }
+.wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+.small { font-size: .9rem; color: var(--muted); }
+
+h1, h2, h3 { font-family: var(--display); color: inherit; margin: 0; }
+h1 { font-size: clamp(2.6rem, 6.2vw, 4.6rem); line-height: 1.02; font-weight: 800; letter-spacing: -0.025em; }
+h2 { font-size: clamp(1.9rem, 3.6vw, 2.75rem); line-height: 1.08; font-weight: 700; letter-spacing: -0.015em; }
+h3 { font-size: 1.3rem; line-height: 1.2; font-weight: 700; }
+
+/* the wordmark: Petti and its sand full stop, as in the app icon */
+.mark { font-family: var(--display); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.02em; text-decoration: none; color: inherit; display: inline-flex; align-items: baseline; }
+.mark .dot { width: .3em; height: .3em; border-radius: 50%; background: var(--sand); margin-left: .06em; display: inline-block; }
+.mark-small { font-size: 1.3rem; margin: 0; }
+
+/* buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 12px 22px; border-radius: 10px; font: 600 1rem/1.2 var(--text); text-decoration: none; border: 2px solid transparent; cursor: pointer; transition: transform .12s ease, background-color .12s ease; }
+.btn:active { transform: translateY(1px); }
+.btn-sand { background: var(--sand); color: var(--ink); }
+.btn-sand:hover { background: #ecc672; }
+.btn-ghost { border-color: rgba(233, 239, 233, .45); color: var(--on-dark); }
+.btn-ghost:hover { border-color: var(--on-dark); }
+.btn-green { background: var(--green); color: #fff; }
+.btn-green:hover { background: var(--green-ink); }
+.btn-small { min-height: 40px; padding: 8px 16px; font-size: .95rem; }
+
+/* ---------- hero ---------- */
+.hero { background: var(--bottle); color: var(--on-dark); overflow: hidden; position: relative; }
+.hero::before { /* a faint grid, like the lines of a cash book */
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .07;
+  background-image: linear-gradient(var(--on-dark) 1px, transparent 1px); background-size: 100% 34px;
+}
+.bar { position: relative; max-width: var(--wrap); margin: 0 auto; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.bar .mark { color: var(--white); }
+.bar-links { display: flex; align-items: center; gap: 18px; }
+.signin { color: var(--on-dark); text-decoration: none; font-weight: 500; padding: 8px 4px; }
+.signin:hover { text-decoration: underline; text-underline-offset: 4px; }
+.hero-inner { position: relative; max-width: var(--wrap); margin: 0 auto; padding: 48px 24px 0; display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: start; }
+.hero-copy { padding-bottom: 88px; }
+.hero h1 { color: var(--white); max-width: 12ch; }
+.lead { font-size: 1.2rem; line-height: 1.55; color: var(--on-dark); max-width: 36em; margin: 24px 0 32px; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.made { margin: 28px 0 0; color: var(--on-dark-2); font-size: .95rem; }
+
+/* the printed slip: comes out of an imagined printer at the top edge of the hero */
+.slip-wrap { margin: 0; justify-self: center; width: min(360px, 100%); transform: rotate(-2.2deg); transform-origin: top center; margin-top: -48px; }
+.slip { position: relative; background: var(--slip); color: #2a302d; font-family: var(--mono); font-size: .86rem; line-height: 1.5; padding: 64px 26px 30px; box-shadow: 0 30px 60px -25px rgba(0, 0, 0, .55), 0 2px 0 rgba(0, 0, 0, .04); }
+.slip::before { /* thermal paper sheen */
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 40%, rgba(255, 255, 255, .55) 50%, transparent 60%); opacity: .6;
+}
+.slip-head { text-align: center; display: grid; gap: 2px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1.5px dashed #9aa39e; }
+.slip-head strong { font-family: var(--display); font-size: 1.35rem; letter-spacing: .06em; color: var(--green-ink); }
+.slip-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.slip-lines li { display: flex; justify-content: space-between; gap: 12px; }
+.slip-lines li span { min-width: 0; }
+.slip-lines li b { font-weight: 600; white-space: nowrap; }
+.slip-lines li.ok span::before { content: '✓ '; color: var(--green); font-weight: 600; }
+.slip-lines li.rule { border-top: 1.5px dashed #9aa39e; margin: 6px 0; height: 0; }
+.slip-lines li.total { font-weight: 600; font-size: .95rem; padding-top: 6px; border-top: 2px solid #2a302d; }
+.slip-lines li.total b { color: var(--green-ink); }
+.slip-foot { margin: 22px 0 0; text-align: center; font-family: var(--display); font-weight: 700; font-size: 1.15rem; color: var(--green-ink); letter-spacing: -0.01em; }
+.slip-tear { /* torn zig-zag bottom edge */
+  position: absolute; left: 0; right: 0; bottom: -11px; height: 12px;
+  background: linear-gradient(-45deg, transparent 8px, var(--slip) 0) 0 0 / 16px 12px repeat-x,
+              linear-gradient(45deg, transparent 8px, var(--slip) 0) 0 0 / 16px 12px repeat-x;
+}
+/* printing: one orchestrated moment on page load */
+.slip.printing .slip-lines li, .slip.printing .slip-foot { opacity: 0; animation: print .28s steps(4, end) forwards; }
+.slip.printing { animation: feed 2.4s cubic-bezier(.3, .7, .3, 1) both; }
+@keyframes print { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
+@keyframes feed { from { transform: translateY(-38%); } to { transform: translateY(0); } }
+
+/* ---------- the problem ---------- */
+.pain { padding: 96px 0 72px; }
+.pain-list { margin: 0; display: grid; gap: 6px; font-family: var(--display); font-weight: 700; font-size: clamp(1.5rem, 3.2vw, 2.4rem); line-height: 1.15; letter-spacing: -0.015em; max-width: 26ch; }
+.pain-list span { display: block; color: var(--muted); }
+.pain-list span:nth-child(2) { color: #3f4a44; }
+.pain-list span:nth-child(3) { color: var(--ink); }
+.pain-answer { margin: 36px 0 0; max-width: 38em; font-size: 1.2rem; line-height: 1.6; }
+
+/* ---------- how it works ---------- */
+.how { padding: 40px 0 96px; }
+.how h2 { max-width: 18ch; margin-bottom: 48px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+.steps h3 { margin: 22px 0 8px; display: flex; align-items: center; gap: 10px; }
+.steps .n { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--green); color: #fff; font-family: var(--text); font-size: .95rem; font-weight: 600; flex: none; }
+.steps p { margin: 0; color: #36403b; font-size: 1rem; line-height: 1.55; }
+.phone { margin: 0; padding: 9px; background: var(--bottle-2); border-radius: 34px; box-shadow: 0 24px 48px -28px rgba(13, 47, 38, .6); }
+.phone img { border-radius: 26px; width: 100%; height: auto; aspect-ratio: 390 / 844; object-fit: cover; object-position: top; }
+.steps li:nth-child(even) .phone { transform: translateY(28px); }
+.steps li:nth-child(even) h3 { margin-top: 50px; }
+
+/* ---------- auditor ---------- */
+.audit { background: var(--white); padding: 96px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.audit-inner { display: grid; grid-template-columns: .9fr 1.1fr; gap: 56px; align-items: start; }
+.audit-intro p { font-size: 1.15rem; color: #36403b; margin: 20px 0 0; max-width: 30em; }
+/* the sand full stop from Petti's logo as the bullet */
+.dots { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.dots li { position: relative; padding-left: 26px; line-height: 1.55; }
+.dots li::before { content: ''; position: absolute; left: 2px; top: .55em; width: 10px; height: 10px; border-radius: 50%; background: var(--sand); }
+.audit .dots li { padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.audit .dots li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* ---------- stock ---------- */
+.stock { padding: 96px 0; }
+.stock-inner { display: grid; grid-template-columns: 300px 1fr; gap: 64px; align-items: center; }
+.stock-inner .phone { max-width: 300px; transform: rotate(1.5deg); }
+.stock p { font-size: 1.15rem; color: #36403b; margin: 16px 0 24px; max-width: 32em; }
+
+/* ---------- local ---------- */
+.local { background: var(--bottle); color: var(--on-dark); padding: 96px 0; }
+.local h2 { color: var(--white); max-width: 16ch; margin-bottom: 44px; }
+.local-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px 40px; }
+.local-grid li { color: var(--on-dark-2); line-height: 1.55; padding-top: 18px; border-top: 2px solid rgba(228, 184, 92, .55); }
+.local-grid strong { display: block; color: var(--white); font-family: var(--display); font-size: 1.2rem; margin-bottom: 6px; }
+
+/* ---------- price ---------- */
+.price { padding: 96px 0 48px; }
+.price-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.lead-dark { font-size: 1.2rem; color: #36403b; margin: 18px 0 0; max-width: 26em; }
+.price-box { background: var(--white); border: 1px solid var(--rule); border-radius: 18px; padding: 32px; display: grid; gap: 22px; justify-items: start; }
+.price-tag { margin: 0; font-family: var(--display); font-weight: 800; font-size: 2rem; letter-spacing: -0.02em; color: var(--green-ink); }
+
+/* ---------- enquiry ---------- */
+.get { padding: 48px 0 112px; }
+.get-inner { display: grid; grid-template-columns: .8fr 1.2fr; gap: 56px; align-items: start; background: var(--white); border: 1px solid var(--rule); border-radius: 22px; padding: 48px; }
+.get-intro p { color: #36403b; margin: 18px 0 0; }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 20px; }
+.form label { display: grid; gap: 6px; font-weight: 600; font-size: .95rem; }
+.form .wide { grid-column: 1 / -1; }
+.form .opt { font-weight: 400; color: var(--muted); }
+.form input, .form select, .form textarea { font: 400 1rem/1.4 var(--text); color: var(--ink); background: var(--sage); border: 1.5px solid #c3cbc4; border-radius: 10px; padding: 12px 14px; min-height: 48px; width: 100%; }
+.form textarea { resize: vertical; }
+.form input:focus, .form select:focus, .form textarea:focus { outline: none; border-color: var(--green); background: #fff; box-shadow: 0 0 0 3px rgba(27, 94, 75, .18); }
+.form .hp { position: absolute; left: -9999px; }
+.form button { justify-self: start; }
+
+/* ---------- footer ---------- */
+.foot { background: var(--bottle-2); color: var(--on-dark-2); padding: 40px 0 calc(40px + env(safe-area-inset-bottom)); }
+.foot-inner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 28px; }
+.foot .mark { color: var(--white); }
+.foot p { margin: 0; }
+.foot a { color: var(--on-dark); }
+.foot .small { color: var(--on-dark-2); margin-left: auto; }
+
+/* ---------- smaller screens ---------- */
+@media (max-width: 960px) {
+  .hero-inner { grid-template-columns: 1fr; gap: 8px; padding-top: 24px; }
+  .hero-copy { padding-bottom: 40px; }
+  .slip-wrap { margin-top: 0; margin-bottom: 56px; width: min(340px, 92%); }
+  .steps { grid-template-columns: repeat(2, 1fr); gap: 48px 28px; }
+  .steps li:nth-child(even) .phone { transform: none; }
+  .steps li:nth-child(even) h3 { margin-top: 22px; }
+  .audit-inner, .price-inner, .get-inner { grid-template-columns: 1fr; gap: 32px; }
+  .stock-inner { grid-template-columns: 1fr; gap: 40px; }
+  .stock-inner .phone { justify-self: center; width: min(280px, 80%); }
+  .local-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  body { font-size: 1rem; }
+  .wrap, .bar, .hero-inner { padding-left: 16px; padding-right: 16px; }
+  .signin { display: none; }
+  .hero h1 { max-width: none; }
+  .lead { font-size: 1.08rem; }
+  .hero-actions .btn { flex: 1 1 100%; }
+  .slip { font-size: .8rem; padding: 54px 18px 24px; }
+  .pain, .how, .audit, .stock, .local, .price { padding-top: 64px; padding-bottom: 64px; }
+  .how { padding-top: 16px; }
+  .steps { grid-template-columns: 1fr; gap: 48px; }
+  .steps .phone { width: min(300px, 86%); }
+  .local-grid { grid-template-columns: 1fr; gap: 26px; }
+  .get { padding-bottom: 64px; }
+  .get-inner { padding: 28px 20px; border-radius: 18px; margin: 0 16px; }
+  .form { grid-template-columns: 1fr; }
+  .form button { justify-self: stretch; }
+  .price-box { padding: 24px; }
+  .foot .small { margin-left: 0; }
+}
+
+/* ---------- thank-you page ---------- */
+.thanks .hero { min-height: 100vh; }
+.thanks-inner { grid-template-columns: 1fr; }
+.thanks h1 { max-width: 16ch; }

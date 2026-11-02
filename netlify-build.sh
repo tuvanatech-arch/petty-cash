@@ -6,4 +6,5 @@ V=$(printf '%s' "${COMMIT_REF:-dev}" | cut -c1-8)
 sed -i "s/__BUILD__/$V/g" sw.js
 sed -i "s|js/app.js\"|js/app.js?v=$V\"|" index.html
 sed -i -E "s#(from '(\./|\.\./)[^']+\.js)'#\1?v=$V'#g; s#(import\('(\./|\.\./)[^']+\.js)'\)#\1?v=$V')#g" js/*.js js/pages/*.js
+rm -rf site   # usepetti.com's public page is its own Netlify project (base directory site/)
 echo "Petti build $V"
