@@ -7,6 +7,8 @@
 //   reset_password  -> set a new temporary password                       (approver only)
 //   set_active      -> deactivate / reactivate (blocks sign-in)           (approver only)
 //   delete          -> remove an account that never did anything           (approver only)
+//   reset_two_step  -> clear someone's two-step sign-in (a lost phone)     (GM or MD, never their own)
+// Every action except status and bootstrap needs a sign-in that passed two-step sign-in where it applies.
 // After any change to people, the authority schedule records who now holds each position.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -39,7 +41,11 @@ async function caller(req: Request) {
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) return null;
   const { data: profile } = await admin.from("profiles").select("*").eq("id", data.user.id).single();
-  return profile;
+  if (!profile) return null;
+  // the sign-in level is in the token: aal2 once the two-step code was given
+  let aal = "aal1";
+  try { const p = token.split(".")[1]; aal = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((p.length + 3) % 4))).aal || "aal1"; } catch { /* aal1 */ }
+  return { ...profile, aal };
 }
 
 // who holds each position is part of the authority schedule: record a new version when it changes (no-op otherwise)
@@ -87,6 +93,28 @@ Deno.serve(async (req) => {
     }
 
     const me = await caller(req);
+    if (me) {
+      const { data: blocked, error: be } = await admin.rpc("two_step_blocked_for", { p_user: me.id, p_aal: me.aal });
+      if (be || blocked) return json({ error: "Sign in again and give your two-step code first." }, 403);
+    }
+
+    if (action === "reset_two_step") {
+      if (!me || !me.active || !["approver", "managing_director"].includes(me.role)) return json({ error: "Only the GM or the MD can reset two-step sign-in" }, 403);
+      const user_id = String(body.user_id || "");
+      if (!user_id) throw new Error("user_id is required");
+      if (user_id === me.id) throw new Error("You cannot reset your own two-step sign-in. Ask the GM or the MD.");
+      const { data: list, error: le } = await admin.auth.admin.mfa.listFactors({ userId: user_id });
+      if (le) throw le;
+      const factors = list?.factors ?? [];
+      for (const f of factors) {
+        const { error: de } = await admin.auth.admin.mfa.deleteFactor({ id: f.id, userId: user_id });
+        if (de) throw de;
+      }
+      await admin.from("notifications").insert({ user_id, kind: "security", title: "Your two-step sign-in was reset",
+        body: `${me.full_name} reset it. Sign in with your password and set it up again under Account.`, link: "#/account?two_step=1" });
+      return json({ ok: true, removed: factors.length });
+    }
+
     if (!me || me.role !== "approver" || !me.active) {
       return json({ error: "Only the administrator can manage users" }, 403);
     }

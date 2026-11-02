@@ -43,7 +43,7 @@ Run `select public.update_feedback(30)` on the live database: what people said a
 ## Releasing
 
 1. A database change is always a new numbered file in `db/` (applied to live with the same content). Never change the live database by hand without saving the file. That is how the files and live drifted apart before `029z`.
-2. `ops/test-db/replay.sh` must end in **REPLAY OK**. Then refresh `ops/reference-fingerprint.txt` and run `ops/test-db/workflow-smoke.sql` and `ops/test-db/updates-smoke.sql`.
+2. `ops/test-db/replay.sh` must end in **REPLAY OK**. Then refresh `ops/reference-fingerprint.txt` and run every `ops/test-db/*-smoke.sql` (each line must say ok, or show the expected refusals).
 3. `bash test/run-all.sh`: every line PASS.
 4. Deploy: copy to the Pages repo, commit, push, and check that the Pages run and the Netlify deploy (`petti-app`) both succeeded.
 5. Announce (above).
@@ -53,4 +53,5 @@ Run `select public.update_feedback(30)` on the live database: what people said a
 
 - Email via Resend (owner sets up; then redeploy send-notifications, send-push, send-pack, account-mail).
 - Owner runs `db/018b_run_in_supabase.sql` and `db/026b_run_in_supabase.sql`. The unused `stock_adjust_raise_v1` can be dropped at the same time.
-- MGP's logo, the accounting package name, and Magreth loading the catalogue.
+- MGP's logo: the GM uploads it under Admin → Settings → Company logo (the light-background version). The accounting package name, and Magreth loading the catalogue.
+- Two-step sign-in is required for finance, the GM and the MD from the date in settings (`two_step_from`, set to 14 days after release 038). Before that date, confirm someone has set it up successfully on live; if setting up fails, move the date (Admin → Settings) before anyone is locked out. A lost phone: the GM (or the MD) resets it under Admin → People; the GM's own can also be cleared in the Supabase dashboard (Authentication → Users).

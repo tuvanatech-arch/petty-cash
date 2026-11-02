@@ -1,6 +1,7 @@
 import { sb, state, loadSessionContext, refreshUnread, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength, checkIn, signOutHere, whenSignedOutElsewhere, multiBranch, setView, scoped } from './api.js';
 import { h, mount, toast, fmtDate, loader, progress } from './ui.js';
 import { authPage } from './pages/auth.js';
+import { codePage, setupRequiredPage } from './twostep.js';
 import { homePage } from './pages/home.js';
 import { requestsPage, newRequestPage, requestDetailPage } from './pages/requests.js';
 import { stockPage } from './pages/stock.js';
@@ -131,6 +132,8 @@ export async function render() {
   const me = state.me;
   if (hash.split('?')[0] === '/verify') { mount(app, h('div', { class: 'auth' }, h('div', { class: 'card' }, await verifyPage()))); return; }
   if (hash.split('?')[0] === '/install') { mount(app, h('div', { class: 'auth' }, h('div', { class: 'card', style: { maxWidth: '560px' } }, await installPage(), me ? null : h('p', { class: 'links', style: { marginTop: '14px' } }, h('a', { href: '#/home' }, 'Back to sign in'))))); return; }
+  if (!me && state.needCode) { mount(app, await codePage(render)); return; }
+  if (!me && state.twoStep?.blocked) { mount(app, await setupRequiredPage(render)); return; }
   if (!me) { mount(app, await authPage()); return; }
   if (!me.active) {
     mount(app, h('div', { class: 'auth' }, h('div', { class: 'card' }, h('h1', {}, 'Account deactivated'),

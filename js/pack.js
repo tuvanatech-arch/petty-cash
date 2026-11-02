@@ -1,6 +1,7 @@
 // Month-end pack: one PDF with the reconciliation, a one-page monthly summary, every voucher paid from the float,
 // and the receipts (photos embedded, PDF invoices merged in as pages).
 import { sb, state, personName, unwrap, proofUrl, multiBranch, branchName } from './api.js';
+import { loadLogo, drawLogo } from './brand.js';
 import { money, qty, fmtDate, monthLabel, STATUS, isoDate, titled } from './ui.js';
 import { drawSchedule } from './schedule-pdf.js';
 
@@ -75,12 +76,13 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   ]);
   const summary = await packSummary(float, requests);
   const org = state.settings?.org_name || 'Petty cash';
+  const logo = await loadLogo();   // the company's own logo, when the administrator has set one
   const jsPDF = await loadJsPDF();
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, M = 16, LH = 5.2; let y = M;
   const pdfInserts = []; // { afterPage, bytes } – PDF invoices merged in after the voucher page
   const ink = () => doc.setTextColor(25, 35, 31), muted = () => doc.setTextColor(123, 133, 127);
-  const footer = () => { doc.setFontSize(8); muted(); doc.text(`${org} · petty cash · ${monthLabel(float.period)} · produced with Petti by Tuvana Tech`, M, 297 - 8); ink(); };
+  const footer = () => { doc.setFontSize(8); muted(); doc.text(`${org} · petty cash · ${monthLabel(float.period)} · produced with Petti by Tuvana Tech`, M, 297 - 8); ink(); drawLogo(doc, logo, W - M, 297 - 12, 26, 6, { alignRight: true }); };
   const newPage = () => { doc.addPage(); y = M; footer(); };
   const need = (hgt) => { if (y + hgt > 297 - M) newPage(); };
   const pdfSafe = (v) => titled(String(v ?? '')).replace(/−/g, '-').replace(/→/g, '->').replace(/·/g, '-');
@@ -107,6 +109,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
 
   /* ---- page 1: the management summary (six questions) and the KPIs ---- */
   footer();
+  if (logo) y += drawLogo(doc, logo, M, y - 4, 70, 16) + 2;
   text(org, { size: 11, color: [123, 133, 127] });
   text(`Petty cash pack – ${monthLabel(float.period)}${multiBranch() ? ` – ${branchName(float.branch_id)}` : ''}`, { size: 18, bold: true });
   text(`${float.status === 'open' ? 'Open float (interim pack)' : `Closed ${fmtDate(float.closed_at)} by ${personName(float.closed_by)}`} · prepared ${fmtDate(new Date().toISOString(), { time: true })} by ${state.me.full_name || state.me.email}`, { size: 9, color: [123, 133, 127] });
@@ -211,7 +214,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   const inForce = versions.find((v) => new Date(v.effective_at) <= until) || versions[versions.length - 1];
   if (inForce?.snapshot) {
     const monthChanges = versions.filter((v) => new Date(v.effective_at) >= new Date(String(float.period).slice(0, 10) + 'T00:00:00') && new Date(v.effective_at) <= until).reverse();
-    drawSchedule(doc, inForce, { inPack: true, monthChanges });
+    drawSchedule(doc, inForce, { inPack: true, monthChanges, logo });
   }
 
   /* ---- vouchers list ---- */

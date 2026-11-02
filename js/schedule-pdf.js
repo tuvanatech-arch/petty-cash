@@ -3,6 +3,7 @@
 import { state, personName } from './api.js';
 import { money, titled } from './ui.js';
 import { ITEMS, SECTIONS, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText } from './schedule-meta.js';
+import { loadLogo, drawLogo } from './brand.js';
 
 let jsPDFCtor = null;
 async function loadJsPDF() { if (!jsPDFCtor) jsPDFCtor = (await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/+esm')).jsPDF; return jsPDFCtor; }
@@ -14,7 +15,7 @@ const dayY = (s) => (s ? dateY(String(s).slice(0, 10) + 'T00:00:00') : '—');
 const pdfSafe = (s) => titled(String(s ?? '')).replace(/→/g, '->').replace(/−/g, '-');
 
 /** Draw version v of the schedule into a jsPDF document. In a pack it starts on a new page. */
-export function drawSchedule(doc, v, { inPack = false, monthChanges = [] } = {}) {
+export function drawSchedule(doc, v, { inPack = false, monthChanges = [], logo = null } = {}) {
   const snap = v.snapshot || {}; const val = snap.values || {};
   const org = state.settings?.org_name || 'Petty cash';
   const ref = val.schedule_ref || 'Authority schedule';
@@ -44,6 +45,7 @@ export function drawSchedule(doc, v, { inPack = false, monthChanges = [] } = {})
   const kv = (rows) => { for (const [k, s] of rows) { doc.setFontSize(9.5); const lines = doc.splitTextToSize(pdfSafe(s), W - 2 * M - 38); need(lines.length * LH); muted(); doc.text(k, M, y); ink(); doc.text(lines, M + 38, y); y += lines.length * LH; } };
 
   if (inPack) newPage(); else footer();
+  if (logo) y += drawLogo(doc, logo, M, y - 4, 70, 16) + 2;
   text(org, { size: 11, color: [123, 133, 127] }); y += 1.5;
   text('Authority schedule – petty cash', { size: 18, bold: true });
   text(`${ref} · version ${v.version_no} · in force from ${dateY(v.effective_at, true)}`, { size: 11 });
@@ -93,7 +95,7 @@ export async function downloadSchedulePdf(v) {
   if (!v?.snapshot) throw new Error('This version has no recorded schedule to print.');
   const jsPDF = await loadJsPDF();
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  drawSchedule(doc, v);
+  drawSchedule(doc, v, { logo: await loadLogo() });
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFontSize(8); doc.setTextColor(123, 133, 127); doc.text(`page ${i} of ${n}`, 210 - 16, 297 - 8, { align: 'right' }); }
   const ref = v.snapshot.values?.schedule_ref || 'Authority schedule';

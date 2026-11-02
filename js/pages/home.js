@@ -6,6 +6,7 @@ import { reportDialog, confirmReceiptDialog, decideAdjustmentActions } from './s
 import { setupCard, welcomeStrip } from '../learn.js';
 import { overviewSection, liveRoot } from './overview.js';
 import { keepAll, keepDrop, whenText } from '../keep.js';
+import { twoStepBanner } from '../twostep.js';
 
 /** A duty is a role you hold today: your own, or one you are standing in for. The approver can see everything but only approving is theirs. */
 const duty = (r) => role() === r || state.standingIn.some((d) => d.role === r);
@@ -207,6 +208,7 @@ async function buildHome() {
         h('p', {}, n ? `${n} thing${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} you.` : 'You are all caught up.')),
       h('div', { class: 'page-actions' }, actions)),
     continueCard(),
+    twoStepBanner(),
     setup,
     welcome,
     alertsAsk(),

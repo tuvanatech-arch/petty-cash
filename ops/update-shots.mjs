@@ -27,6 +27,8 @@ for (const e of spec) {
   const page = await ctx.newPage();
   await page.goto(base + '#/home');
   await page.evaluate((role) => { localStorage.setItem('demo_role', role); localStorage.setItem('pcs_push_asked', 'later'); sessionStorage.setItem('pcs_update_shown', '1'); }, e.role);
+  // "storage": preview settings for this picture, e.g. { "demo_two_step_from": "2026-11-16" } so the picture shows the real date
+  if (e.storage) await page.evaluate((kv) => { for (const [k, v] of Object.entries(kv)) localStorage.setItem(k, v); }, e.storage);
   await page.goto(base + (e.step.at || '#/home')); await page.reload(); await page.waitForTimeout(1200);
   await page.addStyleTag({ content: '.preview-bar, #toast-root { display: none !important } body { padding-top: 0 !important }' });
   const rect = await page.evaluate(async (step) => {

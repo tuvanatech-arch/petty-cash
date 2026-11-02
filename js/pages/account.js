@@ -3,6 +3,7 @@ import { h, mount, toast, busy, field, fmtDate, today, confirmDialog, refresh, m
 import { standinDialog, endDelegation } from './admin.js';
 import { BUILD, log } from '../diag.js';
 import { devicesBlock } from '../devices.js';
+import { twoStepSheet } from '../twostep.js';
 
 export async function accountPage() {
   const me = state.me;
@@ -93,6 +94,7 @@ export async function accountPage() {
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Alerts')),
       pushBox,
       h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me (bundled – one message, not ten)')),
+    twoStepSheet(),
     devicesSheet,
     standinSheet,
     rulesSheet(),

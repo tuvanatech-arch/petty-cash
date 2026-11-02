@@ -128,7 +128,16 @@ export async function rpc(fn, args = {}) {
 export async function loadSessionContext() {
   const { data: { session } } = await sb.auth.getSession();
   state.session = session;
-  if (!session) { state.me = null; syncAppBadge(0); return null; }
+  state.needCode = false;
+  if (!session) { state.me = null; state.twoStep = null; syncAppBadge(0); return null; }
+  // two-step sign-in: the code comes first, and for the positions that require it, setting it up comes first
+  // (the database opens nothing until then; offline, the server decides once the signal is back)
+  try {
+    const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') { state.me = null; state.needCode = true; syncAppBadge(0); return null; }
+  } catch { /* the server still decides */ }
+  try { const { data: ts, error } = await sb.rpc('my_two_step'); state.twoStep = error ? null : ts; } catch { state.twoStep = null; }
+  if (state.twoStep?.blocked) { state.me = null; syncAppBadge(0); return null; }
   const { data: me } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
   state.me = me;
   if (me && me.active) {

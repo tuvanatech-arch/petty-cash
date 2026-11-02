@@ -1,6 +1,7 @@
 import { updatesAdminTab } from './updates.js';
 import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, rpc, ROLE_LABEL, personName, multiBranch, myBranch, branchName } from '../api.js';
 import { devicesDialog } from '../devices.js';
+import { logoUrl, prepareLogo, saveLogo, removeLogo } from '../brand.js';
 import { schedulePage } from './schedule.js';
 import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, today, isoDate, emptyState, showIf, retext } from '../ui.js';
 
@@ -108,7 +109,11 @@ async function signInsTab() {
 
 /* =============================================================== people */
 async function usersTab() {
-  const [, counts] = await Promise.all([refreshPeople(), rpc('device_counts').catch(() => [])]);
+  const [, counts, twoStep] = await Promise.all([refreshPeople(), rpc('device_counts').catch(() => []), rpc('two_step_people').catch(() => [])]);
+  const ts = Object.fromEntries((Array.isArray(twoStep) ? twoStep : []).map((t) => [t.user_id, t]));
+  const tsCell = (p) => ts[p.id]?.enabled
+    ? h('span', { class: 'two-step-cell' }, h('span', { class: 'pill pill-green' }, 'On'), p.id !== state.me.id ? [' ', h('button', { class: 'btn btn-sm btn-quiet', onclick: () => resetTwoStep(p) }, 'Reset')] : null)
+    : h('span', { class: 'muted' }, (state.settings?.two_step_roles || []).includes(p.role) && p.active ? 'Not yet' : 'Off');
   const people = state.people;
   const devs = Object.fromEntries((counts || []).map((c) => [c.user_id, c]));
   const devCell = (p) => {
@@ -129,10 +134,10 @@ async function usersTab() {
   return h('div', {},
     h('div', { class: 'sheet' },
       h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), multiBranch() ? h('th', {}, 'Branch') : null, h('th', {}, 'Devices'), h('th'))),
+        h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), multiBranch() ? h('th', {}, 'Branch') : null, h('th', {}, 'Devices'), h('th', {}, 'Two-step'), h('th'))),
         h('tbody', {}, people.map((p) => h('tr', { class: p.active ? '' : 'inactive' },
           h('td', {}, h('strong', {}, p.full_name || '—'), !p.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null, p.id === state.me.id ? h('span', { class: 'muted' }, ' (you)') : null),
-          h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]), multiBranch() ? h('td', {}, ['approver', 'managing_director'].includes(p.role) ? h('span', { class: 'muted' }, 'All branches') : [branchName(p.branch_id), (p.extra_branches || []).length ? h('span', { class: 'muted' }, ` + ${(p.extra_branches || []).map(branchName).join(', ')}`) : null]) : null, h('td', {}, devCell(p)),
+          h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]), multiBranch() ? h('td', {}, ['approver', 'managing_director'].includes(p.role) ? h('span', { class: 'muted' }, 'All branches') : [branchName(p.branch_id), (p.extra_branches || []).length ? h('span', { class: 'muted' }, ` + ${(p.extra_branches || []).map(branchName).join(', ')}`) : null]) : null, h('td', {}, devCell(p)), h('td', {}, tsCell(p)),
           h('td', { class: 'num', style: { whiteSpace: 'nowrap' } },
             h('button', { class: 'btn btn-sm btn-quiet', onclick: () => userDialog(p) }, 'Edit'), ' ',
             p.active ? h('button', { class: 'btn btn-sm btn-quiet', onclick: () => inviteDialog(p) }, 'Invite') : null, ' ',
@@ -213,6 +218,14 @@ function inviteDialog(p, tempPassword = null) {
   });
 }
 
+/** A lost phone: clear someone's two-step sign-in so they can sign in with the password and set it up again. */
+async function resetTwoStep(p) {
+  const ok = await confirmDialog(`Reset two-step sign-in for ${p.full_name}?`, 'Do this only when they have lost their phone or the app. They sign in with their password next time and set it up again (it is required again from the date set under Settings if their position needs it). They get an alert saying you reset it.', { ok: 'Reset', danger: true });
+  if (!ok) return;
+  try { await adminUsers({ action: 'reset_two_step', user_id: p.id }); toast(`Reset. ${p.full_name.split(' ')[0]} sets it up again at the next sign-in.`, { ms: 6000 }); refresh(); }
+  catch (e) { toast(e.message, { error: true, ms: 7000 }); }
+}
+
 function passwordDialog(p) {
   modal(`New password for ${p.full_name || p.email}`, (close) => {
     const pass = h('input', { class: 'input', type: 'text', value: tempPassword(), autocomplete: 'off' });
@@ -287,6 +300,33 @@ export function standinDialog(d, { fixedFrom = null } = {}) {
 }
 
 /* =============================================================== settings */
+/** The company's logo for its documents: chosen here, saved at once, shown on the month-end pack and the authority schedule. */
+function logoBlock(block) {
+  const box = h('div', { id: 'logo-block' });
+  const file = h('input', { type: 'file', accept: 'image/png,image/jpeg', style: { display: 'none' }, id: 'logo-file' });
+  function draw() {
+    const url = logoUrl();
+    const choose = h('button', { class: 'btn btn-sm', type: 'button', onclick: () => file.click() }, url ? 'Replace logo' : 'Upload logo');
+    const remove = url ? h('button', { class: 'btn btn-sm btn-quiet btn-danger', type: 'button' }, 'Remove') : null;
+    if (remove) remove.onclick = busy(remove, async () => {
+      if (!(await confirmDialog('Remove the logo?', 'Documents will show the company name only.', { ok: 'Remove', danger: true }))) return;
+      await removeLogo(); toast('Logo removed.'); draw();
+    });
+    mount(box,
+      url ? h('div', { class: 'logo-preview' }, h('img', { src: url, alt: 'Company logo', id: 'logo-preview' })) : h('p', { class: 'hint' }, 'No logo yet: documents show the company name only.'),
+      h('p', { class: 'hint' }, 'PNG or JPG. Use the version made for white paper (dark lettering); a wide logo prints best.'),
+      h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, choose, remove), file);
+  }
+  file.onchange = async () => {
+    const f = file.files?.[0]; file.value = '';
+    if (!f) return;
+    try { const blob = await prepareLogo(f); await saveLogo(blob); toast('Logo saved. It now prints on the month-end pack and the authority schedule.', { ms: 6000 }); draw(); }
+    catch (e) { toast(e.message, { error: true, ms: 7000 }); }
+  };
+  draw();
+  return block('Company logo', h('p', { class: 'muted' }, 'Printed at the top of the month-end pack, its vouchers and the authority schedule.'), box);
+}
+
 /** Text that must not be swapped for the organisation's titles (it names the app's own words). */
 const raw = (t) => h('span', {}, document.createTextNode(t));
 function settingsTab() {
@@ -324,6 +364,7 @@ function settingsTab() {
   const tGmLong = h('input', { class: 'input', id: 'set-title-gm-long', value: t.gm_long || 'General Manager', maxlength: 40 });
   const tMd = h('input', { class: 'input', id: 'set-title-md', value: t.md || 'MD', maxlength: 20 });
   const tMdLong = h('input', { class: 'input', id: 'set-title-md-long', value: t.md_long || 'Managing Director', maxlength: 40 });
+  const twoStepFrom = h('input', { class: 'input', type: 'date', id: 'set-two-step-from', value: s.two_step_from || '' });
   const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save settings');
   const go = busy(b, async () => {
     unwrap(await sb.from('settings').update({
@@ -331,7 +372,7 @@ function settingsTab() {
       headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
       accountant_name: acctName.value.trim() || null, accountant_email: acctEmail.value.trim() || null,
       accounting_package: pkg.value.trim() || null, petty_cash_account: cashAcct.value.trim() || null,
-      time_zone: tz.value, number_locale: loc.value,
+      time_zone: tz.value, number_locale: loc.value, two_step_from: twoStepFrom.value || null,
       titles: { gm: tGm.value.trim() || 'GM', gm_long: tGmLong.value.trim() || 'General Manager', md: tMd.value.trim() || 'MD', md_long: tMdLong.value.trim() || 'Managing Director' },
       updated_at: new Date().toISOString(),
     }).eq('id', 1));
@@ -343,6 +384,9 @@ function settingsTab() {
     h('div', { class: 'banner banner-grey' }, 'Limits, the float, reminders and budgets are on the ', h('a', { href: '#/admin/schedule' }, 'Schedule'), ' tab, where every change is a version and the MD approves what needs approving.'),
     block('Organisation', h('div', { class: 'row' }, field('Organisation name', org), field('Currency symbol', currency)),
       field('People in the office', headcount, 'Used for cost per head in reports.')),
+    logoBlock(block),
+    block('Two-step sign-in', h('p', { class: 'muted' }, 'Finance, the GM and the MD release money, so after their password Petti asks for a code from their phone. From this date it is required: until they set it up, Petti opens nothing for them.'),
+      field('Required from', twoStepFrom, 'Leave empty to keep it optional. Anyone can turn it on for themselves under Account.')),
     block('Region', h('div', { class: 'row' }, field('Time zone', tz, 'Sets when a day and a month start, and when reminders go out.'), field('How numbers are written', loc)), regionNow),
     block('Position titles', h('p', { class: 'muted' }, 'What your organisation calls the two approving positions. Every screen, alert, email and document uses these words.'),
       h('div', { class: 'row' }, field('Approver, short', tGm, raw('Default: GM')), field('Approver, in full', tGmLong, raw('Default: General Manager'))),

@@ -1,0 +1,32 @@
+{
+ "finance": [
+  {
+   "at": "#/account",
+   "css": "#two-step",
+   "text": "Two-step sign-in",
+   "say": "Set it up here: tap “Set up two-step sign-in”, then Start, and follow the three steps. Required from 16 November."
+  }
+ ],
+ "managing_director": [
+  {
+   "at": "#/account",
+   "css": "#two-step",
+   "text": "Two-step sign-in",
+   "say": "Set it up here: tap “Set up two-step sign-in”, then Start, and follow the three steps. Required from 16 November."
+  }
+ ],
+ "approver": [
+  {
+   "at": "#/account",
+   "css": "#two-step",
+   "text": "Two-step sign-in",
+   "say": "First, your own: tap “Set up two-step sign-in”, then Start, and follow the three steps. Required from 16 November."
+  },
+  {
+   "at": "#/admin/settings",
+   "css": "#logo-block",
+   "text": "",
+   "say": "Upload MGP’s logo here (the version with dark lettering). It prints on the month-end pack and the authority schedule."
+  }
+ ]
+}

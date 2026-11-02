@@ -26,6 +26,8 @@ node --import ./hook.mjs store-route-test.mjs | tail -1
 (cd .. && node test/version-ui.mjs | tail -1)
 (cd .. && node test/keep-ui.mjs | tail -1)
 (cd .. && node test/taps-ui.mjs | tail -1)
+(cd .. && node test/twostep-ui.mjs | tail -1)
+node logo-pdf-test.mjs | tail -1
 # the offline copy-keeper on a weak signal, on a copy stamped the way the deploy stamps it
 SWT=$(mktemp -d); cp -r ../demo/. "$SWT/"; cp ../web/sw.js "$SWT/sw.js"
 (cd "$SWT" && sed -i "s/__BUILD__/aaaa1111/g" sw.js && sed -i 's|js/app.js"|js/app.js?v=aaaa1111"|' index.html && sed -i -E "s#(from '(\./|\.\./)[^']+\.js)'#\1?v=aaaa1111'#g; s#(import\('(\./|\.\./)[^']+\.js)'\)#\1?v=aaaa1111')#g" js/*.js js/pages/*.js)

@@ -1,0 +1,26 @@
+[
+ {
+  "name": "two-step-setup",
+  "role": "finance",
+  "step": {
+   "at": "#/account",
+   "css": "#two-step",
+   "text": "Two-step sign-in"
+  },
+  "storage": {
+   "demo_two_step_from": "2026-11-16"
+  }
+ },
+ {
+  "name": "logo-upload",
+  "role": "approver",
+  "step": {
+   "at": "#/admin/settings",
+   "css": "#logo-block",
+   "text": ""
+  },
+  "storage": {
+   "demo_two_step_from": "2026-11-16"
+  }
+ }
+]
