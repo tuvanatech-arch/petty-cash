@@ -769,3 +769,6 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .suggest-opt:hover, .suggest-opt:focus-visible { background: var(--green-tint); }
 .suggest-opt .muted { font-size: .82rem; white-space: nowrap; }
 .filled-from { font-size: .88rem; color: var(--green-ink); margin-top: 4px; }
+/* the old address says where Petti lives now */
+.moved-bar { position: sticky; top: 0; z-index: 80; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: center; padding: 10px 16px; background: var(--sand); color: #19231f; font-size: .92rem; text-align: center; }
+.moved-bar .btn { white-space: nowrap; }

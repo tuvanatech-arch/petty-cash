@@ -1,6 +1,6 @@
 # Petti – working rules
 
-Petti is Tuvana Tech's petty cash and office-stock app. MGP (Namibia) is the first client: Supabase project `ytfgzfaogfrzanrpcpkg`, app on GitHub Pages (`tuvanatech-arch/petty-cash`).
+Petti is Tuvana Tech's petty cash and office-stock app (Tuvana Tech is part of the Desmic Group). MGP (Namibia) is the first client: Supabase project `ytfgzfaogfrzanrpcpkg`. The app lives at **https://app.usepetti.com** (Netlify project `petti-app`, built from GitHub `tuvanatech-arch/petty-cash` on every push by `netlify-build.sh`; domain usepetti.com at GoDaddy, `app` CNAME to petti-app.netlify.app). The old GitHub Pages address still deploys and shows a "Petti has moved" bar: some Namibian mobile networks cannot reach github.io.
 
 ## How to reply
 
@@ -45,7 +45,7 @@ Run `select public.update_feedback(30)` on the live database: what people said a
 1. A database change is always a new numbered file in `db/` (applied to live with the same content). Never change the live database by hand without saving the file. That is how the files and live drifted apart before `029z`.
 2. `ops/test-db/replay.sh` must end in **REPLAY OK**. Then refresh `ops/reference-fingerprint.txt` and run `ops/test-db/workflow-smoke.sql` and `ops/test-db/updates-smoke.sql`.
 3. `bash test/run-all.sh`: every line PASS.
-4. Deploy: copy to the Pages repo, commit, push, and check that the Pages run succeeded.
+4. Deploy: copy to the Pages repo, commit, push, and check that the Pages run and the Netlify deploy (`petti-app`) both succeeded.
 5. Announce (above).
 6. SQL containing DELETE or DROP is refused by the migration tool: give it to the owner as a "run in Supabase" file instead.
 
@@ -53,5 +53,4 @@ Run `select public.update_feedback(30)` on the live database: what people said a
 
 - Email via Resend (owner sets up; then redeploy send-notifications, send-push, send-pack, account-mail).
 - Owner runs `db/018b_run_in_supabase.sql` and `db/026b_run_in_supabase.sql`. The unused `stock_adjust_raise_v1` can be dropped at the same time.
-- Domain: usepetti.com (app at app.usepetti.com) once bought.
 - MGP's logo, the accounting package name, and Magreth loading the catalogue.

@@ -269,6 +269,16 @@ window.addEventListener('online', syncQueue);
 startAdapting();
 captureInstallPrompt();
 startVersionCheck();   // a phone resuming Petti picks up a new version without being closed
+// Petti's home is app.usepetti.com. The old GitHub Pages address keeps working, but says so, with a way across
+// (the new address has its own sign-in and Home Screen icon, so this cannot be done silently).
+const HOME = 'https://app.usepetti.com/';
+if (/\.github\.io$/.test(location.hostname)) {
+  const go = HOME + (location.hash || '');
+  const bar = h('div', { class: 'moved-bar', id: 'moved-bar', role: 'status' },
+    h('span', {}, h('strong', {}, 'Petti has moved to app.usepetti.com. '), 'Open it there, sign in once and add it to your Home Screen – this old address will stop working.'),
+    h('a', { class: 'btn btn-sm btn-primary', href: go }, 'Open app.usepetti.com'));
+  document.body.prepend(bar);
+}
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
