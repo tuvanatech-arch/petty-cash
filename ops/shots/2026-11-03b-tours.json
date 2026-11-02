@@ -1,0 +1,42 @@
+{
+ "requester": [
+  {
+   "at": "#/notifications",
+   "css": "main h1",
+   "text": "Alerts",
+   "say": "This is your Alerts page. When you send a request or claim, a “Sent” note appears here saying who has it. If it waits two working days, a “Still waiting” note tells you we have reminded them."
+  }
+ ],
+ "stock_manager": [
+  {
+   "at": "#/notifications",
+   "css": "main h1",
+   "text": "Alerts",
+   "say": "This is your Alerts page. Reminders about requests waiting for you appear here on weekday mornings, counted in working days."
+  }
+ ],
+ "finance": [
+  {
+   "at": "#/notifications",
+   "css": "main h1",
+   "text": "Alerts",
+   "say": "This is your Alerts page. Reminders about requests waiting for you appear here on weekday mornings, counted in working days."
+  }
+ ],
+ "approver": [
+  {
+   "at": "#/notifications",
+   "css": "main h1",
+   "text": "Alerts",
+   "say": "This is your Alerts page. Reminders about requests waiting for you appear here on weekday mornings, counted in working days."
+  }
+ ],
+ "managing_director": [
+  {
+   "at": "#/notifications",
+   "css": "main h1",
+   "text": "Alerts",
+   "say": "This is your Alerts page. Reminders about requests waiting for you appear here on weekday mornings, counted in working days."
+  }
+ ]
+}

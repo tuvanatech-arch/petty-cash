@@ -1,0 +1,20 @@
+[
+ {
+  "name": "nudge-asked",
+  "role": "requester",
+  "step": {
+   "at": "#/notifications",
+   "css": "main .ledger-list li",
+   "text": "Still waiting"
+  }
+ },
+ {
+  "name": "nudge-team",
+  "role": "finance",
+  "step": {
+   "at": "#/notifications",
+   "css": "main .ledger-list li",
+   "text": "Waiting on you"
+  }
+ }
+]
