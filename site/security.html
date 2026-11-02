@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Security and your data – Petti</title>
+  <meta name="description" content="Where Petti keeps your petty cash records, who can see them, how sign-in is protected and which outside services are involved.">
+  <meta name="theme-color" content="#123f33">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="preload" href="fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body class="sec-page">
+  <a class="skip" href="#main">Skip to the content</a>
+  <header class="hero sec-hero">
+    <nav class="bar" aria-label="Main">
+      <a class="mark" href="/" aria-label="Petti, home">Petti<span class="dot" aria-hidden="true"></span></a>
+      <div class="bar-links">
+        <a class="signin" href="https://app.usepetti.com/">Sign in</a>
+        <a class="btn btn-sand btn-small" href="/#get">Try it free</a>
+      </div>
+    </nav>
+    <div class="hero-inner sec-hero-inner">
+      <div class="hero-copy">
+        <h1>How Petti keeps your records safe</h1>
+        <p class="lead">Petty cash is money, so we treat its records like money. Here is where your data lives, who can see it, and how signing in is protected.</p>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="sec">
+      <div class="wrap">
+        <ul class="sec-grid">
+          <li>
+            <h2>Where your records live</h2>
+            <p>In a database run by Supabase in Paris, France, inside the European Union. Supabase holds a <a href="https://supabase.com/docs/guides/security/soc-2-compliance">SOC 2 Type 2 report</a>: an independent audit of its security controls. Every connection between your phone or computer, the app and the database is encrypted (HTTPS).</p>
+          </li>
+          <li>
+            <h2>Your own database</h2>
+            <p>Each company gets its own database and its own app settings. Your records are never mixed with another company's.</p>
+          </li>
+          <li>
+            <h2>Who sees what</h2>
+            <p>Each person sees only what their position needs. Staff see their own requests, finance sees the cash box, and the GM and the MD see everything. These rules are enforced inside the database, not only on the screen.</p>
+          </li>
+          <li>
+            <h2>Signing in</h2>
+            <p>Everyone has their own account and password. Finance, the GM and the MD must also use two-step sign-in: a 6-digit code from their phone after the password, so a stolen password alone cannot release money. Every sign-in is logged with its device, any device can be signed out from another, and someone who leaves is switched off in one tap.</p>
+          </li>
+          <li>
+            <h2>A name on every step</h2>
+            <p>Who asked, who approved, who paid and who checked: every step carries a name and a time. Nobody approves, pays out or confirms their own spending.</p>
+          </li>
+          <li>
+            <h2>Copies and leaving</h2>
+            <p>Petti copies your petty cash and stock records every night. At any month end you can download everything: the PDF pack, plus spreadsheet files for your accountant. If you stop using Petti, you keep a full export.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="sec sec-services" aria-labelledby="svc-h">
+      <div class="wrap">
+        <h2 id="svc-h">The outside services involved</h2>
+        <p class="sec-lead">Petti is built on a few well-known services. This is what each one does with your data.</p>
+        <div class="sec-table-wrap">
+          <table class="sec-table">
+            <thead><tr><th scope="col">Service</th><th scope="col">What it does for Petti</th><th scope="col">What it holds</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Supabase</th><td>Database, stored receipts and files, and sign-in</td><td>Your records, in Paris (EU)</td></tr>
+              <tr><th scope="row">Netlify</th><td>Serves the app's pages and this website</td><td>No records: only the app itself</td></tr>
+              <tr><th scope="row">Anthropic</th><td>Reads a receipt photo, so the shop, date and amounts fill in by themselves</td><td>Only the photo it is asked to read. Under its commercial terms it <a href="https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-training">does not train its models</a> on it by default</td></tr>
+              <tr><th scope="row">Google and Apple</th><td>Deliver alerts to the phones that have alerts switched on</td><td>The text of each alert, in transit</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small">Questions about security? Ask us through the <a href="/#get">form on the home page</a> and we will answer in writing.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <p class="mark mark-small">Petti<span class="dot" aria-hidden="true"></span></p>
+      <p>Petti is made by Tuvana Tech, a Desmic Group company.</p>
+      <p><a href="/">Home</a> · <a href="https://app.usepetti.com/">Sign in</a></p>
+      <p class="small">© 2026 Tuvana Tech</p>
+    </div>
+  </footer>
+</body>
+</html>
