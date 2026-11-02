@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Petti – petty cash and office stock, under control</title>
-  <meta name="description" content="Petti handles petty cash requests, approvals, receipts, cash counts and office stock on the phones your team already has. Built in Namibia by Tuvana Tech.">
+  <meta name="description" content="Petti handles petty cash requests, approvals, receipts, cash counts and office stock on any phone, tablet or computer, in your currency and under your name. Built in Namibia by Tuvana Tech.">
   <meta name="theme-color" content="#123f33">
   <meta property="og:title" content="Petti – every cent of petty cash, accounted for">
   <meta property="og:description" content="Requests, approvals, receipts, cash counts and office stock in one app. Built in Namibia by Tuvana Tech.">
@@ -35,7 +35,7 @@
           <a class="btn btn-sand" href="#get">Get Petti for your business</a>
           <a class="btn btn-ghost" href="#how">See how it works</a>
         </div>
-        <p class="made">Built in Namibia, for businesses of 5 to 500&nbsp;people.</p>
+        <p class="made">Built in Namibia, for businesses of 5 to 500&nbsp;people. Works on phones, tablets and&nbsp;computers.</p>
       </div>
 
       <figure class="slip-wrap" aria-label="A petty cash slip printed by Petti">
@@ -105,6 +105,25 @@
       </div>
     </section>
 
+    <section class="everywhere" id="everywhere" aria-labelledby="every-h">
+      <div class="wrap">
+        <div class="every-intro">
+          <h2 id="every-h">One app for every screen you own</h2>
+          <p>Petti runs in the browser, so there is nothing to buy for each device and no app store to go through. Everyone signs in as themselves and sees the same figures, on whatever is in their hand or on their desk.</p>
+        </div>
+        <div class="devices" role="group" aria-label="Petti on a laptop, a tablet and a phone">
+          <figure class="laptop"><div class="laptop-screen"><img src="img/laptop.jpg" alt="Petti on a laptop: the petty cash screen with the month's allocation, spending and the balance in the box" width="1400" height="839" loading="lazy"></div><div class="laptop-base" aria-hidden="true"></div></figure>
+          <figure class="tablet"><img src="img/tablet.jpg" alt="Petti on a tablet: a staff member's requests and the receipts they still owe" width="860" height="1126" loading="lazy"></figure>
+          <figure class="phone phone-front"><img src="img/home.jpg" alt="Petti on a phone: the Home screen" width="390" height="844" loading="lazy"></figure>
+        </div>
+        <ul class="local-grid every-list">
+          <li><strong>Phones</strong>iPhone and Android. Add it to the Home Screen and it opens like any other app, with its own icon.</li>
+          <li><strong>Tablets</strong>A tablet in the stock room or at the front desk, shared by the people who work there.</li>
+          <li><strong>Laptops and desktops</strong>The full view for finance, the GM and your accountant, in any modern browser: Chrome, Safari, Edge or Firefox.</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="audit" aria-labelledby="audit-h">
       <div class="wrap audit-inner">
         <div class="audit-intro">
@@ -138,13 +157,49 @@
       </div>
     </section>
 
+    <section class="yours" id="yours" aria-labelledby="yours-h">
+      <div class="wrap yours-inner">
+        <div class="yours-copy">
+          <h2 id="yours-h">Your money.<br>Your name.<br>Your&nbsp;alerts.</h2>
+          <dl class="yours-list">
+            <div><dt>Any currency</dt><dd>Set the symbol once and it appears on every screen and every document: N$, R, Kz, $ or €. Run companies in different countries, each in its own currency, and Petti converts them for the group view.</dd></div>
+            <div><dt>Your name on every document</dt><dd>The month-end pack, the payout vouchers and the authority schedule all carry your company name, your currency and your own document numbers, so what reaches your accountant or auditor is yours.</dd></div>
+            <div><dt>Push alerts to the phone</dt><dd>An approval to give, cash ready to collect, a receipt to check, stock running low: each is pushed to the right person the moment it happens, even when Petti is closed. A phone out of signal gets it as soon as it is back.</dd></div>
+          </dl>
+        </div>
+        <figure class="doc" aria-label="A sample document that changes with your settings">
+          <div class="doc-paper" aria-live="polite">
+            <p class="doc-tag">Sample</p>
+            <div class="doc-head"><strong id="doc-org">Your Company</strong><span>Petty cash voucher · V-1042</span></div>
+            <ul class="doc-lines">
+              <li><span>Toner, finance printer</span><b data-amt="1890">N$1,890.00</b></li>
+              <li><span>Change returned</span><b data-amt="40.5">N$40.50</b></li>
+              <li class="total"><span>Spent</span><b data-amt="1849.5">N$1,849.50</b></li>
+            </ul>
+            <p class="doc-sign">Approved by the GM · Checked by finance</p>
+          </div>
+          <figcaption class="doc-controls">
+            <label>Try your company name <input id="doc-name" maxlength="40" placeholder="Your Company" autocomplete="off"></label>
+            <div class="chips" id="doc-cur" role="group" aria-label="Currency">
+              <button type="button" class="chip on" data-sym="N$" aria-pressed="true">N$</button>
+              <button type="button" class="chip" data-sym="R" aria-pressed="false">R</button>
+              <button type="button" class="chip" data-sym="Kz " aria-pressed="false">Kz</button>
+              <button type="button" class="chip" data-sym="$" aria-pressed="false">$</button>
+              <button type="button" class="chip" data-sym="€" aria-pressed="false">€</button>
+              <button type="button" class="chip" data-sym="£" aria-pressed="false">£</button>
+            </div>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
     <section class="local" aria-labelledby="local-h">
       <div class="wrap">
         <h2 id="local-h">Made for how business works here</h2>
         <ul class="local-grid">
-          <li><strong>Namibian dollars and Namibian time.</strong> Other currencies and countries when you grow across the border.</li>
+          <li><strong>Built for Namibia, ready for the border.</strong> Dates, amounts and time follow your country, and a company across the border keeps its own currency.</li>
           <li><strong>Works on a weak signal.</strong> Petti opens from the copy on the phone and catches up when the signal does.</li>
-          <li><strong>Any phone, no app store.</strong> It installs from the browser in a few seconds, on iPhone and Android.</li>
+          <li><strong>Your own database.</strong> Each company's records live in their own database and are never mixed with anyone else's.</li>
           <li><strong>Branches and companies.</strong> One login sees Windhoek, Walvis Bay and Lüderitz, each with its own box.</li>
           <li><strong>Your words.</strong> If your approvers are called Operations Manager and CEO, that is what Petti says.</li>
           <li><strong>Every change announced.</strong> When Petti improves, each person is told what changes for them, with a walk-through on their own screen.</li>
@@ -218,6 +273,24 @@
       slip.classList.add('printing');
       var lines = slip.querySelectorAll('.slip-lines li, .slip-foot');
       lines.forEach(function (li, i) { li.style.animationDelay = (300 + i * 170) + 'ms'; });
+    })();
+    // the sample document follows the company name and currency chosen, so the idea is clear at a glance
+    (function () {
+      var name = document.getElementById('doc-name'), org = document.getElementById('doc-org'), chips = document.getElementById('doc-cur');
+      if (!name || !org || !chips) return;
+      var sym = 'N$';
+      function draw() {
+        document.querySelectorAll('.doc-lines [data-amt]').forEach(function (b) {
+          b.textContent = sym + Number(b.getAttribute('data-amt')).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        });
+      }
+      name.addEventListener('input', function () { org.textContent = name.value.trim() || 'Your Company'; });
+      chips.addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-sym]'); if (!b) return;
+        sym = b.getAttribute('data-sym');
+        chips.querySelectorAll('button').forEach(function (x) { var on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+        draw();
+      });
     })();
   </script>
 </body>
