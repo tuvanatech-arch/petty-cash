@@ -18,7 +18,8 @@ const server = http.createServer((req, res) => { let p = path.join(root, decodeU
 await new Promise((r) => server.listen(0, r)); const base = `http://127.0.0.1:${server.address().port}/`;
 const b = await chromium.launch();
 for (const e of spec) {
-  const ctx = await b.newContext({ viewport: { width: 390, height: 640 }, deviceScaleFactor: 2 });
+  // "ua": take the picture as a particular phone (e.g. an iPhone in Safari) where the screen differs by phone
+  const ctx = await b.newContext({ viewport: { width: 390, height: 640 }, deviceScaleFactor: 2, ...(e.ua ? { userAgent: e.ua } : {}) });
   if (e.push) {   // show the Alerts box as a phone that can receive alerts sees it (the preview itself has no push)
     await ctx.grantPermissions(['notifications']);
     await ctx.addInitScript(() => { try { Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true }); } catch {} window.PushManager = function () {}; const reg = { pushManager: { getSubscription: async () => null } }; Object.defineProperty(navigator, 'serviceWorker', { value: { ready: Promise.resolve(reg), getRegistration: async () => reg, register: async () => reg, addEventListener() {} } }); });

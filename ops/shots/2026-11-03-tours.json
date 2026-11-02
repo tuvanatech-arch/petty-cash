@@ -1,0 +1,42 @@
+{
+ "requester": [
+  {
+   "at": "#/install",
+   "css": "h1",
+   "text": "Put it on your phone",
+   "say": "These are the steps for your phone. Do them at app.usepetti.com: open it in Safari (iPhone) or Chrome (Android), sign in, then add it to your Home Screen."
+  }
+ ],
+ "stock_manager": [
+  {
+   "at": "#/install",
+   "css": "h1",
+   "text": "Put it on your phone",
+   "say": "These are the steps for your phone. Do them at app.usepetti.com: open it in Safari (iPhone) or Chrome (Android), sign in, then add it to your Home Screen."
+  }
+ ],
+ "finance": [
+  {
+   "at": "#/install",
+   "css": "h1",
+   "text": "Put it on your phone",
+   "say": "These are the steps for your phone. Do them at app.usepetti.com: open it in Safari (iPhone) or Chrome (Android), sign in, then add it to your Home Screen."
+  }
+ ],
+ "approver": [
+  {
+   "at": "#/install",
+   "css": "h1",
+   "text": "Put it on your phone",
+   "say": "These are the steps for your phone. Do them at app.usepetti.com: open it in Safari (iPhone) or Chrome (Android), sign in, then add it to your Home Screen."
+  }
+ ],
+ "managing_director": [
+  {
+   "at": "#/install",
+   "css": "h1",
+   "text": "Put it on your phone",
+   "say": "These are the steps for your phone. Do them at app.usepetti.com: open it in Safari (iPhone) or Chrome (Android), sign in, then add it to your Home Screen."
+  }
+ ]
+}
