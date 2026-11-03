@@ -648,16 +648,19 @@ function statementField(f, bank) {
 function bankSetupDialog() {
   modal('The petty cash bank account', (close) => {
     const name = h('input', { class: 'input', id: 'bank-name', maxlength: 80, placeholder: 'e.g. FNB petty cash account', value: bankName() || '' });
+    const opening = h('input', { class: 'input num', id: 'bank-opening', type: 'number', min: 0, step: '0.01', inputmode: 'decimal', placeholder: '0.00' });
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save');
     const go = busy(b, async () => {
       if (!name.value.trim()) throw new Error('Enter the account’s name, as finance knows it.');
-      const row = await rpc('set_petty_bank', { p_name: name.value.trim() });
+      const amt = num(opening.value) || 0;
+      const row = await rpc('set_petty_bank', { p_name: name.value.trim(), p_opening: amt, p_note: null });
       const br = state.branches.find((x) => x.id === row.id); if (br) br.petty_bank_name = row.petty_bank_name;
-      toast('Saved. Petty cash now shows the box and the bank account.'); close(); refresh();
+      toast(amt > 0 ? `Saved. The bank account starts at ${money(amt)}.` : 'Saved. Petty cash now shows the box and the bank account.'); close(); refresh();
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       h('p', { class: 'hint' }, 'When part of the petty cash is kept in a bank account, Petti shows the box and the account separately, and finance records cash taken out of the bank (or paid in) under “Move cash”.'),
       field('Name of the account', name),
+      field('What is in the account now', opening, h('div', { class: 'hint' }, 'From the latest bank statement. The account starts at this amount; it is not booked as new money. The GM is told.')),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }

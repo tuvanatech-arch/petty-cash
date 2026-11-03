@@ -71,8 +71,11 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
   check(/Add the petty cash bank account/.test(await page.locator('#bank-setup').innerText().catch(() => '')), 'and a way to add the account');
   await page.locator('#bank-setup a').click(); await page.waitForTimeout(300);
   await page.locator('#bank-name').fill('Bank Windhoek petty cash');
+  check(/What is in the account now/.test(await page.locator('.modal').innerText()), 'adding the account asks what is in it now');
+  await page.locator('#bank-opening').fill('3250.40');
   await page.locator('.modal button[type=submit]').click(); await page.waitForTimeout(1500);
-  check(/Bank account N\$0\.00 Bank Windhoek petty cash/.test(await tiles(page)), 'once named, the box and the account show side by side');
+  check(/Bank account N\$3,250\.40 Bank Windhoek petty cash/.test(await tiles(page)), 'once named, the box and the account show side by side, starting at the statement balance');
+  check(/Opening balance of Bank Windhoek petty cash/.test(await page.locator('#bank-ledger').innerText().catch(() => '')), 'the bank ledger starts with the opening balance');
   check(!errs.length, `no-bank branch: no page errors ${errs.join(' | ')}`);
   await ctx.close();
 }
