@@ -1,0 +1,84 @@
+{
+ "requester": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  }
+ ],
+ "stock_manager": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  }
+ ],
+ "finance": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  },
+  {
+   "at": "#/requests?status=awaiting_disbursement",
+   "css": "h1",
+   "text": "",
+   "say": "Open a request that is waiting to be paid. If a quote or invoice is attached, the pay box offers “Cash from the box” or “Bank transfer”."
+  }
+ ],
+ "approver": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  },
+  {
+   "at": "#/requests?status=awaiting_disbursement",
+   "css": "h1",
+   "text": "",
+   "say": "Open a request that is waiting to be paid. If a quote or invoice is attached, the pay box offers “Cash from the box” or “Bank transfer”."
+  }
+ ],
+ "managing_director": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  }
+ ]
+}

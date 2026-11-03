@@ -24,6 +24,7 @@ await page.goto(base + '#/home'); await as('requester'); await crash();
 await go('#/requests/new');
 await page.locator('input[placeholder]').first().fill('Taxi to Bank Windhoek for the deposit');
 await page.locator('input[placeholder="0.00"]').fill('350');
+await page.locator('#no-quote').check();   // a payment request: sent with no quote (042)
 await page.waitForTimeout(600);
 await crash();
 const card = page.locator('#continue-card');
@@ -31,6 +32,7 @@ check(await card.count() === 1 && /Taxi to Bank Windhoek for the deposit/.test(a
 await card.locator('a.btn', { hasText: 'Continue' }).first().click(); await page.waitForTimeout(1500);
 check(await page.locator('input[placeholder]').first().inputValue() === 'Taxi to Bank Windhoek for the deposit' && await page.locator('input[placeholder="0.00"]').inputValue() === '350', 'Continue brings the form back exactly as it was');
 check(/Brought back what you were filling in/.test(await page.locator('#kept-banner').innerText()), '…and says so, with the time');
+check(await page.locator('#no-quote').isChecked(), '…including the “No quote” tick');
 
 /* 2. going to the background saves a draft on the server */
 await background(); await page.waitForTimeout(1200);

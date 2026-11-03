@@ -124,7 +124,7 @@ export const STATUS = {
   draft:                 { label: 'Draft',                 pill: 'pill-grey' },
   stock_review:          { label: 'Stock review',          pill: 'pill-blue' },
   pending_approval:      { label: 'Needs approval',        pill: 'pill-purple' },
-  awaiting_disbursement: { label: 'Awaiting cash',         pill: 'pill-amber' },
+  awaiting_disbursement: { label: 'Awaiting payment',      pill: 'pill-amber' },
   disbursed:             { label: 'Cash out – record spend', pill: 'pill-amber' },
   proof_review:          { label: 'Proof with finance',    pill: 'pill-blue' },
   physical_required:     { label: 'Physical receipt needed', pill: 'pill-amber' },
@@ -142,7 +142,7 @@ export const EVENT_LABEL = {
   submitted: 'Submitted', stock_reviewed: 'Stock reviewed', approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled',
   escalated: 'Sent for approval', referred_to_md: 'Sent to the Managing Director', reviewed: 'Reviewed after payment', disbursed: 'Cash paid out', expense_recorded: 'Expense recorded', proof_confirmed: 'Proof confirmed – closed',
   physical_required: 'Physical receipt requested', physical_received: 'Physical receipt received', expense_returned: 'Returned for correction',
-  reimbursed: 'Reimbursed – closed', float_warning: 'Finance warned about the float', document_attached: 'Invoice / quote attached', payout_undone: 'Pay-out undone',
+  reimbursed: 'Reimbursed – closed', float_warning: 'Finance warned about the float', document_attached: 'Invoice / quote attached', payout_undone: 'Pay-out undone', paid_by_transfer: 'Paid by bank transfer',
   duplicate_explained: 'Reused receipt explained' };
 export const MOVEMENT_LABEL = { purchase_in: 'Bought', issue_out: 'Issued', usage: 'Used', adjustment: 'Adjusted', count: 'Count correction', reversal: 'Reversed' };
 export const PACE = { fast: { label: 'Fast mover', pill: 'pill-amber', hint: 'a month\'s order lasts under two weeks' }, slow: { label: 'Slow mover', pill: 'pill-blue', hint: 'a month\'s order lasts over four months, or nothing used in 60 days' }, dormant: { label: 'Never used', pill: 'pill-grey', hint: 'no usage recorded yet' }, normal: { label: 'Steady', pill: 'pill-green', hint: '' } };

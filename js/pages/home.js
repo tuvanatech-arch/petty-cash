@@ -152,7 +152,8 @@ async function buildHome() {
     h('a', { class: 'btn btn-sm', href: '#/reports/controls' }, 'Open the log')));
   if (duty('finance')) {
     const payouts = byStatus('awaiting_disbursement');
-    if (payouts.length) cards.push(card('To pay out', payouts.length, null, list(payouts, (q) => (q.type === 'claim' ? h('div', { class: 'row-actions' }, h('span', { class: 'note' }, 'Claim – reimburse from the float')) : null))));
+    if (payouts.length) cards.push(card('To pay out', payouts.length, null, list(payouts, (q) => (q.type === 'claim' ? h('div', { class: 'row-actions' }, h('span', { class: 'note' }, 'Claim – reimburse from the float'))
+      : q.no_quote ? h('div', { class: 'row-actions' }, h('span', { class: 'note' }, 'No quote – cash from the box')) : null))));
     const proofs = byStatus('proof_review');
     if (proofs.length) {
       const matched = proofs.filter((q) => checks[q.id]?.status === 'matches' && q.disbursed_to !== me.id && q.requester_id !== me.id);   // never your own receipt
@@ -188,13 +189,13 @@ async function buildHome() {
   const mine = (mineRes.data || []).filter((q) => (staff ? !['closed', 'rejected', 'cancelled', 'fulfilled_from_stock'].includes(q.status) && q.status !== 'disbursed' : q.status !== 'disbursed'));
   const mineCard = !isMD && (mine.length || !staff) ? h('div', { class: 'sheet' },
     h('div', { class: 'sheet-head' }, h('h2', {}, staff ? 'Your open requests' : 'Your requests'), h('a', { href: '#/requests' }, 'All')),
-    mine.length ? h('ul', { class: 'ledger-list' }, mine.slice(0, 6).map((q) => requestRow(q))) : emptyState('Nothing yet', 'Snap or upload a receipt to claim money back, or ask for cash.'),
+    mine.length ? h('ul', { class: 'ledger-list' }, mine.slice(0, 6).map((q) => requestRow(q))) : emptyState('Nothing yet', 'Snap or upload a receipt to claim money back, or request a payment.'),
     myReports.length ? h('p', { class: 'hint', style: { marginTop: '10px' } }, `Reported to the stock manager: ${myReports.map((r) => r.item?.name).join(', ')}.`) : null) : null;
 
   /* ---------------- header ---------------- */
   const actions = [h('a', { class: 'btn btn-primary', href: '#/snap' }, '📷 Snap or upload')];
   if (!can('manage_stock')) actions.push(h('button', { class: 'btn', onclick: () => reportDialog(null) }, 'Report low stock'));
-  actions.push(h('a', { class: 'btn', href: '#/requests/new' }, 'Ask for cash'));
+  actions.push(h('a', { class: 'btn', id: 'request-payment', href: '#/requests/new/cash' }, 'Request a payment'));
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 

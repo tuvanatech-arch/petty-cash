@@ -20,10 +20,17 @@ const { buildMonthEndPack } = await import('../demo/js/pack-real.js');
 const { unwrap } = api;
 const floats = unwrap(await api.sb.from('v_floats').select('*').eq('status', 'open').order('period', { ascending: false }));
 w.URL.createObjectURL = () => 'blob:x'; w.URL.revokeObjectURL = () => {}; w.HTMLAnchorElement.prototype.click = function () {};
+// a payment request paid by bank transfer this month (042): listed in the pack, not in the box
+const today = new Date().toISOString().slice(0, 10);
+await api.sb.rpc('pay_by_transfer', { p_request: '00000122-0000-4000-8000-000000000000', p_amount: 650, p_paid_on: today, p_reference: 'FNB 4471023' });
+const whk = floats.find((f) => f.branch_id === '00000081-0000-4000-8000-000000000000') || floats[0];   // the plumber is a Windhoek request
 const t0 = Date.now();
-const r = await buildMonthEndPack(floats[0], { onProgress: () => {}, save: false });
+const r = await buildMonthEndPack(whk, { onProgress: () => {}, save: false });
+const pdfText = Buffer.from(r.bytes).toString('latin1');
+const transferListed = /Paid by bank transfer/.test(pdfText) && /FNB 4471023/.test(pdfText);
+console.log(transferListed ? 'ok   the bank transfer is listed in the pack with its reference' : 'FAIL the bank transfer is missing from the pack');
 unlinkSync(realPath);
 writeFileSync('pack-out.pdf', r.bytes);
 console.log('built', r.name, r.pages, 'pages', r.bytes.byteLength, 'bytes in', Date.now() - t0, 'ms');
-console.log(r.pages > 3 && r.bytes.byteLength > 20000 ? 'PACK PDF: PASS' : 'PACK PDF: FAIL');
+console.log(r.pages > 3 && r.bytes.byteLength > 20000 && transferListed ? 'PACK PDF: PASS' : 'PACK PDF: FAIL');
 process.exit(0);

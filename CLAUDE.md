@@ -65,6 +65,10 @@ Each client's plan limits how many people (accounts switched on) and branches it
 
 The GM cancels under Admin → Settings → Your Petti subscription, after being offered "Download everything". Petti stays open 30 days (the GM can keep it); the daily health check alerts on the day of cancelling (stop billing) and on the removal day: then remove the client's Supabase project and empty its Backblaze bucket, as the terms promise.
 
+## Payment requests (db/042)
+
+"Request a payment" (type `cash`) is one form for anything that is not office stock: the requester attaches the supplier's quote or invoice on the form (filed while the request is still a draft), or ticks "No quote" (`no_quote` is stamped when it is sent). Finance pays in cash from the box as before, or records a bank transfer (`pay_by_transfer`: date and bank reference, only with a quote or invoice attached). A transfer never touches the box (no float, no cash ledger line), closes the request at once with the document as proof, shows in the month-end pack under "Paid by bank transfer", and the journal credits `BANK` (reference `PAY-<no>`). The float outlook counts only cash from the box.
+
 ## Open items (as of 1 Nov 2026)
 
 - MGP has no plan set yet: the owner decides (Business, or the founding price) before it is set and announced to the GM.

@@ -62,7 +62,7 @@ const moving = (page) => page.evaluate(() => document.getAnimations().filter((a)
   await page.locator('main .tabs button', { hasText: 'claim back' }).click();
   check(await moving(page) > 0, 'new request: switching to a claim slides the fields in and out');
   await page.waitForTimeout(400);
-  check(await page.locator('main label.upload').isVisible() && !(await page.locator('main label', { hasText: 'Needed by' }).isVisible()), 'new request: the claim fields are there, “Needed by” is gone');
+  check(await page.locator('main label.upload', { hasText: 'Scan the receipt' }).isVisible() && !(await page.locator('main label', { hasText: 'Needed by' }).isVisible()) && !(await page.locator('#quote-box').isVisible()), 'new request: the claim fields are there, “Needed by” and the quote box are gone');
   check(!errs.length, `new request: no page errors ${errs.join('|')}`);
   await ctx.close();
 }

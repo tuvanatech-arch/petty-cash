@@ -30,6 +30,7 @@ node --import ./hook.mjs store-route-test.mjs | tail -1
 node logo-pdf-test.mjs | tail -1
 node site-test.mjs | tail -1
 (cd .. && node test/subscription-ui.mjs | tail -1)
+(cd .. && node test/payment-ui.mjs | tail -1)
 node export-all-test.mjs 2>/dev/null | tail -1
 # the offline copy-keeper on a weak signal, on a copy stamped the way the deploy stamps it
 SWT=$(mktemp -d); cp -r ../demo/. "$SWT/"; cp ../web/sw.js "$SWT/sw.js"

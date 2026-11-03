@@ -1,4 +1,4 @@
-import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
+import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, uploadToInbox, fileInboxDocument, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
 import { branchTag } from '../branch.js';
 import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted, refresh, picker, units } from '../ui.js';
 import { outlookBox } from './cash.js';
@@ -8,8 +8,8 @@ import { myHistory, forgetHistory, repeats, matching, amountOf, myTopItems, myTo
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
 const thr = () => Number(state.settings?.approval_threshold || 0);
-export const TYPE_LABEL = { stock: 'Stock', cash: 'Cash', claim: 'Claim' };
-const typeLabel = (q) => (q.for_store ? 'Restock order' : TYPE_LABEL[q.type] || q.type);
+export const TYPE_LABEL = { stock: 'Stock', cash: 'Payment', claim: 'Claim' };
+const typeLabel = (q) => (q.for_store ? 'Restock order' : q.paid_via === 'transfer' ? 'Payment by bank transfer' : TYPE_LABEL[q.type] || q.type);
 
 /* =============================================================== list row */
 export function requestRow(q, { showRequester = false, note = null } = {}) {
@@ -20,7 +20,7 @@ export function requestRow(q, { showRequester = false, note = null } = {}) {
   const over = Number(q.estimated_total) > thr() || Number(q.disbursed_amount) > thr();
   return h('li', { class: 'click', onclick: () => { location.hash = `#/requests/${q.id}`; } },
     h('div', { class: 'what' },
-      h('strong', {}, `#${q.request_no} · ${q.purpose || (q.type === 'stock' ? 'Stock request' : q.type === 'claim' ? 'Claim' : 'Cash request')}`, branchTag(q.branch_id)),
+      h('strong', {}, `#${q.request_no} · ${q.purpose || (q.type === 'stock' ? 'Stock request' : q.type === 'claim' ? 'Claim' : 'Payment request')}`, branchTag(q.branch_id)),
       h('span', {}, [typeLabel(q), showRequester ? ` · ${personName(q.requester_id)}` : '', ` · ${fmtDate(q.submitted_at || q.created_at)}`].join(''),
         q.over_budget ? h('span', { style: { color: 'var(--amber)' } }, ' · over budget') : null,
         note ? h('span', { style: { color: 'var(--amber)' } }, ` · ${note}`) : null)),
@@ -88,6 +88,7 @@ export async function newRequestPage(editId, presetType) {
     loadBudgets(), loadPrices(),
   ]);
   let existing = null; let lines = []; let expense = null;
+  let quoteDocs = []; let noQuote = false;   // a payment request: the supplier's quote or invoice, or "No quote"
   let formKeep = null; let routeShown = false;   // the copy kept on the phone; a store item shown instead of the form
   if (editId) {
     existing = (await sb.from('requests').select('*').eq('id', editId).maybeSingle()).data;
@@ -96,6 +97,7 @@ export async function newRequestPage(editId, presetType) {
     if (existing.status !== 'draft' || existing.requester_id !== state.me.id) { keepDrop(`req_${editId}`); location.hash = `#/requests/${editId}`; return h('div'); }
     lines = unwrap(await sb.from('request_lines').select('*').eq('request_id', editId).order('line_no'));
     if (existing.type === 'claim') expense = (await sb.from('expenses').select('*, proofs:expense_proofs(*)').eq('request_id', editId).maybeSingle()).data;
+    if (existing.type === 'cash') quoteDocs = (await sb.from('request_documents').select('*').eq('request_id', editId).order('created_at')).data || [];
   }
   const stockAllowed = can('manage_stock');   // the team asks for stock by reporting it; only the stock manager raises stock purchases
   const history = editId ? [] : await myHistory().catch(() => []);
@@ -125,22 +127,24 @@ export async function newRequestPage(editId, presetType) {
   const budgetBox = h('div', {});
   const err = h('div', { class: 'error' });
   const receiptBox = h('div', {});
+  const quoteBox = h('div', { id: 'quote-box' });
   const intro = h('p', {});
   const linesHint = h('span', { class: 'hint' });
-  const title = h('h1', {}, existing ? `Edit draft #${existing.request_no}` : forStore ? 'Restock order' : type === 'claim' ? 'Claim back' : 'New request');
+  const title = h('h1', {}, existing ? `Edit draft #${existing.request_no}` : forStore ? 'Restock order' : type === 'claim' ? 'Claim back' : type === 'cash' ? 'Request a payment' : 'New request');
 
   const typeBtns = h('div', { class: 'tabs' });
   function drawType() {
-    mount(typeBtns, [stockAllowed ? ['stock', 'Stock item'] : null, ['cash', 'Cash for an expense'], ['claim', 'I already paid – claim back']].filter(Boolean).map(([k, l]) =>
-      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); drawReceipts(); dropFill(); drawAgain(); drawSuggest(); } }, l)));
+    mount(typeBtns, [stockAllowed ? ['stock', 'Stock item'] : null, ['cash', 'Payment'], ['claim', 'I already paid – claim back']].filter(Boolean).map(([k, l]) =>
+      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); drawReceipts(); drawQuote(); dropFill(); drawAgain(); drawSuggest(); } }, l)));
     showIf(category.closest('.field'), type !== 'stock');
     showIf(needed.closest('.field'), type !== 'claim');
     for (const el of [spentAt, supplier, notes]) showIf(el.closest('.field'), type === 'claim');
     showIf(receiptBox, type === 'claim');
+    showIf(quoteBox, type === 'cash' && !forStore);
     // the words that depend on the kind of request follow the switch too
     linesHint.textContent = type === 'stock' ? 'The stock manager may issue part of this from the store instead of buying.' : type === 'claim' ? 'Enter exactly what the receipt says.' : 'Estimates are fine – the real amounts go on the receipt afterwards.';
     if (!submitBtn.disabled) submitBtn.textContent = type === 'claim' ? 'Submit claim' : 'Submit request';
-    if (!existing && !forStore) title.textContent = type === 'claim' ? 'Claim back' : 'New request';
+    if (!existing && !forStore) title.textContent = type === 'claim' ? 'Claim back' : type === 'cash' ? 'Request a payment' : 'New request';
     showIf(amountBox, type === 'cash' && simpleCash);
     if (linesBox.parentElement) showIf(linesBox.parentElement, !(type === 'cash' && simpleCash));
     const seen = (() => { try { return localStorage.getItem(`pcs_hint_newreq_${forStore ? 'store' : type}`); } catch { return null; } })();
@@ -148,7 +152,7 @@ export async function newRequestPage(editId, presetType) {
     intro.style.display = seen ? 'none' : '';
     intro.textContent = forStore ? 'Items to buy for the store this month. Quantities come from measured usage; adjust them.'
       : type === 'stock' ? `Stock requests go to the stock manager first; anything above ${money(thr())} then goes to the approver before finance pays out.`
-      : type === 'cash' ? `Cash requests go straight to finance, or to the approver first if above ${money(thr())}.${stockAllowed ? '' : ' Need office stock? Report it under Stock instead – the stock manager buys it.'}`
+      : type === 'cash' ? `Payment requests go straight to finance, or to the approver first if above ${money(thr())}. Finance pays in cash from the petty cash box, or by bank transfer when a quote or invoice is attached.${stockAllowed ? '' : ' Need office stock? Report it under Stock instead – the stock manager buys it.'}`
       : state.settings?.claims_need_approval === false ? `You paid with your own money. Attach the receipt and finance pays you back from petty cash${thr() ? `; above ${money(thr())} the approver signs it off first` : ''}.` : 'You paid with your own money before anyone approved it. Attach the receipt; the approver signs it off, then finance pays you back from petty cash.';
     budget();
   }
@@ -228,6 +232,7 @@ export async function newRequestPage(editId, presetType) {
   async function save(submit) {
     err.textContent = '';
     if (submit && type === 'cash' && simpleCash && num(amountIn.value) <= 0) throw new Error('Enter the amount.');
+    if (submit && type === 'cash' && !forStore && !quoteDocs.length && !noQuote) { quoteBox.scrollIntoView?.({ block: 'center' }); throw new Error('Attach the quote or invoice, or tick “No quote”.'); }
     const id = await saveHead(submit);
     // "I have no receipt" ticked: make sure the reason is saved before the claim goes
     const nr = type === 'claim' ? receiptBox.querySelector('#no-receipt') : null;
@@ -275,6 +280,45 @@ export async function newRequestPage(editId, presetType) {
       drawLines();
     }
     toast(`Receipt read${x.total != null ? `: total ${money(x.total)}` : ''}. Check the lines before submitting.`, { ms: 6000 });
+  }
+
+  // a payment request: the supplier's quote or invoice is attached on the form (the draft is saved first), or "No quote"
+  async function drawQuote() {
+    if (type !== 'cash' || forStore) return;
+    const status = h('span', { class: 'hint', id: 'quote-status' });
+    const input = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, onchange: async (e) => {
+      const files = Array.from(e.target.files || []); if (!files.length) return;
+      try {
+        const id = await saveHead(false);
+        for (const file of files) {
+          status.textContent = 'Attaching…';
+          const ib = await uploadToInbox(file);
+          let x = null;
+          status.textContent = 'Reading the quote…';
+          try { x = await readReceipt({ inbox_id: ib.id }); } catch { /* finance can still open it */ }
+          const d = await fileInboxDocument(ib, id, 'quote');
+          quoteDocs.push({ ...d, extracted: x || d.extracted });
+          const t = Number(x?.total);
+          if (t > 0 && type === 'cash' && simpleCash && !(num(amountIn.value) > 0)) { amountIn.value = t.toFixed(2); adapted(amountIn); total(); }
+          toast(t > 0 ? `Quote attached${x.supplier ? ` from ${x.supplier}` : ''}: ${money(t)}. Check the amount before sending.` : 'Quote attached.', { ms: 6000 });
+        }
+        noQuote = false;
+      } catch (ex) { toast(ex.message, { error: true }); }
+      drawQuote();
+    } });
+    const list = quoteDocs.length ? h('ul', { class: 'ledger-list', id: 'quote-list' }, await Promise.all(quoteDocs.map(async (d) => {
+      const url = await proofUrl(d.storage_path).catch(() => null); const t = Number(d.extracted?.total);
+      return h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${d.extracted?.supplier || d.file_name || 'Quote'}${t > 0 ? ` · ${money(t)}` : ''}`), h('span', {}, `Attached ${fmtDate(d.created_at)}`)),
+        url ? h('a', { class: 'btn btn-sm btn-quiet', href: url, target: '_blank', rel: 'noopener' }, 'Open') : null);
+    }))) : null;
+    const none = h('input', { type: 'checkbox', id: 'no-quote', checked: noQuote, onchange: (e) => { noQuote = e.target.checked; } });
+    mount(quoteBox, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Quote or invoice'),
+      list,
+      h('label', { class: 'upload', id: 'attach-quote' }, input, quoteDocs.length ? '📎 Attach another page' : '📎 Attach the quote or invoice'),
+      status,
+      quoteDocs.length ? h('span', { class: 'hint' }, 'Finance can pay this in cash from the petty cash box, or by bank transfer to the supplier.')
+        : [h('span', { class: 'hint' }, 'A photo or PDF – Petti reads the supplier and the amount. Finance can pay by bank transfer only when one is attached.'),
+          h('label', { class: 'check', for: 'no-quote', style: { marginTop: '8px' } }, none, ' No quote – finance pays it in cash from the petty cash box')]));
   }
 
   const saveBtn = h('button', { type: 'button', class: 'btn' }, 'Save draft');
@@ -372,7 +416,7 @@ export async function newRequestPage(editId, presetType) {
   const snap = () => ({
     label: purpose.value.trim() || (type === 'claim' ? 'A claim' : 'A new request'), link: existing ? `#/requests/${existing.id}/edit` : `#/requests/new${type === 'claim' ? '/claim' : ''}`,
     id: existing?.id || null, type, purpose: purpose.value, category: category.value, needed: needed.value, spentAt: spentAt.value, supplier: supplier.value, notes: notes.value,
-    amount: amountIn.value, simpleCash, notStock, lines: lines.map((l) => ({ item_id: l.item_id || '', description: l.description || '', qty: l.qty, est_unit_price: l.est_unit_price })),
+    amount: amountIn.value, simpleCash, notStock, noQuote, lines: lines.map((l) => ({ item_id: l.item_id || '', description: l.description || '', qty: l.qty, est_unit_price: l.est_unit_price })),
     noReceipt: receiptBox.querySelector('#no-receipt-why')?.value || '',
   });
   const asOpened = snap();
@@ -382,7 +426,7 @@ export async function newRequestPage(editId, presetType) {
     if (!existing && kept.type && (kept.type !== 'stock' || stockAllowed)) type = kept.type;
     purpose.value = kept.purpose || ''; category.value = kept.category || ''; userPickedCategory = !!kept.category;
     needed.value = kept.needed || ''; if (kept.spentAt) spentAt.value = kept.spentAt; supplier.value = kept.supplier || ''; notes.value = kept.notes || '';
-    amountIn.value = kept.amount || ''; simpleCash = !!kept.simpleCash; notStock = !!kept.notStock;
+    amountIn.value = kept.amount || ''; simpleCash = !!kept.simpleCash; notStock = !!kept.notStock; noQuote = !!kept.noQuote;
     if (Array.isArray(kept.lines) && kept.lines.length) lines = kept.lines.map((l) => ({ ...l }));
     if (existing && kept.noReceipt) noReceiptOpen = true;
     const again = h('a', { href: '#', onclick: (e) => { e.preventDefault(); keepDrop(keepName()); refresh(); } }, existing ? 'Undo my changes' : 'Start over');
@@ -404,13 +448,14 @@ export async function newRequestPage(editId, presetType) {
         amountBox,
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Lines'), linesBox, budgetBox,
           linesHint),
+        quoteBox,
         receiptBox),
       err,
       h('div', { class: 'form-actions' }, h('a', { class: 'btn btn-quiet', href: existing ? `#/requests/${existing.id}` : '#/requests', onclick: () => formKeep?.done() }, 'Cancel'), saveBtn, submitBtn)));
-  mount(amountBox, h('div', { class: 'row' }, field('Amount', amountIn, 'The amount of cash you need.')),
+  mount(amountBox, h('div', { class: 'row' }, field('Amount', amountIn, 'The amount to be paid.')),
     h('p', { class: 'hint', style: { marginTop: '-6px' } }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); simpleCash = false; if (num(amountIn.value) > 0 && lines.every((l) => !l.description.trim())) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }]; drawType(); drawLines(); } }, 'Several things? Add them as separate lines')));
   category.closest('.field').append(guessed);
-  drawType(); drawLines(); drawStore(); await drawReceipts(); drawAgain();
+  drawType(); drawLines(); drawStore(); await drawReceipts(); await drawQuote(); drawAgain();
   if (againId) {   // "Request this again": fill the form from that request
     let src = history.find((r) => r.id === againId);
     if (!src) src = (await sb.from('requests').select('id, request_no, type, purpose, category_id, estimated_total, created_at, lines:request_lines(item_id, description, qty, est_unit_price)').eq('id', againId).maybeSingle()).data;
@@ -496,6 +541,7 @@ export async function requestDetailPage(id) {
   const me = state.me.id;
   const isRequester = q.requester_id === me;
   const isClaim = q.type === 'claim';
+  const transfer = q.paid_via === 'transfer';
   const reload = () => { location.hash = `#/requests/${id}?t=${Date.now()}`; };
   const over = Number(q.estimated_total) > thr();
 
@@ -565,16 +611,16 @@ export async function requestDetailPage(id) {
     : finished || q.status === 'draft' ? null : more('Ask a question about this request', msgForm);
 
   const expenseSheet = expense && Number(expense.total) > 0 && !(isClaim && ['draft', 'pending_approval', 'awaiting_disbursement'].includes(q.status)) ? h('div', { class: 'sheet' },
-    h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'What was claimed' : 'What was spent'), h('span', { class: 'sub' }, `${fmtDate(expense.spent_at)} · recorded by ${personName(expense.spent_by)}${expense.supplier_name ? ` · ${expense.supplier_name}` : ''}`)),
+    h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'What was claimed' : transfer ? 'What was paid' : 'What was spent'), h('span', { class: 'sub' }, transfer ? `${fmtDate(expense.spent_at)} · by bank transfer, ref ${q.payment_ref}${expense.supplier_name ? ` · ${expense.supplier_name}` : ''}` : `${fmtDate(expense.spent_at)} · recorded by ${personName(expense.spent_by)}${expense.supplier_name ? ` · ${expense.supplier_name}` : ''}`)),
     h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
       h('thead', {}, h('tr', {}, h('th', {}, 'Line'), h('th', {}, 'Supplier'), h('th', { class: 'num' }, 'Qty'), h('th', { class: 'num' }, 'Unit price'), h('th', { class: 'num' }, 'Total'))),
       h('tbody', {}, expense.lines.map((l) => h('tr', {}, h('td', {}, l.description), h('td', { class: 'muted' }, l.supplier_name || '—'), h('td', { class: 'num' }, qty(l.qty)), h('td', { class: 'num' }, money(l.unit_price)), h('td', { class: 'num' }, money(l.line_total))))),
-      h('tfoot', {}, h('tr', {}, h('td', { colspan: 4 }, isClaim ? 'Reimbursed' : 'Spent'), h('td', { class: 'num' }, money(expense.total))),
-        isClaim ? null : h('tr', {}, h('td', { colspan: 4, class: 'muted', style: { fontWeight: 400 } }, Number(expense.total) > Number(q.disbursed_amount) ? `Overspent against ${money(q.disbursed_amount)} paid out – finance to reimburse` : `Change returned against ${money(q.disbursed_amount)} paid out`),
+      h('tfoot', {}, h('tr', {}, h('td', { colspan: 4 }, isClaim ? 'Reimbursed' : transfer ? 'Paid' : 'Spent'), h('td', { class: 'num' }, money(expense.total))),
+        isClaim || transfer ? null : h('tr', {}, h('td', { colspan: 4, class: 'muted', style: { fontWeight: 400 } }, Number(expense.total) > Number(q.disbursed_amount) ? `Overspent against ${money(q.disbursed_amount)} paid out – finance to reimburse` : `Change returned against ${money(q.disbursed_amount)} paid out`),
           h('td', { class: 'num', style: { fontWeight: 400 } }, Number(expense.total) > Number(q.disbursed_amount) ? money(Number(expense.total) - Number(q.disbursed_amount)) : money(expense.change_returned)))))),
     expense.notes ? h('p', { class: 'hint', style: { marginTop: '8px' } }, expense.notes) : null,
     h('div', { style: { marginTop: '12px' } }, h('h3', { style: { marginBottom: '8px' } }, 'Proof'), await proofGallery(expense, q, false, reload)),
-    expense.proof_status === 'confirmed' ? h('p', { class: 'hint', style: { marginTop: '8px' } }, `Confirmed by ${personName(expense.confirmed_by)} on ${fmtDate(expense.confirmed_at, { time: true })}${expense.physical_received_at ? ` · physical receipt received ${fmtDate(expense.physical_received_at)}` : ''}`) : null) : null;
+    expense.proof_status === 'confirmed' ? h('p', { class: 'hint', style: { marginTop: '8px' } }, transfer ? `Paid and recorded by ${personName(expense.confirmed_by)} on ${fmtDate(expense.confirmed_at, { time: true })}${expense.duplicate_note ? ` · looked like an earlier payment: ${expense.duplicate_note}` : ''}` : `Confirmed by ${personName(expense.confirmed_by)} on ${fmtDate(expense.confirmed_at, { time: true })}${expense.physical_received_at ? ` · physical receipt received ${fmtDate(expense.physical_received_at)}` : ''}`) : null) : null;
 
   const timeline = more(`History (${events.length + 1} step${events.length ? 's' : ''})`,
     h('ul', { class: 'timeline' },
@@ -593,7 +639,9 @@ export async function requestDetailPage(id) {
     q.approved_at ? [h('dt', {}, 'Approved'), h('dd', {}, `${personName(q.approved_by)}${q.approval_level ? ` (${LEVEL_LABEL[q.approval_level]} level)` : ''}, ${fmtDate(q.approved_at)}${q.approval_note ? ' – ' + q.approval_note : ''}`)] : null,
     q.review_reason ? [h('dt', {}, 'Review'), h('dd', {}, `${q.review_reason} ${q.reviewed_at ? `Reviewed by ${personName(q.reviewed_by)}, ${fmtDate(q.reviewed_at)}${q.review_note ? ' – ' + q.review_note : ''}.` : 'Not reviewed yet.'}`)] : null,
     q.rejected_at ? [h('dt', {}, 'Rejected'), h('dd', {}, `${personName(q.rejected_by)}, ${fmtDate(q.rejected_at)} – ${q.rejection_reason}`)] : null,
-    q.disbursed_at ? [h('dt', {}, isClaim ? 'Reimbursed' : 'Cash paid out'), h('dd', {}, `${money(q.disbursed_amount)} to ${personName(q.disbursed_to)} by ${personName(q.disbursed_by)}, ${fmtDate(q.disbursed_at)}`)] : null,
+    q.no_quote && !docs.length ? [h('dt', {}, 'Quote'), h('dd', { id: 'no-quote-note' }, 'None – sent without a quote or invoice')] : null,
+    q.paid_via === 'transfer' ? [h('dt', {}, 'Paid by bank transfer'), h('dd', { id: 'transfer-detail' }, `${money(q.disbursed_amount)} on ${fmtDate(q.paid_on)} · ref ${q.payment_ref} · recorded by ${personName(q.disbursed_by)}, ${fmtDate(q.disbursed_at)}`)]
+      : q.disbursed_at ? [h('dt', {}, isClaim ? 'Reimbursed' : 'Cash paid out'), h('dd', {}, `${money(q.disbursed_amount)} to ${personName(q.disbursed_to)} by ${personName(q.disbursed_by)}, ${fmtDate(q.disbursed_at)}`)] : null,
     q.closed_at ? [h('dt', {}, 'Closed'), h('dd', {}, `${personName(q.closed_by)}, ${fmtDate(q.closed_at)}`)] : null,
     q.schedule_version ? [h('dt', {}, 'Rules'), h('dd', {}, `${q.approved_at ? 'Approved' : 'Routed'} under ${state.settings?.schedule_ref || 'the schedule'} version ${q.schedule_version}`)] : null);
 
@@ -652,7 +700,7 @@ async function stagePanel(q, lines, expense, reload, check = null, openOrders = 
       }
       if (can('finance') && !(q.requester_id === me && (!q.approved_by || q.approved_by === me))) return disbursePanel(q, reload);
       if (can('finance')) return banner('amber', 'Waiting for finance', 'Someone else pays out your own request.');
-      return banner('amber', 'Approved – waiting for finance', 'Finance will pay the cash out from the float.',
+      return banner('amber', 'Approved – waiting for finance', q.type === 'cash' ? (q.docs?.length ? 'Finance pays it in cash from the petty cash box, or by bank transfer to the supplier.' : 'Finance pays it in cash from the petty cash box.') : 'Finance will pay the cash out from the float.',
         q.requester_id === me && !q.docs?.length ? h('div', { style: { marginTop: '8px' } }, h('a', { class: 'btn btn-sm', href: '#/snap' }, 'Have the supplier’s invoice? Attach it so finance pays the exact amount')) : null);
 
     case 'disbursed': {
@@ -671,7 +719,9 @@ async function stagePanel(q, lines, expense, reload, check = null, openOrders = 
       return banner('amber', 'Finance needs the physical receipt', expense?.finance_note ? `${expense.finance_note} ` : 'Hand the original receipt to finance; they will close the request once they have it. ',
         q.disbursed_to === me ? h('div', { style: { marginTop: '10px' } }, await proofGallery(expense, q, true, reload)) : null);
 
-    case 'closed': return banner('green', isClaim ? 'Reimbursed' : 'Closed', isClaim ? `${money(q.disbursed_amount)} paid back from petty cash on ${fmtDate(q.disbursed_at)}.` : `Spent ${money(expense?.total)} · proof confirmed by finance.`);
+    case 'closed':
+      if (q.paid_via === 'transfer') return banner('green', 'Paid by bank transfer', `${money(q.disbursed_amount)}${expense?.supplier_name ? ` to ${expense.supplier_name}` : ''} on ${fmtDate(q.paid_on)} · ref ${q.payment_ref}. Nothing more to do.`);
+      return banner('green', isClaim ? 'Reimbursed' : 'Closed', isClaim ? `${money(q.disbursed_amount)} paid back from petty cash on ${fmtDate(q.disbursed_at)}.` : `Spent ${money(expense?.total)} · proof confirmed by finance.`);
     case 'fulfilled_from_stock': return banner('green', 'Issued from the store', 'Everything requested was available in stock; no cash was needed.');
     case 'rejected': return banner('red', `Rejected by ${personName(q.rejected_by)}`, q.rejection_reason);
     case 'cancelled': return banner('grey', 'Withdrawn', '');
@@ -756,13 +806,11 @@ function disbursePanel(q, reload) {
   const note = h('input', { class: 'input', placeholder: 'Note (optional)' });
   const warn = h('div', { class: 'hint' });
   const tol = 1 + Number(state.settings?.change_tolerance_pct ?? 10) / 100;
-  const check = () => {
-    const a = num(amount.value);
-    warn.textContent = a > thr() && !q.approved_by && !q.review_reason ? `Above ${money(thr())} and not approved – escalate it instead.`
+  const limitText = (a) => (a > thr() && !q.approved_by && !q.review_reason ? `Above ${money(thr())} and not approved – escalate it instead.`
       : (q.approved_by || q.review_reason) && a > Math.round(Number(q.estimated_total) * tol * 100) / 100 ? `More than the ${money(q.estimated_total)} ${q.approved_by ? 'approved' : 'requested'} – send it back for approval with the new amount.`
-      : q.approved_by && (q.approval_level || 'gm') === 'gm' && a > Number(state.settings?.gm_limit ?? 5000) ? `Above the GM limit – the Managing Director must approve the new amount.` : '';
-    warn.style.color = warn.textContent ? 'var(--purple)' : '';
-  };
+      : q.approved_by && (q.approval_level || 'gm') === 'gm' && a > Number(state.settings?.gm_limit ?? 5000) ? `Above the GM limit – the Managing Director must approve the new amount.` : '');
+  const showLimit = (el, a) => { el.textContent = limitText(a); el.style.color = el.textContent ? 'var(--purple)' : ''; };
+  const check = () => showLimit(warn, num(amount.value));
   amount.oninput = check; check();
   const invNote = invoice ? h('p', { class: 'hint', style: { color: Math.abs(invTotal - Number(q.estimated_total)) > Math.max(1, Number(q.estimated_total) * 0.02) ? 'var(--amber)' : '' } },
     `Invoice attached${invoice.extracted?.supplier ? ` from ${invoice.extracted.supplier}` : ''} reads ${money(invTotal)}${Math.abs(invTotal - Number(q.estimated_total)) > Math.max(1, Number(q.estimated_total) * 0.02) ? ` against ${money(q.estimated_total)} ${q.approved_by ? 'approved' : 'requested'}` : ' – matches what was approved'}. It becomes the proof once you pay out.`) : null;
@@ -789,21 +837,65 @@ function disbursePanel(q, reload) {
     }
     await rpc('disburse_request', { p_request: q.id, p_amount: num(amount.value), p_to: to.value, p_note: note.value }); toast(`Paid out ${money(num(amount.value))}.`); reload();
   });
+  // a payment request with a quote or invoice can be paid by bank transfer instead: the box is not touched
+  const docs = q.type === 'cash' ? (q.docs || []) : [];
+  const canTransfer = docs.length > 0;
+  let how = 'cash';
+  const quoted = docs.filter((d) => Number(d.extracted?.total) > 0).slice(-1)[0];
+  const tAmount = h('input', { class: 'input num', id: 'transfer-amount', type: 'number', min: '0.01', step: '0.01', value: (quoted ? Number(quoted.extracted.total) : Number(q.estimated_total)).toFixed(2) });
+  const tDate = h('input', { class: 'input', id: 'transfer-date', type: 'date', value: today(), max: today() });
+  const tRef = h('input', { class: 'input', id: 'transfer-ref', maxlength: 60, placeholder: 'As on the bank statement' });
+  const tNote = h('input', { class: 'input', placeholder: 'Note (optional)' });
+  const tWarn = h('div', { class: 'hint' });
+  tAmount.oninput = () => showLimit(tWarn, num(tAmount.value)); showLimit(tWarn, num(tAmount.value));
+  const tPay = h('button', { class: 'btn btn-primary', id: 'record-transfer' }, 'Record bank transfer');
+  tPay.onclick = busy(tPay, async () => {
+    if (!tRef.value.trim()) throw new Error('Enter the bank reference of the transfer.');
+    if (!tDate.value) throw new Error('Enter the date of the transfer.');
+    const args = { p_request: q.id, p_amount: num(tAmount.value), p_paid_on: tDate.value, p_reference: tRef.value.trim(), p_note: tNote.value.trim() || null };
+    try { await rpc('pay_by_transfer', args); }
+    catch (e) {
+      if (!/looks like #/.test(e.message) || args.p_note) throw e;
+      // the same supplier, date and amount was paid before: record it only with a reason
+      const why = await confirmDialog('This looks like an earlier payment', `${e.message.replace(/ If both payments are right, say why in the note\.?$/, '')}. If both payments are right, say why – the note stays on the request and in the pack.`, { ok: 'Record with this note', note: { label: 'Why both are right', required: true } });
+      if (!why) return;
+      await rpc('pay_by_transfer', { ...args, p_note: why });
+    }
+    toast(`Recorded: ${money(num(tAmount.value))} paid by bank transfer.`); reload();
+  });
+  const active = () => num((how === 'transfer' ? tAmount : amount).value);
   const esc = h('button', { class: 'btn' }, 'Send for approval');
   esc.onclick = busy(esc, async () => {
-    const n = await confirmDialog('Send for approval', `The approver will see the revised amount of ${money(num(amount.value))}.`, { ok: 'Send', note: { label: 'Why', required: true } });
-    if (!n) return; await rpc('escalate_request', { p_request: q.id, p_new_estimate: num(amount.value), p_note: n }); toast('Sent to the approver.'); reload();
+    const n = await confirmDialog('Send for approval', `The approver will see the revised amount of ${money(active())}.`, { ok: 'Send', note: { label: 'Why', required: true } });
+    if (!n) return; await rpc('escalate_request', { p_request: q.id, p_new_estimate: active(), p_note: n }); toast('Sent to the approver.'); reload();
   });
   const rej = h('button', { class: 'btn btn-danger' }, 'Decline');
   rej.onclick = busy(rej, async () => { const n = await confirmDialog('Decline this request?', 'The requester will see your reason.', { ok: 'Decline', danger: true, note: { label: 'Reason', required: true } }); if (!n) return; await rpc('reject_request', { p_request: q.id, p_reason: n }); toast('Declined.'); reload(); });
-  return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
-    h('div', { class: 'sheet-head' }, h('h2', {}, 'Pay out from petty cash'), h('span', { class: 'sub' }, q.approved_by ? `Approved by ${personName(q.approved_by)}` : `Within the ${money(thr())} limit – no approval needed`)),
+  const title = h('h2', {}, 'Pay out from petty cash');
+  const body = h('div', {});
+  const tabs = canTransfer ? h('div', { class: 'tabs', id: 'pay-how', role: 'tablist', 'aria-label': 'How it is paid' }) : null;
+  const draw = () => {
+    title.textContent = how === 'transfer' ? 'Pay by bank transfer' : 'Pay out from petty cash';
+    if (tabs) mount(tabs, [['cash', 'Cash from the box'], ['transfer', 'Bank transfer']].map(([k, l]) =>
+      h('button', { type: 'button', class: k === how ? 'active' : '', role: 'tab', 'aria-selected': String(k === how), onclick: () => { how = k; draw(); } }, l)));
+    mount(body, how === 'transfer'
+      ? [h('p', { class: 'hint' }, `Pay the supplier from the bank, then record it here. The petty cash box is not touched. The ${quoted?.kind === 'invoice' ? 'invoice' : 'quote'}${quoted?.extracted?.supplier ? ` from ${quoted.extracted.supplier}` : ''} becomes the proof and the request closes.`),
+        h('div', { class: 'row' }, field('Amount paid', tAmount, tWarn), field('Date of the transfer', tDate), field('Bank reference', tRef)),
+        field('Note', tNote),
+        h('div', { class: 'form-actions' }, rej, esc, tPay)]
+      : [invNote,
+        h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', toPick), field('Note', note)),
+        proof,
+        owing,
+        q.type === 'cash' && !canTransfer ? h('p', { class: 'hint', id: 'cash-only' }, `${q.no_quote ? 'Sent with no quote' : 'No quote or invoice attached'}, so it is paid in cash from the box.`) : null,
+        h('div', { class: 'form-actions' }, rej, esc, pay)]);
+  };
+  draw();
+  return h('div', { class: 'sheet', id: 'pay-panel', style: { borderColor: 'var(--amber)' } },
+    h('div', { class: 'sheet-head' }, title, h('span', { class: 'sub' }, q.approved_by ? `Approved by ${personName(q.approved_by)}` : `Within the ${money(thr())} limit – no approval needed`)),
+    tabs,
     q.over_budget && q.budget_note ? h('p', { class: 'hint', style: { color: 'var(--amber)' } }, q.budget_note) : null,
-    invNote,
-    h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', toPick), field('Note', note)),
-    proof,
-    owing,
-    h('div', { class: 'form-actions' }, rej, esc, pay));
+    body);
 }
 
 /** A receipt already used on another request: finance writes why it is right before accepting it. */

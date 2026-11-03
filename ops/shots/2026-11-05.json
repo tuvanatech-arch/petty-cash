@@ -1,0 +1,20 @@
+[
+ {
+  "name": "payment-request-form",
+  "role": "requester",
+  "step": {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice"
+  }
+ },
+ {
+  "name": "pay-by-transfer",
+  "role": "finance",
+  "step": {
+   "at": "#/requests/00000122-0000-4000-8000-000000000000",
+   "css": "#pay-how",
+   "text": ""
+  }
+ }
+]

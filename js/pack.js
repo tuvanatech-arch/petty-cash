@@ -68,8 +68,12 @@ export async function packSummary(float, requests) {
 
 export async function buildMonthEndPack(float, { onProgress = () => {}, save = true } = {}) {
   onProgress('Collecting vouchers…');
-  const [requests, ledger, counts, mgmt] = await Promise.all([
+  const monthAfter = new Date(String(float.period).slice(0, 10) + 'T00:00:00'); monthAfter.setMonth(monthAfter.getMonth() + 1);
+  const [requests, transfers, ledger, counts, mgmt] = await Promise.all([
     unwrap(await sb.from('requests').select('*, expense:expenses(*, lines:expense_lines(*), proofs:expense_proofs(*))').eq('float_id', float.id).order('disbursed_at')),
+    // payment requests paid from the bank in the same month and branch: not from the box, but the accountant needs them
+    sb.from('requests').select('*, expense:expenses(*, lines:expense_lines(*), proofs:expense_proofs(*))').eq('branch_id', float.branch_id).eq('paid_via', 'transfer')
+      .gte('paid_on', String(float.period).slice(0, 10)).lt('paid_on', isoDate(monthAfter)).order('paid_on').then((r) => r.data || []).catch(() => []),
     unwrap(await sb.rpc('cash_ledger', { p_float: float.id })) || [],
     unwrap(await sb.from('cash_counts').select('*').eq('float_id', float.id).order('counted_at')) || [],
     sb.rpc('management_summary', { p_month: float.period }).then((r) => r.data || null).catch(() => null),   // as the builder sees it (their branch view)
@@ -175,6 +179,8 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   text('Spending against the previous two months', { size: 10, bold: true }); y += 1;
   table([{ label: 'Month', w: 70 }, { label: 'Vouchers', w: 40, align: 'right' }, { label: 'Spent', w: 68, align: 'right' }],
     s.months.map((m, i) => [mName(m.month) + (i === 2 ? ' (this pack)' : ''), String(m.vouchers), money(m.spent)]));
+  const byBank = transfers.reduce((a, r) => a + Number(r.disbursed_amount || 0), 0);
+  if (byBank > 0) { y += 1; text(`This month includes ${money(byBank)} paid by bank transfer (${transfers.length} payment${transfers.length === 1 ? '' : 's'}), not from the petty cash box.`, { size: 9, color: [123, 133, 127] }); }
   y += 4;
   if (s.by_category.length) {
     text('By category', { size: 10, bold: true }); y += 1;
@@ -230,23 +236,37 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
     const totSpent = requests.reduce((a, r) => a + Number(ex(r)?.total || 0), 0);
     doc.setFontSize(10); doc.setFont('helvetica', 'bold'); need(LH); doc.text(`Paid out ${money(totPaid)} · receipts ${money(totSpent)}`, W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH;
   }
+  if (transfers.length) {
+    y += 6;
+    heading('Paid by bank transfer');
+    text('Paid from the bank, not from the petty cash box, so they are not part of the reconciliation. Each one follows with its quote or invoice.', { size: 9, color: [123, 133, 127] });
+    y += 1;
+    table([{ label: '#', w: 11 }, { label: 'Purpose', w: 58 }, { label: 'Supplier', w: 35 }, { label: 'Paid on', w: 22 }, { label: 'Bank ref', w: 30 }, { label: 'Amount', w: 22, align: 'right' }],
+      transfers.map((r) => [String(r.request_no), `${r.purpose}${r.approved_by ? `\napproved by ${personName(r.approved_by)}` : ''}`, ex(r)?.supplier_name || '—', fmtDate(r.paid_on), r.payment_ref || '', money(r.disbursed_amount)]));
+    y += 2;
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); need(LH); doc.text(`Paid by bank transfer ${money(transfers.reduce((a, r) => a + Number(r.disbursed_amount || 0), 0))}`, W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH;
+  }
 
   /* ---- one page per voucher with its receipt(s) ---- */
   let i = 0;
-  for (const r of requests) {
+  const pages = [...requests, ...transfers];
+  for (const r of pages) {
     const e = ex(r); i++;
-    onProgress(`Adding receipts ${i} of ${requests.length}…`);
+    const bank = r.paid_via === 'transfer';
+    onProgress(`Adding receipts ${i} of ${pages.length}…`);
     newPage();
-    text(`Voucher #${r.request_no} · ${r.purpose}`, { size: 13, bold: true }); rule();
+    text(`${bank ? 'Bank transfer' : 'Voucher'} #${r.request_no} · ${r.purpose}`, { size: 13, bold: true }); rule();
     const details = [
-      ['Type', r.type === 'claim' ? 'Claim (paid from own pocket)' : r.type === 'stock' ? (r.for_store ? 'Restock order' : 'Stock request') : 'Cash request'],
+      ['Type', r.type === 'claim' ? 'Claim (paid from own pocket)' : r.type === 'stock' ? (r.for_store ? 'Restock order' : 'Stock request') : bank ? 'Payment request, paid by bank transfer' : 'Payment request'],
       ['Requested by', `${personName(r.requester_id)} on ${fmtDate(r.submitted_at || r.created_at)}`],
       r.stock_reviewed_by ? ['Stock review', `${personName(r.stock_reviewed_by)}, ${fmtDate(r.stock_reviewed_at)}${r.stock_note ? ` – ${r.stock_note}` : ''}`] : null,
       r.approved_by ? ['Approved', `${personName(r.approved_by)}, ${fmtDate(r.approved_at)}${r.approval_note ? ` – ${r.approval_note}` : ''}`] : null,
       r.schedule_version ? ['Schedule', `${state.settings?.schedule_ref || 'Authority schedule'} version ${r.schedule_version}`] : null,
-      [r.type === 'claim' ? 'Reimbursed' : 'Cash paid', `${money(r.disbursed_amount)} to ${personName(r.disbursed_to)} by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`],
-      e && Number(e.total) > 0 ? ['Spent', `${money(e.total)} on ${fmtDate(e.spent_at)}${e.supplier_name ? ` at ${e.supplier_name}` : ''}${r.type !== 'claim' ? ` · change ${money(e.change_returned)}` : ''}`] : ['Spent', 'Not yet recorded'],
-      e?.confirmed_by ? ['Receipt confirmed', `${personName(e.confirmed_by)}, ${fmtDate(e.confirmed_at)}${e.physical_received_at ? ` · paper original received ${fmtDate(e.physical_received_at)}` : ''}`] : null,
+      bank ? ['Paid by bank transfer', `${money(r.disbursed_amount)}${e?.supplier_name ? ` to ${e.supplier_name}` : ''} on ${fmtDate(r.paid_on)} · ref ${r.payment_ref} · recorded by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`]
+        : [r.type === 'claim' ? 'Reimbursed' : 'Cash paid', `${money(r.disbursed_amount)} to ${personName(r.disbursed_to)} by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`],
+      bank ? null : e && Number(e.total) > 0 ? ['Spent', `${money(e.total)} on ${fmtDate(e.spent_at)}${e.supplier_name ? ` at ${e.supplier_name}` : ''}${r.type !== 'claim' ? ` · change ${money(e.change_returned)}` : ''}`] : ['Spent', 'Not yet recorded'],
+      bank && e?.duplicate_note ? ['Looked like an earlier payment', e.duplicate_note] : null,
+      e?.confirmed_by && !bank ? ['Receipt confirmed', `${personName(e.confirmed_by)}, ${fmtDate(e.confirmed_at)}${e.physical_received_at ? ` · paper original received ${fmtDate(e.physical_received_at)}` : ''}`] : null,
       r.proof_rule === 'none' ? ['Proof', `No proof possible – ${r.proof_reason} (decided by ${personName(r.proof_set_by)}, ${fmtDate(r.proof_set_at)})`] : null,
       e?.notes ? ['Notes', e.notes] : null,
     ].filter(Boolean);
