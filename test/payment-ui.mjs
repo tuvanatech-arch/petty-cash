@@ -98,10 +98,13 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
   await ctx.close();
 }
 
-/* 5. the GM can record a transfer too; on a phone it fits */
+/* 5. the GM can pay from petty cash (box or account), but only finance pays from the company account; on a phone it fits */
 {
   const { ctx, page, errs } = await open('approver', `#/requests/${uid(122)}`, 390);
-  check(await page.locator('#pay-how button').count() === 3, 'the GM sees the same choice');
+  const gmTabs = page.locator('#pay-how button');
+  check(await gmTabs.count() === 2 && await gmTabs.nth(0).innerText() === 'Cash from the box' && await gmTabs.nth(1).innerText() === 'Petty cash account',
+    'the GM chooses the box or the petty cash account: no company account');
+  check(/recorded by finance/.test(await page.locator('#company-finance-only').innerText().catch(() => '')), 'and is told finance records company account payments');
   await page.locator('#pay-how button').nth(1).click(); await page.waitForTimeout(300);
   check(await noSideScroll(page), 'phone: the transfer form fits without sideways scrolling');
   check(!errs.length, `GM phone: no page errors ${errs.join(' | ')}`);

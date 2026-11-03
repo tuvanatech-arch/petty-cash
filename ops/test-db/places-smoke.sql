@@ -98,7 +98,12 @@ select pg_temp.ok('the cash ledger shows the withdrawal, not the transfer, and a
 do $$ begin perform public.finance_review_expense('00000000-0000-0000-0000-00000000b001', 'confirm', 'ok'); raise notice 'FAIL finance closed a transfer as a receipt check';
   exception when others then raise notice 'ok   a transfer is not closed by the receipt check'; end $$;
 
--- the roof: a direct payment from the company account, outside petty cash
+-- the roof: a direct payment from the company account, outside petty cash. Only finance records one (045).
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+do $$ begin perform public.pay_by_transfer('00000000-0000-0000-0000-00000000b002', 2400, current_date, 'Main 99812', 'company', pg_temp.pop('00000000-0000-0000-0000-00000000b002'), 'pop-roof.pdf', 'application/pdf');
+  raise notice 'FAIL the GM paid from the company account';
+  exception when others then raise notice '%', case when sqlerrm = 'Only finance pays from the company account' then 'ok   only finance pays from the company account' else 'FAIL GM refused for another reason: ' || sqlerrm end; end $$;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
 create temp table before2 as select pg_temp.box() as box, pg_temp.bank() as bank;
 select pg_temp.ok('from the company account',
   (public.pay_by_transfer('00000000-0000-0000-0000-00000000b002', 2400, current_date, 'Main 99812', 'company', pg_temp.pop('00000000-0000-0000-0000-00000000b002'), 'pop-roof.pdf', 'application/pdf')).paid_from = 'company');

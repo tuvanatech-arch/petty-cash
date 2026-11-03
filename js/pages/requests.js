@@ -893,8 +893,9 @@ function disbursePanel(q, reload) {
   rej.onclick = busy(rej, async () => { const n = await confirmDialog('Decline this request?', 'The requester will see your reason.', { ok: 'Decline', danger: true, note: { label: 'Reason', required: true } }); if (!n) return; await rpc('reject_request', { p_request: q.id, p_reason: n }); toast('Declined.'); reload(); });
   const title = h('h2', {}, 'Pay out from petty cash');
   const body = h('div', {});
-  const ways = [['cash', 'Cash from the box'], bank ? ['petty', 'Petty cash account'] : null, ['company', 'Company account']].filter(Boolean);
-  const tabs = canTransfer ? h('div', { class: 'tabs', id: 'pay-how', role: 'tablist', 'aria-label': 'How it is paid' }) : null;
+  // a direct payment from the company account is finance's alone (045); the GM pays from petty cash
+  const ways = [['cash', 'Cash from the box'], bank ? ['petty', 'Petty cash account'] : null, has('finance') ? ['company', 'Company account'] : null].filter(Boolean);
+  const tabs = canTransfer && ways.length > 1 ? h('div', { class: 'tabs', id: 'pay-how', role: 'tablist', 'aria-label': 'How it is paid' }) : null;
   const doc = `${quoted?.kind === 'invoice' ? 'invoice' : 'quote'}${quoted?.extracted?.supplier ? ` from ${quoted.extracted.supplier}` : ''}`;
   const info = () => {
     tInfo.textContent = how === 'petty'
@@ -917,6 +918,7 @@ function disbursePanel(q, reload) {
         h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', toPick), field('Note', note)),
         proof,
         owing,
+        canTransfer && !has('finance') ? h('p', { class: 'hint', id: 'company-finance-only' }, 'A payment from the company account is recorded by finance.') : null,
         q.type === 'cash' && !canTransfer ? h('p', { class: 'hint', id: 'cash-only' }, `${q.no_quote ? 'Sent with no quote' : 'No quote or invoice attached'}, so it is paid in cash from the box.`) : null,
         h('p', { class: 'hint' }, 'Whoever receives the cash confirms it on their phone.'),
         h('div', { class: 'form-actions' }, rej, esc, pay)]);

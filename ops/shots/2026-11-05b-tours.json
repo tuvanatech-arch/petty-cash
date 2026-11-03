@@ -90,7 +90,7 @@
    "at": "#/requests?status=awaiting_disbursement",
    "css": "h1",
    "text": "",
-   "say": "A request with a quote can be paid by transfer from the petty cash account or the company account (outside petty cash). You can record one too."
+   "say": "A request with a quote can be paid by transfer from the petty cash account (you can record one too) or, by finance only, from the company account (outside petty cash)."
   }
  ]
 }
