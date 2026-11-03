@@ -38,3 +38,5 @@ echo "smoke: PASS"
 node device-audit.mjs | tail -9
 node resume-test.mjs | tail -1
 node push-test.mjs | tail -1
+# the upload to Backblaze (needs Deno: npm i deno, or set DENO=/path/to/deno)
+D=${DENO:-$(command -v deno)}; if [ -n "$D" ]; then T=$(mktemp -d); mkdir -p "$T/t" "$T/f"; echo '{"nodeModulesDir":"auto"}' > "$T/deno.json"; cp ../functions/offsite/*.ts "$T/f/"; sed 's#../functions/offsite/b2.ts#../f/b2.ts#' offsite-b2-test.ts > "$T/t/test.ts"; (cd "$T" && "$D" run -A t/test.ts 2>/dev/null | tail -1); rm -rf "$T"; else echo "OFFSITE B2: SKIP (no deno)"; fi

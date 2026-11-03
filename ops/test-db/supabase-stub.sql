@@ -49,6 +49,7 @@ grant all on storage.objects, storage.buckets to authenticated, service_role;
 create schema cron;
 create table cron.job (jobid bigserial primary key, schedule text, command text, nodename text default 'localhost', nodeport int default 5432,
   database text default current_database(), username text default current_user, active boolean default true, jobname text unique);
+create table cron.job_run_details (runid bigserial primary key, jobid bigint, job_pid int, database text, username text, command text, status text, return_message text, start_time timestamptz, end_time timestamptz);
 create function cron.schedule(job_name text, schedule text, command text) returns bigint language sql as $$
   insert into cron.job (jobname, schedule, command) values (job_name, schedule, command)
   on conflict (jobname) do update set schedule = excluded.schedule, command = excluded.command returning jobid $$;
@@ -57,6 +58,7 @@ create function cron.alter_job(job_id bigint, schedule text default null, comman
   returns void language sql as $$ update cron.job set schedule = coalesce($2, schedule), command = coalesce($3, command), active = coalesce($6, active) where jobid = $1 $$;
 
 create schema net;
+create table net._http_response (id bigserial primary key, status_code int, content text, error_msg text, timed_out boolean, created timestamptz not null default now());
 create table net.calls (id bigserial primary key, url text, headers jsonb, body jsonb, at timestamptz default now());
 create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{"Content-Type": "application/json"}', timeout_milliseconds int default 5000)
   returns bigint language sql as $$ insert into net.calls (url, headers, body) values (url, headers, body) returning id $$;

@@ -53,8 +53,11 @@ Run `select public.update_feedback(30)` on the live database: what people said a
 
 Every weekday at 10:11 (Windhoek) a scheduled task runs `select public.health_report(26)` (db/039) and checks that app.usepetti.com and usepetti.com load. It pushes to the owner's phone only when something is wrong: a failed scheduled job, no nightly copy (or one with fewer tables than the night before), failed calls to the server functions, or 10+ errors from phones. Run it yourself at the start of a session too. A new table that holds records goes into `TABLES` in `functions/backup/index.ts`.
 
+Every night at 02:30 UTC `functions/offsite` (db/040) sends the latest records copy and every new or changed receipt, pack and logo to Tuvana Tech's own Backblaze bucket (EU Central, Amsterdam), with a key that can only add files. It also does a practice restore of exactly what it sent (`restore_check` loads each table's rows into a scratch copy). Runs are in `public.offsite_runs`; the health check reports failures. It does nothing until the four secrets `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET`, `B2_ENDPOINT` are set (the owner adds them; never handle the keys yourself).
+
 ## Open items (as of 1 Nov 2026)
 
+- Backblaze: the owner creates the account, bucket and Write Only key and adds the four secrets; then run `select public.call_function('offsite', '{}', 150000)` until `more` is false and check `restore_ok` in `offsite_runs`.
 - Email via Resend (owner sets up; then redeploy send-notifications, send-push, send-pack, account-mail).
 - Owner runs `db/018b_run_in_supabase.sql` and `db/026b_run_in_supabase.sql`. The unused `stock_adjust_raise_v1` can be dropped at the same time.
 - MGP's logo: the GM uploads it under Admin → Settings → Company logo (the light-background version). The accounting package name, and Magreth loading the catalogue.
