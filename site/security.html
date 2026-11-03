@@ -1,93 +1,137 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Security and your data – Petti</title>
-  <meta name="description" content="Where Petti keeps your petty cash records, who can see them, how sign-in is protected and which outside services are involved.">
+  <title>How Petti handles your data | Petti</title>
+  <meta name="description" content="Where Petti stores information, how access is managed, how receipts are read, how records are copied, and which services support Petti.">
   <meta name="theme-color" content="#123f33">
+  <link rel="canonical" href="https://usepetti.com/security">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="How Petti handles your data">
+  <meta property="og:description" content="An overview of where information is stored, how access is managed and which services support Petti.">
+  <meta property="og:url" content="https://usepetti.com/security">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="preload" href="fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="site.css">
+  <script>document.documentElement.classList.add('js')</script>
 </head>
-<body class="sec-page">
+<body>
   <a class="skip" href="#main">Skip to the content</a>
-  <header class="hero sec-hero">
-    <nav class="bar" aria-label="Main">
+  <header class="top page-top">
+    <nav class="nav wrap" aria-label="Main">
       <a class="mark" href="/" aria-label="Petti, home">Petti<span class="dot" aria-hidden="true"></span></a>
-      <div class="bar-links">
-        <a class="signin" href="https://app.usepetti.com/">Sign in</a>
-        <a class="btn btn-sand btn-small" href="/#get">Try it free</a>
-      </div>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="/#workflow">How it works</a></li>
+        <li><a href="/#supplies">Office supplies</a></li>
+        <li><a href="/#pricing">Pricing</a></li>
+        <li><a href="/security" aria-current="page">Security</a></li>
+        <li class="nav-signin"><a href="https://app.usepetti.com/">Sign in</a></li>
+      </ul>
+      <a class="btn btn-sand btn-small nav-cta" href="/#trial">Request a free trial</a>
     </nav>
-    <div class="hero-inner sec-hero-inner">
-      <div class="hero-copy">
-        <h1>How Petti keeps your records safe</h1>
-        <p class="lead">Petty cash is money, so we treat its records like money. Here is where your data lives, who can see it, and how signing in is protected.</p>
-      </div>
+    <div class="wrap">
+      <h1>How Petti handles your data</h1>
+      <p class="lead">An overview of where information is stored, how access is managed and which services support Petti.</p>
     </div>
   </header>
 
-  <main id="main">
-    <section class="sec">
-      <div class="wrap">
-        <ul class="sec-grid">
-          <li>
-            <h2>Where your records live</h2>
-            <p>In a database run by Supabase in Paris, France, inside the European Union. Supabase holds a <a href="https://supabase.com/docs/guides/security/soc-2-compliance">SOC 2 Type 2 report</a>: an independent audit of its security controls. Every connection between your phone or computer, the app and the database is encrypted (HTTPS).</p>
-          </li>
-          <li>
-            <h2>Your own database</h2>
-            <p>Each company gets its own database and its own app settings. Your records are never mixed with another company's.</p>
-          </li>
-          <li>
-            <h2>Who sees what</h2>
-            <p>Each person sees only what their position needs. Staff see their own requests, finance sees the cash box, and the GM and the MD see everything. These rules are enforced inside the database, not only on the screen.</p>
-          </li>
-          <li>
-            <h2>Signing in</h2>
-            <p>Everyone has their own account and password. Finance, the GM and the MD must also use two-step sign-in: a 6-digit code from their phone after the password, so a stolen password alone cannot release money. Every sign-in is logged with its device, any device can be signed out from another, and someone who leaves is switched off in one tap.</p>
-          </li>
-          <li>
-            <h2>A name on every step</h2>
-            <p>Who asked, who approved, who paid and who checked: every step carries a name and a time. Nobody approves, pays out or confirms their own spending.</p>
-          </li>
-          <li>
-            <h2>Copies and leaving</h2>
-            <p>Petti copies your petty cash and stock records every night. At any month end you can download everything: the PDF pack, plus spreadsheet files for your accountant. If you stop using Petti, you keep a full export.</p>
-          </li>
-        </ul>
-      </div>
-    </section>
+  <main id="main" class="doc-body">
+    <div class="wrap">
+      <nav class="toc" aria-label="On this page">
+        <p>On this page</p>
+        <a href="#storage">Data storage and processing</a>
+        <a href="#access">User access and authentication</a>
+        <a href="#receipts">Receipts and AI-assisted processing</a>
+        <a href="#backups">Backups and recovery</a>
+        <a href="#services">Third-party services</a>
+        <a href="#export">Data export and deletion</a>
+        <a href="#contact">Contact and security questions</a>
+      </nav>
 
-    <section class="sec sec-services" aria-labelledby="svc-h">
-      <div class="wrap">
-        <h2 id="svc-h">The outside services involved</h2>
-        <p class="sec-lead">Petti is built on a few well-known services. This is what each one does with your data.</p>
-        <div class="sec-table-wrap">
-          <table class="sec-table">
-            <thead><tr><th scope="col">Service</th><th scope="col">What it does for Petti</th><th scope="col">What it holds</th></tr></thead>
-            <tbody>
-              <tr><th scope="row">Supabase</th><td>Database, stored receipts and files, and sign-in</td><td>Your records, in Paris (EU)</td></tr>
-              <tr><th scope="row">Netlify</th><td>Serves the app's pages and this website</td><td>No records: only the app itself</td></tr>
-              <tr><th scope="row">Anthropic</th><td>Reads a receipt photo, so the shop, date and amounts fill in by themselves</td><td>Only the photo it is asked to read. Under its commercial terms it <a href="https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-training">does not train its models</a> on it by default</td></tr>
-              <tr><th scope="row">Google and Apple</th><td>Deliver alerts to the phones that have alerts switched on</td><td>The text of each alert, in transit</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="small">Questions about security? Ask us through the <a href="/#get">form on the home page</a> and we will answer in writing.</p>
+      <div class="doc-sections">
+        <section id="storage" aria-labelledby="storage-h">
+          <h2 id="storage-h">Data storage and processing</h2>
+          <p>Each company that uses Petti gets its own database and its own file storage. Your records are not stored in a shared database with other companies’ records.</p>
+          <p>The database, receipt images and other stored files are hosted by Supabase in its Paris region (France, in the European Union). Supabase holds a <a href="https://supabase.com/docs/guides/security/soc-2-compliance">SOC 2 Type 2 report</a>. That report covers Supabase’s own controls, not Petti.</p>
+          <p>Connections between your device, the app and the database use HTTPS. Not every processing step happens in Paris: receipt reading, phone alerts and the web pages themselves are handled by the other services listed under <a href="#services">Third-party services</a>.</p>
+        </section>
+
+        <section id="access" aria-labelledby="access-h">
+          <h2 id="access-h">User access and authentication</h2>
+          <ul class="ticks">
+            <li>Everyone signs in with their own account. Accounts are created by your administrator; there is no public sign-up.</li>
+            <li>What each person can see and do depends on their role, for example staff, finance or approver. These rules are enforced in the database, not only hidden on the screen.</li>
+            <li>Your company can require two-step sign-in (a code from an authenticator app after the password) for the roles that handle money, such as finance and approvers.</li>
+            <li>Sign-ins are recorded with the device used. A person can sign out their other devices, and an administrator can switch off someone’s access.</li>
+            <li>Requests record who asked, who approved, who paid out and who confirmed the receipt, with the time of each step. Nobody approves or pays out their own request.</li>
+          </ul>
+        </section>
+
+        <section id="receipts" aria-labelledby="receipts-h">
+          <h2 id="receipts-h">Receipts and AI-assisted processing</h2>
+          <p>When someone adds a receipt photo or PDF, Petti can send that file to Anthropic’s API (the Claude model) to read the shop, date and amounts. The result fills in the form for the person to check. Finance then confirms the receipt. If reading is unavailable, the receipt is checked by eye.</p>
+          <p>Only the receipt file being read is sent for reading, not your other records. Under Anthropic’s commercial terms, Anthropic <a href="https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-training">does not train its models</a> on this data by default. How long Anthropic keeps API data, and where it is processed, is set out in Anthropic’s own terms and privacy documentation. That is a separate question from model training.</p>
+        </section>
+
+        <section id="backups" aria-labelledby="backups-h">
+          <h2 id="backups-h">Backups and recovery</h2>
+          <ul class="ticks">
+            <li><strong>Records:</strong> every night, Petti copies your petty cash and stock records to private storage within your Petti project.</li>
+            <li><strong>A second copy elsewhere:</strong> every night, those records, together with new or changed receipt images, month-end packs and your logo, are also copied to a private, encrypted storage bucket at a second provider, Backblaze, in its EU Central region (Amsterdam, the Netherlands). The key Petti uses can add files there but cannot read or remove them.</li>
+            <li><strong>Restore check:</strong> each night, the records sent to Backblaze are loaded back into a scratch copy of every table to check that they can be restored.</li>
+            <li><strong>Monitoring:</strong> each working morning, an automatic check reports a missing or incomplete copy to Tuvana Tech.</li>
+          </ul>
+          <p>These copies make recovery possible. No recovery time or recovery point is promised here.</p>
+        </section>
+
+        <section id="services" aria-labelledby="services-h">
+          <h2 id="services-h">Third-party services</h2>
+          <p>Petti is built on the following services. This is what each one does, and what it handles.</p>
+          <div class="svc-wrap">
+            <table class="svc">
+              <thead><tr><th scope="col">Service</th><th scope="col">What it does for Petti</th><th scope="col">What it handles</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Supabase</th><td>Database, file storage, sign-in and server functions</td><td>Your records, receipt images and accounts, in Paris (EU)</td></tr>
+                <tr><th scope="row">Netlify</th><td>Serves the app’s pages and this website; receives the trial request form on this website</td><td>The app’s code (not your records); trial requests sent through the form; standard web request logs</td></tr>
+                <tr><th scope="row">Anthropic</th><td>Reads receipt photos and PDFs when asked</td><td>The receipt file being read</td></tr>
+                <tr><th scope="row">Backblaze</th><td>Holds the nightly second copy</td><td>Copies of your records, receipt images, month-end packs and logo, in Amsterdam (EU)</td></tr>
+                <tr><th scope="row">Google and Apple</th><td>Deliver alerts to phones that have alerts switched on</td><td>The text of each alert, on its way to the phone</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Alerts reach a phone only when its owner has switched them on, and delivery depends on the phone, its settings and its connection.</p>
+        </section>
+
+        <section id="export" aria-labelledby="export-h">
+          <h2 id="export-h">Data export and deletion</h2>
+          <p>Finance can download each month’s records at any time: a PDF month-end pack (reconciliation, cash counts, ledger, vouchers and receipts), spreadsheet files (CSV) with the receipt images, and a journal file for your accountant.</p>
+          <p>When a company cancels, Petti first asks it to download all its records in one file. 30 days after cancelling, we remove that company’s Petti, its files and its backup copies for good.</p>
+        </section>
+
+        <section id="contact" aria-labelledby="contact-h">
+          <h2 id="contact-h">Contact and security questions</h2>
+          <p>Call <a href="tel:+264814950605">+264 81 495 0605</a>, or ask through the <a href="/#trial">form on the home page</a>, and we will reply in writing.</p>
+        </section>
       </div>
-    </section>
+    </div>
   </main>
 
   <footer class="foot">
     <div class="wrap foot-inner">
       <p class="mark mark-small">Petti<span class="dot" aria-hidden="true"></span></p>
-      <p>Petti is made by Tuvana Tech, a Desmic Group company.</p>
-      <p><a href="/">Home</a> · <a href="https://app.usepetti.com/">Sign in</a></p>
+      <p>Petti is made by Tuvana Tech, a Desmic Group company. Call <a href="tel:+264814950605">+264 81 495 0605</a>.</p>
+      <ul class="foot-links">
+        <li><a href="/#workflow">How it works</a></li>
+        <li><a href="/#pricing">Pricing</a></li>
+        <li><a href="/security">Security</a></li>
+        <li><a href="https://app.usepetti.com/">Sign in</a></li>
+      </ul>
       <p class="small">© 2026 Tuvana Tech</p>
     </div>
   </footer>
+  <script src="site.js" defer></script>
 </body>
 </html>
