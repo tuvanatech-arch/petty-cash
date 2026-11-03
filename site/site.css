@@ -193,10 +193,19 @@ h3 { font-size: 1.3rem; line-height: 1.2; font-weight: 700; }
 
 /* ---------- price ---------- */
 .price { padding: 96px 0 48px; }
-.price-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.price-head { max-width: 40em; }
+.plans { list-style: none; margin: 40px 0 28px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.plan { background: var(--white); border: 1px solid var(--rule); border-radius: 18px; padding: 28px; display: grid; gap: 6px; align-content: start; }
+.plan h3 { margin: 0; font-family: var(--display); font-size: 1.35rem; }
+.plan-who { margin: 0; color: var(--muted); }
+.plan-price { margin: 14px 0 0; font-family: var(--display); font-weight: 800; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--green-ink); line-height: 1.1; }
+.plan-price .cur { font-size: .55em; vertical-align: .55em; margin-right: 2px; }
+.plan-price .per, .plan-price .from { font: 500 1rem/1 var(--text); letter-spacing: 0; color: var(--muted); }
+.plan-main { border: 2px solid var(--green); }
 .lead-dark { font-size: 1.2rem; color: #36403b; margin: 18px 0 0; max-width: 26em; }
 .price-box { background: var(--white); border: 1px solid var(--rule); border-radius: 18px; padding: 32px; display: grid; gap: 22px; justify-items: start; }
-.price-tag { margin: 0; font-family: var(--display); font-weight: 800; font-size: 2rem; letter-spacing: -0.02em; color: var(--green-ink); }
+.price-box .dots { grid-template-columns: 1fr 1fr; gap: 14px 40px; }
+.price-tag { margin: 0; font-family: var(--display); font-weight: 800; font-size: 1.5rem; letter-spacing: -0.02em; color: var(--green-ink); }
 
 /* ---------- enquiry ---------- */
 .get { padding: 48px 0 112px; }
@@ -228,7 +237,9 @@ h3 { font-size: 1.3rem; line-height: 1.2; font-weight: 700; }
   .steps { grid-template-columns: repeat(2, 1fr); gap: 48px 28px; }
   .steps li:nth-child(even) .phone { transform: none; }
   .steps li:nth-child(even) h3 { margin-top: 22px; }
-  .audit-inner, .price-inner, .get-inner { grid-template-columns: 1fr; gap: 32px; }
+  .audit-inner, .get-inner { grid-template-columns: 1fr; gap: 32px; }
+  .plans { grid-template-columns: 1fr; gap: 14px; }
+  .price-box .dots { grid-template-columns: 1fr; }
   .stock-inner { grid-template-columns: 1fr; gap: 40px; }
   .stock-inner .phone { justify-self: center; width: min(280px, 80%); }
   .local-grid { grid-template-columns: repeat(2, 1fr); }
@@ -252,7 +263,7 @@ h3 { font-size: 1.3rem; line-height: 1.2; font-weight: 700; }
   .get-inner { padding: 28px 20px; border-radius: 18px; margin: 0 16px; }
   .form { grid-template-columns: 1fr; }
   .form button { justify-self: stretch; }
-  .price-box { padding: 24px; }
+  .price-box, .plan { padding: 24px; }
   .foot .small { margin-left: 0; }
 }
 
