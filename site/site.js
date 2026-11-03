@@ -13,6 +13,13 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && links.classList.contains('open')) { set(false); toggle.focus(); } });
   }
 
+  /* ---------- the slip prints line by line, once, when the page opens ---------- */
+  const slip = document.getElementById('slip');
+  if (slip && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    slip.classList.add('printing');
+    slip.querySelectorAll('.slip-lines li, .slip-foot').forEach((li, i) => { li.style.animationDelay = `${300 + i * 170}ms`; });
+  }
+
   /* ---------- trial form ---------- */
   const form = document.getElementById('trial-form');
   if (!form || !window.fetch || !window.FormData) return;
