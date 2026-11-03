@@ -49,6 +49,10 @@ Run `select public.update_feedback(30)` on the live database: what people said a
 5. Announce (above).
 6. SQL containing DELETE or DROP is refused by the migration tool: give it to the owner as a "run in Supabase" file instead.
 
+## Health check
+
+Every weekday at 10:11 (Windhoek) a scheduled task runs `select public.health_report(26)` (db/039) and checks that app.usepetti.com and usepetti.com load. It pushes to the owner's phone only when something is wrong: a failed scheduled job, no nightly copy (or one with fewer tables than the night before), failed calls to the server functions, or 10+ errors from phones. Run it yourself at the start of a session too. A new table that holds records goes into `TABLES` in `functions/backup/index.ts`.
+
 ## Open items (as of 1 Nov 2026)
 
 - Email via Resend (owner sets up; then redeploy send-notifications, send-push, send-pack, account-mail).
