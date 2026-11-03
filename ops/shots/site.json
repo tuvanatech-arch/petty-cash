@@ -1,0 +1,145 @@
+{
+ "now": "2026-11-26T09:30:00Z",
+ "settings": {
+  "schedule_ref": "DEMO-SCH-PC-001",
+  "policy_ref": "DEMO-POL-PC-001",
+  "policy_url": ""
+ },
+ "shots": [
+  {
+   "name": "hero-desk",
+   "role": "finance",
+   "at": "#/cash",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "width": 1280,
+   "height": 900,
+   "dpr": 1.5,
+   "hide": [
+    ".banner-amber",
+    ".banner"
+   ],
+   "clip": {
+    "x": 0,
+    "y": 0,
+    "width": 1280,
+    "height": 392
+   }
+  },
+  {
+   "name": "hero-phone",
+   "role": "finance",
+   "at": "#/cash",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "hide": [
+    ".tabbar",
+    ".banner"
+   ],
+   "between": [
+    "Petty cash",
+    "Last counted"
+   ]
+  },
+  {
+   "name": "wf-spent",
+   "role": "finance",
+   "at": "#/requests/00000112-0000-4000-8000-000000000000",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "hide": [
+    ".tabbar"
+   ],
+   "between": [
+    "What was spent",
+    "Confirmed by"
+   ]
+  },
+  {
+   "name": "wf-history",
+   "role": "finance",
+   "at": "#/requests/00000112-0000-4000-8000-000000000000",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "hide": [
+    ".tabbar"
+   ],
+   "click": [
+    "summary:has-text('History')"
+   ],
+   "between": [
+    "History",
+    "History"
+   ]
+  },
+  {
+   "name": "wf-count",
+   "role": "finance",
+   "at": "#/cash",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "width": 1280,
+   "height": 900,
+   "dpr": 1.5,
+   "hide": [
+    ".banner"
+   ],
+   "between": [
+    "Cash counts",
+    "Cash count \u00b7 18 Nov"
+   ],
+   "pad": 18
+  },
+  {
+   "name": "attention",
+   "role": "finance",
+   "at": "#/home",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "hide": [
+    ".tabbar"
+   ],
+   "between": [
+    "To pay out",
+    "Paper receipts awaited"
+   ]
+  },
+  {
+   "name": "delivery",
+   "role": "finance",
+   "at": "#/home",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "hide": [
+    ".tabbar"
+   ],
+   "between": [
+    "Deliveries to confirm",
+    "Confirm arrival"
+   ]
+  },
+  {
+   "name": "stock",
+   "role": "stock_manager",
+   "at": "#/stock",
+   "storage": {
+    "demo_view": "00000081-0000-4000-8000-000000000000"
+   },
+   "hide": [
+    ".tabbar",
+    ".banner-purple"
+   ],
+   "between": [
+    "Item",
+    "7 items"
+   ]
+  }
+ ]
+}
