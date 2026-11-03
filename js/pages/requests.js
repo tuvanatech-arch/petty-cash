@@ -1,4 +1,4 @@
-import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, uploadToInbox, fileInboxDocument, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
+import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, uploadToInbox, fileInboxDocument, markAlertsRead, bankName, cleanError, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
 import { branchTag } from '../branch.js';
 import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted, refresh, picker, units } from '../ui.js';
 import { outlookBox } from './cash.js';
@@ -24,7 +24,7 @@ export function requestRow(q, { showRequester = false, note = null } = {}) {
       h('span', {}, [typeLabel(q), showRequester ? ` · ${personName(q.requester_id)}` : '', ` · ${fmtDate(q.submitted_at || q.created_at)}`].join(''),
         q.over_budget ? h('span', { style: { color: 'var(--amber)' } }, ' · over budget') : null,
         note ? h('span', { style: { color: 'var(--amber)' } }, ` · ${note}`) : null)),
-    pill(q.status),
+    pill(q),
     h('span', { class: `amt${over ? ' threshold' : ''}`, title: over ? 'Above the approval threshold' : '' }, money(amount)));
 }
 
@@ -549,7 +549,7 @@ export async function requestDetailPage(id) {
     h('div', {},
       h('div', { class: 'ref' }, `${isClaim ? 'Claim' : 'Request'} #${q.request_no} · ${typeLabel(q)} · raised by ${personName(q.requester_id)} on ${fmtDate(q.created_at)}`),
       h('h1', {}, q.purpose || 'Request'),
-      h('p', {}, pill(q.status), ' ',
+      h('p', {}, pill(q), ' ',
         isClaim && q.status !== 'draft' ? h('span', { class: 'pill pill-purple', title: 'Money spent before anyone approved it' }, 'Paid out of pocket · no prior approval') : q.approval_required ? h('span', { class: 'pill pill-purple' }, q.approval_level ? `${LEVEL_LABEL[q.approval_level]} approval` : `Above ${money(thr())}`) : null, ' ',
         q.review_reason ? h('span', { class: `pill ${q.reviewed_at ? 'pill-green' : 'pill-amber'}`, title: q.review_reason }, q.reviewed_at ? 'Reviewed after payment' : 'For review after payment') : null, ' ',
         q.over_budget ? h('span', { class: 'pill pill-amber', title: q.budget_note || '' }, 'Over budget') : null,
@@ -640,8 +640,10 @@ export async function requestDetailPage(id) {
     q.review_reason ? [h('dt', {}, 'Review'), h('dd', {}, `${q.review_reason} ${q.reviewed_at ? `Reviewed by ${personName(q.reviewed_by)}, ${fmtDate(q.reviewed_at)}${q.review_note ? ' – ' + q.review_note : ''}.` : 'Not reviewed yet.'}`)] : null,
     q.rejected_at ? [h('dt', {}, 'Rejected'), h('dd', {}, `${personName(q.rejected_by)}, ${fmtDate(q.rejected_at)} – ${q.rejection_reason}`)] : null,
     q.no_quote && !docs.length ? [h('dt', {}, 'Quote'), h('dd', { id: 'no-quote-note' }, 'None – sent without a quote or invoice')] : null,
-    q.paid_via === 'transfer' ? [h('dt', {}, 'Paid by bank transfer'), h('dd', { id: 'transfer-detail' }, `${money(q.disbursed_amount)} on ${fmtDate(q.paid_on)} · ref ${q.payment_ref} · recorded by ${personName(q.disbursed_by)}, ${fmtDate(q.disbursed_at)}`)]
+    q.paid_via === 'transfer' ? [h('dt', {}, 'Paid by bank transfer'), h('dd', { id: 'transfer-detail' }, `${money(q.disbursed_amount)} on ${fmtDate(q.paid_on)} from ${fromText(q)} · ref ${q.payment_ref} · recorded by ${personName(q.disbursed_by)}, ${fmtDate(q.disbursed_at)}`)]
       : q.disbursed_at ? [h('dt', {}, isClaim ? 'Reimbursed' : 'Cash paid out'), h('dd', {}, `${money(q.disbursed_amount)} to ${personName(q.disbursed_to)} by ${personName(q.disbursed_by)}, ${fmtDate(q.disbursed_at)}`)] : null,
+    q.cash_received != null ? [h('dt', {}, 'Cash received'), h('dd', { id: 'cash-received-detail', style: { color: q.cash_received ? '' : 'var(--red)' } }, `${q.cash_received ? 'Yes' : 'No'} – ${personName(q.disbursed_to)}, ${fmtDate(q.cash_received_at, { time: true })}${q.cash_received_note ? ` – “${q.cash_received_note}”` : ''}`)] : null,
+    q.supplier_confirmed_at ? [h('dt', {}, 'Supplier confirmed'), h('dd', {}, `${personName(q.supplier_confirmed_by)}, ${fmtDate(q.supplier_confirmed_at)}${q.supplier_note ? ` – “${q.supplier_note}”` : ''}`)] : null,
     q.closed_at ? [h('dt', {}, 'Closed'), h('dd', {}, `${personName(q.closed_by)}, ${fmtDate(q.closed_at)}`)] : null,
     q.schedule_version ? [h('dt', {}, 'Rules'), h('dd', {}, `${q.approved_at ? 'Approved' : 'Routed'} under ${state.settings?.schedule_ref || 'the schedule'} version ${q.schedule_version}`)] : null);
 
@@ -660,7 +662,7 @@ export async function requestDetailPage(id) {
   const requestedSheet = finished && expenseSheet
     ? h('div', { class: 'sheet flat' }, more(isClaim ? 'What was claimed, and who signed it off' : 'What was asked for, and who signed it off', ...requestedBody))
     : h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'Claimed' : 'Requested')), ...requestedBody);
-  return h('div', {}, head, stage, reviewPanel,
+  return h('div', {}, head, cashQuestion(q, reload), stage, reviewPanel,
     h('div', { class: 'grid-2' },
       h('div', {}, finished ? [expenseSheet, requestedSheet] : [requestedSheet, expenseSheet]),
       h('div', {}, messagesSheet, record)));
@@ -710,6 +712,7 @@ async function stagePanel(q, lines, expense, reload, check = null, openOrders = 
     }
 
     case 'proof_review':
+      if (q.paid_via === 'transfer') return supplierPanel(q, expense, reload);
       if (can('finance') && (q.disbursed_to === me || q.requester_id === me)) return banner('blue', 'Waiting for the receipt to be checked', 'Someone else confirms your own receipt – finance, or the General Manager when it is finance’s own.');
       if (can('finance')) return financeReviewPanel(q, expense, reload, check);
       return banner('blue', 'Finance is checking the receipt', 'You will be told if anything else is needed.');
@@ -720,7 +723,7 @@ async function stagePanel(q, lines, expense, reload, check = null, openOrders = 
         q.disbursed_to === me ? h('div', { style: { marginTop: '10px' } }, await proofGallery(expense, q, true, reload)) : null);
 
     case 'closed':
-      if (q.paid_via === 'transfer') return banner('green', 'Paid by bank transfer', `${money(q.disbursed_amount)}${expense?.supplier_name ? ` to ${expense.supplier_name}` : ''} on ${fmtDate(q.paid_on)} · ref ${q.payment_ref}. Nothing more to do.`);
+      if (q.paid_via === 'transfer') return banner('green', 'Paid by bank transfer', `${money(q.disbursed_amount)}${expense?.supplier_name ? ` to ${expense.supplier_name}` : ''} on ${fmtDate(q.paid_on)} from ${fromText(q)} · ref ${q.payment_ref}.${q.supplier_confirmed_at ? ` Supplier confirmed by ${personName(q.supplier_confirmed_by)}, ${fmtDate(q.supplier_confirmed_at)}.` : ''}`, await popLinks(expense));
       return banner('green', isClaim ? 'Reimbursed' : 'Closed', isClaim ? `${money(q.disbursed_amount)} paid back from petty cash on ${fmtDate(q.disbursed_at)}.` : `Spent ${money(expense?.total)} · proof confirmed by finance.`);
     case 'fulfilled_from_stock': return banner('green', 'Issued from the store', 'Everything requested was available in stock; no cash was needed.');
     case 'rejected': return banner('red', `Rejected by ${personName(q.rejected_by)}`, q.rejection_reason);
@@ -837,22 +840,39 @@ function disbursePanel(q, reload) {
     }
     await rpc('disburse_request', { p_request: q.id, p_amount: num(amount.value), p_to: to.value, p_note: note.value }); toast(`Paid out ${money(num(amount.value))}.`); reload();
   });
-  // a payment request with a quote or invoice can be paid by bank transfer instead: the box is not touched
+  // a payment request with a quote or invoice can be paid by bank transfer instead: from the petty cash bank account
+  // (part of petty cash) or from the company account (outside petty cash); the box is not touched either way
   const docs = q.type === 'cash' ? (q.docs || []) : [];
   const canTransfer = docs.length > 0;
+  const bank = bankName(q.branch_id);
   let how = 'cash';
+  let bankBal = null;
   const quoted = docs.filter((d) => Number(d.extracted?.total) > 0).slice(-1)[0];
   const tAmount = h('input', { class: 'input num', id: 'transfer-amount', type: 'number', min: '0.01', step: '0.01', value: (quoted ? Number(quoted.extracted.total) : Number(q.estimated_total)).toFixed(2) });
   const tDate = h('input', { class: 'input', id: 'transfer-date', type: 'date', value: today(), max: today() });
   const tRef = h('input', { class: 'input', id: 'transfer-ref', maxlength: 60, placeholder: 'As on the bank statement' });
+  const tPop = h('input', { type: 'file', id: 'transfer-pop', accept: 'image/*,application/pdf' });
+  const tPopName = h('span', {}, '📎 Attach the proof of payment');
+  tPop.onchange = () => { tPopName.textContent = tPop.files?.[0] ? `📎 ${tPop.files[0].name}` : '📎 Attach the proof of payment'; };
   const tNote = h('input', { class: 'input', placeholder: 'Note (optional)' });
   const tWarn = h('div', { class: 'hint' });
+  const tInfo = h('p', { class: 'hint', id: 'transfer-info' });
   tAmount.oninput = () => showLimit(tWarn, num(tAmount.value)); showLimit(tWarn, num(tAmount.value));
+  let popPath = null;   // kept if the first attempt is refused, so a retry does not upload it again
   const tPay = h('button', { class: 'btn btn-primary', id: 'record-transfer' }, 'Record bank transfer');
   tPay.onclick = busy(tPay, async () => {
     if (!tRef.value.trim()) throw new Error('Enter the bank reference of the transfer.');
     if (!tDate.value) throw new Error('Enter the date of the transfer.');
-    const args = { p_request: q.id, p_amount: num(tAmount.value), p_paid_on: tDate.value, p_reference: tRef.value.trim(), p_note: tNote.value.trim() || null };
+    const file = tPop.files?.[0];
+    if (!file && !popPath) throw new Error('Attach the proof of payment (a screenshot or PDF from the bank).');
+    if (file && !popPath) {
+      const path = `${q.id}/pop-${crypto.randomUUID()}-${file.name.replace(/[^\w.\-]+/g, '_').slice(-60)}`;
+      const { error } = await sb.storage.from('proofs').upload(path, file, { contentType: file.type || 'application/octet-stream' });
+      if (error) throw new Error(cleanError(error));
+      popPath = path;
+    }
+    const args = { p_request: q.id, p_amount: num(tAmount.value), p_paid_on: tDate.value, p_reference: tRef.value.trim(), p_from: how === 'petty' ? 'petty_cash' : 'company',
+      p_pop_path: popPath, p_pop_name: file?.name || 'proof-of-payment', p_pop_mime: file?.type || null, p_note: tNote.value.trim() || null };
     try { await rpc('pay_by_transfer', args); }
     catch (e) {
       if (!/looks like #/.test(e.message) || args.p_note) throw e;
@@ -861,9 +881,9 @@ function disbursePanel(q, reload) {
       if (!why) return;
       await rpc('pay_by_transfer', { ...args, p_note: why });
     }
-    toast(`Recorded: ${money(num(tAmount.value))} paid by bank transfer.`); reload();
+    toast(`Recorded: ${money(num(tAmount.value))} paid by bank transfer. ${personName(q.requester_id)} gets the proof of payment.`, { ms: 5000 }); reload();
   });
-  const active = () => num((how === 'transfer' ? tAmount : amount).value);
+  const active = () => num((how === 'cash' ? amount : tAmount).value);
   const esc = h('button', { class: 'btn' }, 'Send for approval');
   esc.onclick = busy(esc, async () => {
     const n = await confirmDialog('Send for approval', `The approver will see the revised amount of ${money(active())}.`, { ok: 'Send', note: { label: 'Why', required: true } });
@@ -873,14 +893,24 @@ function disbursePanel(q, reload) {
   rej.onclick = busy(rej, async () => { const n = await confirmDialog('Decline this request?', 'The requester will see your reason.', { ok: 'Decline', danger: true, note: { label: 'Reason', required: true } }); if (!n) return; await rpc('reject_request', { p_request: q.id, p_reason: n }); toast('Declined.'); reload(); });
   const title = h('h2', {}, 'Pay out from petty cash');
   const body = h('div', {});
+  const ways = [['cash', 'Cash from the box'], bank ? ['petty', 'Petty cash account'] : null, ['company', 'Company account']].filter(Boolean);
   const tabs = canTransfer ? h('div', { class: 'tabs', id: 'pay-how', role: 'tablist', 'aria-label': 'How it is paid' }) : null;
+  const doc = `${quoted?.kind === 'invoice' ? 'invoice' : 'quote'}${quoted?.extracted?.supplier ? ` from ${quoted.extracted.supplier}` : ''}`;
+  const info = () => {
+    tInfo.textContent = how === 'petty'
+      ? `Pay the supplier from ${bank}, then record it here with the proof of payment. It comes off the petty cash bank account${bankBal != null ? ` (${money(bankBal)} on the book)` : ''}; the box is not touched. ${personName(q.requester_id)} gets the proof of payment and confirms when the supplier has delivered.`
+      : `Pay the supplier from the company account, then record it here with the proof of payment. This is a direct payment outside petty cash: kept with the ${doc}, but not part of the petty cash balances or budgets. ${personName(q.requester_id)} gets the proof of payment and confirms when the supplier has delivered.`;
+  };
+  if (bank && canTransfer) sb.from('v_floats').select('bank_balance').eq('branch_id', q.branch_id).eq('status', 'open').maybeSingle().then(({ data }) => { if (data) { bankBal = Number(data.bank_balance); info(); } }).catch(() => {});
   const draw = () => {
-    title.textContent = how === 'transfer' ? 'Pay by bank transfer' : 'Pay out from petty cash';
-    if (tabs) mount(tabs, [['cash', 'Cash from the box'], ['transfer', 'Bank transfer']].map(([k, l]) =>
+    title.textContent = how === 'petty' ? 'Pay from the petty cash account' : how === 'company' ? 'Pay from the company account' : 'Pay out from petty cash';
+    if (tabs) mount(tabs, ways.map(([k, l]) =>
       h('button', { type: 'button', class: k === how ? 'active' : '', role: 'tab', 'aria-selected': String(k === how), onclick: () => { how = k; draw(); } }, l)));
-    mount(body, how === 'transfer'
-      ? [h('p', { class: 'hint' }, `Pay the supplier from the bank, then record it here. The petty cash box is not touched. The ${quoted?.kind === 'invoice' ? 'invoice' : 'quote'}${quoted?.extracted?.supplier ? ` from ${quoted.extracted.supplier}` : ''} becomes the proof and the request closes.`),
+    info();
+    mount(body, how !== 'cash'
+      ? [tInfo,
         h('div', { class: 'row' }, field('Amount paid', tAmount, tWarn), field('Date of the transfer', tDate), field('Bank reference', tRef)),
+        field('Proof of payment', h('label', { class: 'upload', id: 'transfer-pop-box' }, tPop, tPopName)),
         field('Note', tNote),
         h('div', { class: 'form-actions' }, rej, esc, tPay)]
       : [invNote,
@@ -888,6 +918,7 @@ function disbursePanel(q, reload) {
         proof,
         owing,
         q.type === 'cash' && !canTransfer ? h('p', { class: 'hint', id: 'cash-only' }, `${q.no_quote ? 'Sent with no quote' : 'No quote or invoice attached'}, so it is paid in cash from the box.`) : null,
+        h('p', { class: 'hint' }, 'Whoever receives the cash confirms it on their phone.'),
         h('div', { class: 'form-actions' }, rej, esc, pay)]);
   };
   draw();
@@ -896,6 +927,76 @@ function disbursePanel(q, reload) {
     tabs,
     q.over_budget && q.budget_note ? h('p', { class: 'hint', style: { color: 'var(--amber)' } }, q.budget_note) : null,
     body);
+}
+
+/** Where a transfer was paid from, in words. */
+const fromText = (q) => (q.paid_from === 'company' ? 'the company account (outside petty cash)' : bankName(q.branch_id) || 'the petty cash bank account');
+
+/** The proof of payment of a transfer: open it, or share it (to the supplier, by WhatsApp or email) from the phone. */
+async function popLinks(expense) {
+  const pop = (expense?.proofs || []).find((p) => p.extracted?.kind === 'pop');
+  if (!pop) return null;
+  const url = await proofUrl(pop.storage_path).catch(() => null);
+  if (!url) return null;
+  const share = h('button', { type: 'button', class: 'btn btn-sm', id: 'share-pop' }, 'Share');
+  share.onclick = busy(share, async () => {
+    try {
+      const blob = await (await fetch(url)).blob();
+      const file = new File([blob], pop.file_name || 'proof-of-payment.pdf', { type: blob.type || pop.mime || 'application/octet-stream' });
+      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'Proof of payment' }); return; }
+    } catch (e) { if (e?.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = url; a.download = pop.file_name || 'proof-of-payment'; a.target = '_blank'; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove();
+    toast('Downloaded – send it to the supplier from your phone or email.');
+  });
+  return h('div', { class: 'pop-links', id: 'pop-links', style: { marginTop: '10px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
+    h('span', { class: 'muted' }, 'Proof of payment:'), h('a', { class: 'btn btn-sm btn-quiet', href: url, target: '_blank', rel: 'noopener', id: 'open-pop' }, 'Open'), share);
+}
+
+/** A transfer waits for the person who asked: they confirm the supplier delivered (finance can, with a reason). */
+async function supplierPanel(q, expense, reload) {
+  const me = state.me.id;
+  const links = await popLinks(expense);
+  const paid = `${money(q.disbursed_amount)}${expense?.supplier_name ? ` to ${expense.supplier_name}` : ''} on ${fmtDate(q.paid_on)} from ${fromText(q)} (ref ${q.payment_ref})`;
+  if (q.requester_id === me) {
+    const note = h('input', { class: 'input', id: 'supplier-note', placeholder: 'Optional – e.g. tap fixed, goods received' });
+    const extra = h('input', { type: 'file', accept: 'image/*,application/pdf', id: 'supplier-receipt', onchange: async (e) => {
+      const file = e.target.files?.[0]; if (!file || !expense) return;
+      try { await uploadProof(q.id, expense.id, file); toast('Added to the request.'); reload(); } catch (ex) { toast(ex.message, { error: true }); }
+    } });
+    const ok = h('button', { class: 'btn btn-primary', id: 'supplier-confirmed' }, 'Supplier confirmed');
+    ok.onclick = busy(ok, async () => { await rpc('confirm_supplier', { p_request: q.id, p_note: note.value.trim() || null }); toast('Thank you – the request is closed.'); reload(); });
+    return h('div', { class: 'sheet', id: 'supplier-panel', style: { borderColor: 'var(--blue)' } },
+      h('div', { class: 'sheet-head' }, h('h2', {}, 'Has the supplier delivered?'), h('span', { class: 'sub' }, 'paid by bank transfer')),
+      h('p', {}, `Finance paid ${paid}. If the supplier asks for the proof of payment, share it with them.`),
+      links,
+      h('p', { class: 'hint', style: { marginTop: '12px' } }, 'Once the goods or the work are in, confirm it here. If the supplier gives you a receipt or tax invoice, add it too.'),
+      h('div', { class: 'row' }, field('Note', note), field('Supplier’s receipt (optional)', h('label', { class: 'upload' }, extra, '📷 Add it'))),
+      h('div', { class: 'form-actions' }, ok));
+  }
+  const forThem = can('finance') || has('approver') ? h('button', { class: 'btn btn-sm btn-quiet', id: 'confirm-for-them' }, 'Confirm for them') : null;
+  if (forThem) forThem.onclick = busy(forThem, async () => {
+    const n = await confirmDialog('Confirm the supplier delivered', `Normally ${personName(q.requester_id)} confirms this. Say why you are confirming instead.`, { ok: 'Confirm and close', note: { label: 'Why', required: true } });
+    if (!n) return; await rpc('confirm_supplier', { p_request: q.id, p_note: n }); toast('Closed.'); reload();
+  });
+  return h('div', { class: 'banner banner-blue', id: 'supplier-panel' }, h('strong', {}, 'Paid – waiting for the supplier'),
+    `${paid}. ${personName(q.requester_id)} confirms when the goods or the work are in.`, links, forThem ? h('div', { style: { marginTop: '8px' } }, forThem) : null);
+}
+
+/** Whoever was handed cash says whether they received it (only for cash handed out since this was introduced). */
+function cashQuestion(q, reload) {
+  const me = state.me.id;
+  const from = state.settings?.cash_confirm_from;
+  if (q.paid_via !== 'cash' || !q.disbursed_at || q.disbursed_to !== me || q.disbursed_by === me || q.cash_received != null) return null;
+  if (from && new Date(q.disbursed_at) < new Date(from)) return null;
+  const yes = h('button', { class: 'btn btn-primary', id: 'cash-yes' }, 'Yes, I received it');
+  yes.onclick = busy(yes, async () => { await rpc('confirm_cash', { p_request: q.id, p_received: true }); toast('Thank you.'); reload(); });
+  const no = h('button', { class: 'btn btn-danger', id: 'cash-no' }, 'No');
+  no.onclick = busy(no, async () => {
+    const n = await confirmDialog('You did not receive the cash?', 'The GM and finance are told straight away. Say what happened.', { ok: 'Send', danger: true, note: { label: 'What happened', required: true } });
+    if (!n) return; await rpc('confirm_cash', { p_request: q.id, p_received: false, p_note: n }); toast('The GM and finance have been told.'); reload();
+  });
+  return h('div', { class: 'banner banner-amber', id: 'cash-question' }, h('strong', {}, `Did you receive ${money(q.disbursed_amount)} from ${personName(q.disbursed_by)}?`),
+    `Finance recorded handing it to you on ${fmtDate(q.disbursed_at, { time: true })}.`, h('div', { class: 'form-actions', style: { justifyContent: 'flex-start', marginTop: '8px' } }, yes, no));
 }
 
 /** A receipt already used on another request: finance writes why it is right before accepting it. */

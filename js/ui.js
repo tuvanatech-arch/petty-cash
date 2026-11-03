@@ -127,6 +127,7 @@ export const STATUS = {
   awaiting_disbursement: { label: 'Awaiting payment',      pill: 'pill-amber' },
   disbursed:             { label: 'Cash out – record spend', pill: 'pill-amber' },
   proof_review:          { label: 'Proof with finance',    pill: 'pill-blue' },
+  awaiting_supplier:     { label: 'Waiting for the supplier', pill: 'pill-blue' },   // shown for a transfer in proof_review
   physical_required:     { label: 'Physical receipt needed', pill: 'pill-amber' },
   closed:                { label: 'Closed',                pill: 'pill-green' },
   fulfilled_from_stock:  { label: 'Issued from stock',     pill: 'pill-green' },
@@ -134,7 +135,10 @@ export const STATUS = {
   cancelled:             { label: 'Cancelled',             pill: 'pill-grey' },
 };
 export const OPEN_STATUSES = ['draft', 'stock_review', 'pending_approval', 'awaiting_disbursement', 'disbursed', 'proof_review', 'physical_required'];
+/** The status to show: a bank transfer waits for the requester to confirm the supplier, not for a receipt check. */
+export const shownStatus = (q) => (q?.status === 'proof_review' && q.paid_via === 'transfer' ? 'awaiting_supplier' : q?.status);
 export function pill(status) {
+  if (status && typeof status === 'object') status = shownStatus(status);
   const s = STATUS[status] || { label: status, pill: 'pill-grey' };
   return h('span', { class: `pill ${s.pill}` }, s.label);
 }
@@ -142,7 +146,7 @@ export const EVENT_LABEL = {
   submitted: 'Submitted', stock_reviewed: 'Stock reviewed', approved: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled',
   escalated: 'Sent for approval', referred_to_md: 'Sent to the Managing Director', reviewed: 'Reviewed after payment', disbursed: 'Cash paid out', expense_recorded: 'Expense recorded', proof_confirmed: 'Proof confirmed – closed',
   physical_required: 'Physical receipt requested', physical_received: 'Physical receipt received', expense_returned: 'Returned for correction',
-  reimbursed: 'Reimbursed – closed', float_warning: 'Finance warned about the float', document_attached: 'Invoice / quote attached', payout_undone: 'Pay-out undone', paid_by_transfer: 'Paid by bank transfer',
+  reimbursed: 'Reimbursed – closed', float_warning: 'Finance warned about the float', document_attached: 'Invoice / quote attached', payout_undone: 'Pay-out undone', paid_by_transfer: 'Paid by bank transfer', supplier_confirmed: 'Supplier confirmed', cash_received: 'Cash received', cash_not_received: 'Cash not received',
   duplicate_explained: 'Reused receipt explained' };
 export const MOVEMENT_LABEL = { purchase_in: 'Bought', issue_out: 'Issued', usage: 'Used', adjustment: 'Adjusted', count: 'Count correction', reversal: 'Reversed' };
 export const PACE = { fast: { label: 'Fast mover', pill: 'pill-amber', hint: 'a month\'s order lasts under two weeks' }, slow: { label: 'Slow mover', pill: 'pill-blue', hint: 'a month\'s order lasts over four months, or nothing used in 60 days' }, dormant: { label: 'Never used', pill: 'pill-grey', hint: 'no usage recorded yet' }, normal: { label: 'Steady', pill: 'pill-green', hint: '' } };

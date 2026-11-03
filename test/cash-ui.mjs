@@ -22,7 +22,7 @@ check(await btn('Count cash').count() === 1 && await btn('Return cash').count() 
 check(await page.locator('main button', { hasText: /^Top up$/ }).count() === 0, 'finance: no direct “Top up” any more');
 check(await btn('Request top-up').count() === 0 && /Authorised – waiting for the cash/.test(t), 'finance: an authorised top-up is open, so no second request');
 check(/Cash counts/.test(t) && /N\$20\.00 short/.test(t) && /Waiting for the GM/.test(t), 'finance: the counts list shows the short count waiting for the GM');
-check(/Petty cash ledger/.test(t) && /Monthly allocation/.test(t) && /Paid out/.test(t) && /Book balance/.test(t) && await btn('Download CSV').count() === 1, 'finance: the ledger with a running balance and CSV');
+check(/(Petty cash|Cash box) ledger/.test(t) && /Monthly allocation/.test(t) && /Paid out/.test(t) && /Book balance/.test(t) && await btn('Download CSV').count() >= 1, 'finance: the ledger with a running balance and CSV (one per place)');
 check(/Last counted/.test(t), 'finance: when the box was last counted');
 
 await btn('Count cash').click(); await page.waitForTimeout(250);
@@ -36,7 +36,7 @@ check(/Record the top-up cash/.test(await modalText()) && (await page.locator('.
 await page.keyboard.press('Escape');
 
 await btn('Close & reconcile').click(); await page.waitForTimeout(250);
-check((await page.locator('.modal input.num').inputValue()) === '' && /goes to the General Manager to sign off/.test(await modalText()), 'close: a count like any other, empty until counted');
+check((await page.locator('.modal input.num').first().inputValue()) === '' && /goes to the General Manager to sign off/.test(await modalText()), 'close: a count like any other, empty until counted');
 await page.keyboard.press('Escape');
 
 await as('finance', '/home');

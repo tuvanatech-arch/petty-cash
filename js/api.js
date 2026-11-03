@@ -84,6 +84,8 @@ export function multiBranch() { return state.branches.length > 1; }
 /** The branch I am acting in: my chosen view, else my home branch. */
 export function myBranch() { return state.view || state.branches.find((b) => b.home)?.id || state.branches[0]?.id || null; }
 export function branchName(id) { return state.branches.find((b) => b.id === id)?.name || ''; }
+/** The branch's petty cash bank account (e.g. "FNB petty cash account"), or null when it keeps cash in the box only. */
+export function bankName(id = myBranch()) { return state.branches.find((b) => b.id === id)?.petty_bank_name || null; }
 /** The company (and so the currency) of the branch being looked at. */
 export function company() { const b = state.branches.find((x) => x.id === myBranch()) || state.branches[0]; return b ? { id: b.company_id, name: b.company, currency: b.currency, currency_code: b.currency_code } : null; }
 /** Narrow a list query to the branch being looked at (no-op when looking at all branches). */
@@ -160,6 +162,9 @@ export async function loadSessionContext() {
     state.unread = count || 0;
     const { data: branches } = await sb.rpc('my_branch_list');
     state.branches = Array.isArray(branches) ? branches : [];
+    // where each branch keeps petty cash besides the box (043): its petty cash bank account, if it has one
+    const { data: banks } = await sb.from('branches').select('id, petty_bank_name');
+    for (const b of state.branches) b.petty_bank_name = (banks || []).find((x) => x.id === b.id)?.petty_bank_name || null;
     state.view = me.view_branch && state.branches.some((b) => b.id === me.view_branch) ? me.view_branch : null;
   }
   syncAppBadge(me && me.active ? state.unread : 0);

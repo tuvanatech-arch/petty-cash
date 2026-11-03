@@ -346,6 +346,7 @@ function settingsTab() {
   const acctEmail = h('input', { class: 'input', type: 'email', value: s.accountant_email || '', placeholder: 'accounts@…' });
   const pkg = h('input', { class: 'input', value: s.accounting_package || '', placeholder: 'e.g. Sage, Pastel, Xero, QuickBooks' });
   const cashAcct = h('input', { class: 'input', value: s.petty_cash_account || '', placeholder: 'e.g. 1020' });
+  const bankAcct = h('input', { class: 'input', id: 'petty-bank-account', value: s.petty_bank_account && s.petty_bank_account !== 'PETTY-CASH-BANK' ? s.petty_bank_account : '', placeholder: 'e.g. 1025' });
   // region: time zone (day boundaries, reminders, the dates in messages) and how numbers are written
   let zones = []; try { zones = Intl.supportedValuesOf('timeZone').filter((z) => z.startsWith('Africa/')); } catch {}
   if (!zones.length) zones = ['Africa/Windhoek', 'Africa/Luanda', 'Africa/Johannesburg', 'Africa/Gaborone', 'Africa/Lusaka', 'Africa/Harare', 'Africa/Maputo', 'Africa/Nairobi', 'Africa/Lagos'];
@@ -377,7 +378,7 @@ function settingsTab() {
       org_name: org.value.trim() || 'Petty cash', currency: currency.value.trim() || 'N$',
       headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
       accountant_name: acctName.value.trim() || null, accountant_email: acctEmail.value.trim() || null,
-      accounting_package: pkg.value.trim() || null, petty_cash_account: cashAcct.value.trim() || null,
+      accounting_package: pkg.value.trim() || null, petty_cash_account: cashAcct.value.trim() || null, petty_bank_account: bankAcct.value.trim() || 'PETTY-CASH-BANK',
       time_zone: tz.value, number_locale: loc.value, two_step_from: twoStepFrom.value || null,
       titles: { gm: tGm.value.trim() || 'GM', gm_long: tGmLong.value.trim() || 'General Manager', md: tMd.value.trim() || 'MD', md_long: tMdLong.value.trim() || 'Managing Director' },
       updated_at: new Date().toISOString(),
@@ -398,7 +399,8 @@ function settingsTab() {
       h('div', { class: 'row' }, field('Approver, short', tGm, raw('Default: GM')), field('Approver, in full', tGmLong, raw('Default: General Manager'))),
       h('div', { class: 'row' }, field('Top approver, short', tMd, raw('Default: MD')), field('Top approver, in full', tMdLong, raw('Default: Managing Director')))),
     block('Month-end pack', h('div', { class: 'row' }, field('Senior accountant', acctName), field('Their email', acctEmail, 'The reviewed pack is emailed here, with the approver in copy.'))),
-    block('Accounting export', h('div', { class: 'row' }, field('Accounting package', pkg, 'Named so the journal export can match it; until then it is a generic journal.'), field('Petty cash ledger account', cashAcct, 'The account code the package uses for the cash box. Expense accounts are set per category under Stock → Catalogue → Categories.'))),
+    block('Accounting export', h('div', { class: 'row' }, field('Accounting package', pkg, 'Named so the journal export can match it; until then it is a generic journal.'), field('Petty cash ledger account', cashAcct, 'The account code the package uses for the cash box. Expense accounts are set per category under Stock → Catalogue → Categories.'),
+      field('Petty cash bank account', bankAcct, 'The account code for the petty cash bank account, when petty cash is also kept in a bank account.'))),
     block('Email', h('div', { class: 'row' }, field('Send emails from', emailFrom, 'Must be an address on a domain verified with the email provider; blank uses the test sender.'), field('Link to the app', appUrl, 'Used in emails so people can open the thing that needs them.'))),
     h('div', { class: 'form-actions' }, b)), subscriptionBlock());
 }

@@ -1,0 +1,96 @@
+{
+ "requester": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  }
+ ],
+ "stock_manager": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  }
+ ],
+ "managing_director": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  }
+ ],
+ "finance": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  },
+  {
+   "at": "#/cash",
+   "css": "#move-cash, #bank-setup",
+   "text": "",
+   "say": "Add the petty cash bank account once (if it is not there yet). Then “Move cash” and “Check the bank” appear here, and Petty cash shows the box and the bank side by side."
+  },
+  {
+   "at": "#/requests?status=awaiting_disbursement",
+   "css": "h1",
+   "text": "",
+   "say": "Open a request with a quote: the pay box offers Cash from the box, Petty cash account and Company account. A transfer needs the proof of payment."
+  }
+ ],
+ "approver": [
+  {
+   "at": "#/home",
+   "css": "#request-payment",
+   "text": "Request a payment",
+   "say": "Tap “Request a payment” for anything that is not office stock: a plumber, a taxi, a courier."
+  },
+  {
+   "at": "#/requests/new/cash",
+   "css": "#quote-box",
+   "text": "Quote or invoice",
+   "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  },
+  {
+   "at": "#/cash",
+   "css": "h1",
+   "text": "Petty cash",
+   "say": "Petty cash shows the cash box and the petty cash bank account separately, with the total. You sign off bank checks like cash counts."
+  },
+  {
+   "at": "#/requests?status=awaiting_disbursement",
+   "css": "h1",
+   "text": "",
+   "say": "A request with a quote can be paid by transfer from the petty cash account or the company account (outside petty cash). You can record one too."
+  }
+ ]
+}

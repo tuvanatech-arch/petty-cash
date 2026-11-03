@@ -1,6 +1,6 @@
 // Month-end pack: one PDF with the reconciliation, a one-page monthly summary, every voucher paid from the float,
 // and the receipts (photos embedded, PDF invoices merged in as pages).
-import { sb, state, personName, unwrap, proofUrl, multiBranch, branchName } from './api.js';
+import { sb, state, personName, unwrap, proofUrl, multiBranch, branchName, bankName } from './api.js';
 import { loadLogo, drawLogo } from './brand.js';
 import { money, qty, fmtDate, monthLabel, STATUS, isoDate, titled } from './ui.js';
 import { drawSchedule } from './schedule-pdf.js';
@@ -69,14 +69,17 @@ export async function packSummary(float, requests) {
 export async function buildMonthEndPack(float, { onProgress = () => {}, save = true } = {}) {
   onProgress('Collecting vouchers…');
   const monthAfter = new Date(String(float.period).slice(0, 10) + 'T00:00:00'); monthAfter.setMonth(monthAfter.getMonth() + 1);
-  const [requests, transfers, ledger, counts, mgmt] = await Promise.all([
+  const bankAcct = bankName(float.branch_id);
+  const hasBank = !!bankAcct || Number(float.bank_funded || 0) !== 0 || Number(float.bank_balance || 0) !== 0 || float.closing_bank != null;
+  const [requests, transfers, ledger, counts, mgmt, bankLedger] = await Promise.all([
     unwrap(await sb.from('requests').select('*, expense:expenses(*, lines:expense_lines(*), proofs:expense_proofs(*))').eq('float_id', float.id).order('disbursed_at')),
-    // payment requests paid from the bank in the same month and branch: not from the box, but the accountant needs them
-    sb.from('requests').select('*, expense:expenses(*, lines:expense_lines(*), proofs:expense_proofs(*))').eq('branch_id', float.branch_id).eq('paid_via', 'transfer')
+    // direct payments from the company account in the same month and branch: outside petty cash, but the accountant needs them
+    sb.from('requests').select('*, expense:expenses(*, lines:expense_lines(*), proofs:expense_proofs(*))').eq('branch_id', float.branch_id).eq('paid_via', 'transfer').eq('paid_from', 'company')
       .gte('paid_on', String(float.period).slice(0, 10)).lt('paid_on', isoDate(monthAfter)).order('paid_on').then((r) => r.data || []).catch(() => []),
     unwrap(await sb.rpc('cash_ledger', { p_float: float.id })) || [],
     unwrap(await sb.from('cash_counts').select('*').eq('float_id', float.id).order('counted_at')) || [],
     sb.rpc('management_summary', { p_month: float.period }).then((r) => r.data || null).catch(() => null),   // as the builder sees it (their branch view)
+    hasBank ? sb.rpc('bank_ledger', { p_float: float.id }).then((r) => r.data || []).catch(() => []) : [],
   ]);
   const summary = await packSummary(float, requests);
   const org = state.settings?.org_name || 'Petty cash';
@@ -126,7 +129,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
     const bud = mgmt.budgets || [];
     text(`3. Against budget: ${bud.length ? bud.map((b) => `${b.label} ${money(b.used)} of ${money(b.limit)}${b.over ? ' – OVER' : ''}`).join('; ') : 'no budgets set'}.`);
     const bx = (mgmt.boxes || [])[0];
-    text(`4. Funds and receipts: ${bx ? `${money(bx.funds)} in, ${money(bx.spent)} spent, ${money(bx.balance)} on the book${bx.counted != null ? `, ${money(bx.counted)} counted` : ''}; ${Number(bx.missing_receipts) ? `${bx.missing_receipts} receipt(s) outstanding` : 'every receipt in'}; ${bx.signed_off} of ${bx.counts} count(s) signed off by the GM` : 'no float'}.`);
+    text(`4. Funds and receipts: ${bx ? `box ${money(bx.funds)} in, ${money(bx.spent)} spent, ${money(bx.balance)} on the book${bx.counted != null ? `, ${money(bx.counted)} counted` : ''}${Number(bx.bank_funds) || Number(bx.bank_balance) || Number(bx.bank_paid) ? `; bank account ${money(bx.bank_funds)} in, ${money(bx.bank_paid)} paid by transfer, ${money(bx.bank_balance)} on the book${bx.bank_statement != null ? `, statement ${money(bx.bank_statement)}` : ''}` : ''}; ${Number(bx.missing_receipts) ? `${bx.missing_receipts} receipt(s) outstanding` : 'every receipt in'}; ${bx.signed_off} of ${bx.counts} check(s) signed off by the GM` : 'no float'}.`);
     const ex = mgmt.exceptions || [];
     text(`5. Irregularities: ${ex.length ? `${ex.length} logged (${Number(mgmt.open_exceptions)} open): ` + ex.slice(0, 6).map((x) => `${x.title}${x.amount != null ? ` ${money(x.amount)}` : ''}${x.state === 'open' ? ' [open]' : ''}`).join('; ') : 'none recorded'}.`);
     const sv = mgmt.savings || [];
@@ -136,12 +139,14 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
     for (const k of mgmt.kpis || []) text(`${k.id} ${k.label}: ${k.value} – ${k.text}`, { size: 9.5 });
     y += 4;
   }
-  heading('Reconciliation');
+  heading(hasBank ? 'Reconciliation: cash box' : 'Reconciliation');
   kvRows([
     ['Allocated by finance', money(float.allocated)],
     Number(float.carried_over) > 0 ? ['Carried over from last month', money(float.carried_over)] : null,
     Number(float.topped_up) > 0 ? ['Top-ups', money(float.topped_up)] : null,
     Number(float.returned) > 0 ? ['Returned to finance', `-${money(float.returned)}`] : null,
+    Number(float.withdrawn || 0) > 0 ? ['Cash withdrawn from the bank account', `+${money(float.withdrawn)}`] : null,
+    Number(float.deposited || 0) > 0 ? ['Paid into the bank account', `-${money(float.deposited)}`] : null,
     ['Spent (receipts recorded)', `-${money(float.spent)}`],
     Number(float.adjusted || 0) < 0 ? ['Cash short at a count, written off by the GM', money(float.adjusted)] : null,
     Number(float.adjusted || 0) > 0 ? ['Cash over at a count, taken in by the GM', `+${money(float.adjusted)}`] : null,
@@ -150,14 +155,30 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
     float.counted_cash != null ? ['Cash counted at close', money(float.counted_cash)] : null,
     float.counted_cash != null ? ['Difference', money(Number(float.counted_cash) - Number(float.balance), { sign: true }), true] : null,
   ].filter(Boolean));
+  if (hasBank) {
+    y += 5;
+    heading(`Reconciliation: bank account${bankAcct ? ` (${bankAcct})` : ''}`);
+    kvRows([
+      ['Paid in (allocation, top-ups, carried over)', money(float.bank_funded)],
+      Number(float.deposited || 0) > 0 ? ['Paid in from the box', `+${money(float.deposited)}`] : null,
+      Number(float.withdrawn || 0) > 0 ? ['Cash withdrawn into the box', `-${money(float.withdrawn)}`] : null,
+      ['Paid by transfer (vouchers)', `-${money(float.bank_paid)}`],
+      Number(float.bank_returned || 0) > 0 ? ['Returned to the company account', `-${money(float.bank_returned)}`] : null,
+      Number(float.bank_adjusted || 0) !== 0 ? ['Difference at a bank check, written off by the GM', money(float.bank_adjusted, { sign: true })] : null,
+      ['Book balance', money(float.bank_balance), true],
+      float.closing_bank != null ? ['Bank statement at close', money(float.closing_bank)] : null,
+      float.closing_bank != null ? ['Difference', money(Number(float.closing_bank) - Number(float.bank_balance), { sign: true }), true] : null,
+      ['Petty cash in total (box and bank)', money(Number(float.balance) + Number(float.bank_balance)), true],
+    ].filter(Boolean));
+  }
   if (float.notes) { y += 2; text(`Notes: ${float.notes}`, { size: 9 }); }
   y += 5;
   const shown = counts.filter((c) => c.status !== 'superseded');
   if (shown.length) {
-    heading('Cash counts and sign-off');
+    heading(hasBank ? 'Cash counts, bank checks and sign-off' : 'Cash counts and sign-off');
     const st = { to_review: 'waiting for the GM', queried: 'GM has a question', accepted: 'signed off' };
     table([{ label: 'Counted', w: 30 }, { label: 'By', w: 30 }, { label: 'Book', w: 22, align: 'right' }, { label: 'Cash', w: 22, align: 'right' }, { label: 'Difference', w: 22, align: 'right' }, { label: 'Sign-off', w: 52 }],
-      shown.map((c) => [`${fmtDate(c.counted_at)}${c.kind === 'month_end' ? ' (month-end)' : ''}`, personName(c.counted_by), money(c.expected), money(c.counted), money(c.difference, { sign: true }),
+      shown.map((c) => [`${fmtDate(c.counted_at)}${(c.place || 'box') === 'bank' ? ' bank' : ''}${c.kind === 'month_end' ? ' (month-end)' : ''}`, personName(c.counted_by), money(c.expected), money(c.counted), money(c.difference, { sign: true }),
         `${c.status === 'accepted' ? `${personName(c.reviewed_by)}, ${fmtDate(c.reviewed_at)}` : st[c.status] || c.status}${c.note ? `\nfinance: ${c.note}` : ''}${c.review_note ? `\nGM: ${c.review_note}` : ''}${c.written_off != null ? `\n${money(Math.abs(c.written_off))} written off` : ''}`]), { size: 8.5 });
     y += 5;
   }
@@ -165,9 +186,16 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   /* ---- the petty cash ledger: every movement of cash, with a running balance ---- */
   if (ledger.length) {
     newPage();
-    heading('Petty cash ledger');
+    heading(hasBank ? 'Cash box ledger' : 'Petty cash ledger');
     table([{ label: 'Date', w: 22 }, { label: 'Ref', w: 14 }, { label: 'What', w: 86 }, { label: 'In', w: 18, align: 'right' }, { label: 'Out', w: 18, align: 'right' }, { label: 'Balance', w: 20, align: 'right' }],
       ledger.map((r) => [fmtDate(r.at), r.ref || '', `${r.description}${r.person && r.request_id ? ` – ${personName(r.person)}` : ''}`, Number(r.cash_in) ? money(r.cash_in) : '', Number(r.cash_out) ? money(r.cash_out) : '', money(r.balance)]), { size: 8 });
+    y += 5;
+  }
+  if (bankLedger.length) {
+    if (!ledger.length) newPage();
+    heading(`Bank account ledger${bankAcct ? ` (${bankAcct})` : ''}`);
+    table([{ label: 'Date', w: 22 }, { label: 'Ref', w: 14 }, { label: 'What', w: 86 }, { label: 'In', w: 18, align: 'right' }, { label: 'Out', w: 18, align: 'right' }, { label: 'Balance', w: 20, align: 'right' }],
+      bankLedger.map((r) => [fmtDate(r.at), r.ref || '', `${r.description}${r.person && r.request_id ? ` – ${personName(r.person)}` : ''}`, Number(r.cash_in) ? money(r.cash_in) : '', Number(r.cash_out) ? money(r.cash_out) : '', money(r.balance)]), { size: 8 });
     y += 5;
   }
 
@@ -180,7 +208,7 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   table([{ label: 'Month', w: 70 }, { label: 'Vouchers', w: 40, align: 'right' }, { label: 'Spent', w: 68, align: 'right' }],
     s.months.map((m, i) => [mName(m.month) + (i === 2 ? ' (this pack)' : ''), String(m.vouchers), money(m.spent)]));
   const byBank = transfers.reduce((a, r) => a + Number(r.disbursed_amount || 0), 0);
-  if (byBank > 0) { y += 1; text(`This month includes ${money(byBank)} paid by bank transfer (${transfers.length} payment${transfers.length === 1 ? '' : 's'}), not from the petty cash box.`, { size: 9, color: [123, 133, 127] }); }
+  if (byBank > 0) { y += 1; text(`Not included above: ${money(byBank)} paid from the company account (${transfers.length} payment${transfers.length === 1 ? '' : 's'}, outside petty cash), listed after the vouchers.`, { size: 9, color: [123, 133, 127] }); }
   y += 4;
   if (s.by_category.length) {
     text('By category', { size: 10, bold: true }); y += 1;
@@ -238,13 +266,13 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
   }
   if (transfers.length) {
     y += 6;
-    heading('Paid by bank transfer');
-    text('Paid from the bank, not from the petty cash box, so they are not part of the reconciliation. Each one follows with its quote or invoice.', { size: 9, color: [123, 133, 127] });
+    heading('Paid from the company account (outside petty cash)');
+    text('Direct payments by bank transfer from the company account: not part of petty cash or its reconciliation. Each one follows with its quote or invoice and the proof of payment.', { size: 9, color: [123, 133, 127] });
     y += 1;
     table([{ label: '#', w: 11 }, { label: 'Purpose', w: 58 }, { label: 'Supplier', w: 35 }, { label: 'Paid on', w: 22 }, { label: 'Bank ref', w: 30 }, { label: 'Amount', w: 22, align: 'right' }],
       transfers.map((r) => [String(r.request_no), `${r.purpose}${r.approved_by ? `\napproved by ${personName(r.approved_by)}` : ''}`, ex(r)?.supplier_name || '—', fmtDate(r.paid_on), r.payment_ref || '', money(r.disbursed_amount)]));
     y += 2;
-    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); need(LH); doc.text(`Paid by bank transfer ${money(transfers.reduce((a, r) => a + Number(r.disbursed_amount || 0), 0))}`, W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH;
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); need(LH); doc.text(`Paid from the company account ${money(transfers.reduce((a, r) => a + Number(r.disbursed_amount || 0), 0))}`, W - M, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += LH;
   }
 
   /* ---- one page per voucher with its receipt(s) ---- */
@@ -262,10 +290,12 @@ export async function buildMonthEndPack(float, { onProgress = () => {}, save = t
       r.stock_reviewed_by ? ['Stock review', `${personName(r.stock_reviewed_by)}, ${fmtDate(r.stock_reviewed_at)}${r.stock_note ? ` – ${r.stock_note}` : ''}`] : null,
       r.approved_by ? ['Approved', `${personName(r.approved_by)}, ${fmtDate(r.approved_at)}${r.approval_note ? ` – ${r.approval_note}` : ''}`] : null,
       r.schedule_version ? ['Schedule', `${state.settings?.schedule_ref || 'Authority schedule'} version ${r.schedule_version}`] : null,
-      bank ? ['Paid by bank transfer', `${money(r.disbursed_amount)}${e?.supplier_name ? ` to ${e.supplier_name}` : ''} on ${fmtDate(r.paid_on)} · ref ${r.payment_ref} · recorded by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`]
+      bank ? ['Paid by bank transfer', `${money(r.disbursed_amount)}${e?.supplier_name ? ` to ${e.supplier_name}` : ''} on ${fmtDate(r.paid_on)} from ${r.paid_from === 'company' ? 'the company account (outside petty cash)' : bankName(r.branch_id) || 'the petty cash bank account'} · ref ${r.payment_ref} · recorded by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`]
         : [r.type === 'claim' ? 'Reimbursed' : 'Cash paid', `${money(r.disbursed_amount)} to ${personName(r.disbursed_to)} by ${personName(r.disbursed_by)}, ${fmtDate(r.disbursed_at)}`],
       bank ? null : e && Number(e.total) > 0 ? ['Spent', `${money(e.total)} on ${fmtDate(e.spent_at)}${e.supplier_name ? ` at ${e.supplier_name}` : ''}${r.type !== 'claim' ? ` · change ${money(e.change_returned)}` : ''}`] : ['Spent', 'Not yet recorded'],
       bank && e?.duplicate_note ? ['Looked like an earlier payment', e.duplicate_note] : null,
+      bank ? ['Supplier confirmed', r.supplier_confirmed_at ? `${personName(r.supplier_confirmed_by)}, ${fmtDate(r.supplier_confirmed_at)}${r.supplier_note ? ` – ${r.supplier_note}` : ''}` : 'Not yet'] : null,
+      !bank && r.cash_received != null ? ['Cash received', `${r.cash_received ? 'Yes' : 'No'} – ${personName(r.disbursed_to)}, ${fmtDate(r.cash_received_at)}${r.cash_received_note ? ` – ${r.cash_received_note}` : ''}`] : null,
       e?.confirmed_by && !bank ? ['Receipt confirmed', `${personName(e.confirmed_by)}, ${fmtDate(e.confirmed_at)}${e.physical_received_at ? ` · paper original received ${fmtDate(e.physical_received_at)}` : ''}`] : null,
       r.proof_rule === 'none' ? ['Proof', `No proof possible – ${r.proof_reason} (decided by ${personName(r.proof_set_by)}, ${fmtDate(r.proof_set_at)})`] : null,
       e?.notes ? ['Notes', e.notes] : null,

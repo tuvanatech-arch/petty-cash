@@ -22,13 +22,14 @@ const floats = unwrap(await api.sb.from('v_floats').select('*').eq('status', 'op
 w.URL.createObjectURL = () => 'blob:x'; w.URL.revokeObjectURL = () => {}; w.HTMLAnchorElement.prototype.click = function () {};
 // a payment request paid by bank transfer this month (042): listed in the pack, not in the box
 const today = new Date().toISOString().slice(0, 10);
-await api.sb.rpc('pay_by_transfer', { p_request: '00000122-0000-4000-8000-000000000000', p_amount: 650, p_paid_on: today, p_reference: 'FNB 4471023' });
+await api.sb.rpc('pay_by_transfer', { p_request: '00000122-0000-4000-8000-000000000000', p_amount: 650, p_paid_on: today, p_reference: 'FNB 4471023', p_from: 'company', p_pop_path: '00000122-0000-4000-8000-000000000000/pop.pdf', p_pop_name: 'pop.pdf', p_pop_mime: 'application/pdf' });   // from the company account: listed apart
+// a transfer from the petty cash bank account is a voucher of the month, with the bank account reconciled beside the box
 const whk = floats.find((f) => f.branch_id === '00000081-0000-4000-8000-000000000000') || floats[0];   // the plumber is a Windhoek request
 const t0 = Date.now();
 const r = await buildMonthEndPack(whk, { onProgress: () => {}, save: false });
 const pdfText = Buffer.from(r.bytes).toString('latin1');
-const transferListed = /Paid by bank transfer/.test(pdfText) && /FNB 4471023/.test(pdfText);
-console.log(transferListed ? 'ok   the bank transfer is listed in the pack with its reference' : 'FAIL the bank transfer is missing from the pack');
+const transferListed = /Paid from the company account/.test(pdfText) && /FNB 4471023/.test(pdfText) && /Reconciliation: bank account/.test(pdfText) && /Bank account ledger/.test(pdfText);
+console.log(transferListed ? 'ok   the pack lists the company-account payment apart, and reconciles the bank account beside the box' : 'FAIL the pack misses the company payment or the bank account');
 unlinkSync(realPath);
 writeFileSync('pack-out.pdf', r.bytes);
 console.log('built', r.name, r.pages, 'pages', r.bytes.byteLength, 'bytes in', Date.now() - t0, 'ms');

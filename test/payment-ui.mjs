@@ -57,23 +57,33 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
   await ctx.close();
 }
 
-/* 3. finance: a request with a quote can be paid by bank transfer */
+/* 3. finance: a request with a quote can be paid by transfer, from the petty cash account or the company account */
 {
   const { ctx, page, errs } = await open('finance', `#/requests/${uid(122)}`);
   const tabs = page.locator('#pay-how button');
-  check(await tabs.count() === 2 && await tabs.nth(0).innerText() === 'Cash from the box' && await tabs.nth(1).innerText() === 'Bank transfer', 'finance chooses: Cash from the box, or Bank transfer');
+  check(await tabs.count() === 3 && await tabs.nth(0).innerText() === 'Cash from the box' && await tabs.nth(1).innerText() === 'Petty cash account' && await tabs.nth(2).innerText() === 'Company account',
+    'finance chooses: Cash from the box, the petty cash account, or the company account');
   check(await page.locator('#pay-panel h2').innerText() === 'Pay out from petty cash', 'cash from the box is the default, as before');
-  await tabs.nth(1).click(); await page.waitForTimeout(300);
-  check(await page.locator('#pay-panel h2').innerText() === 'Pay by bank transfer', 'Bank transfer: the panel says so');
+  await tabs.nth(1).click(); await page.waitForTimeout(400);
+  check(await page.locator('#pay-panel h2').innerText() === 'Pay from the petty cash account', 'petty cash account: the panel says so');
   check(await page.locator('#transfer-amount').inputValue() === '650.00', 'the amount comes from the quote');
-  check(/petty cash box is not touched/.test(await page.locator('#pay-panel').innerText()) && /Aqua Plumbing Windhoek/.test(await page.locator('#pay-panel').innerText()), 'it says the box is not touched, and whose quote it is');
-  await page.locator('#record-transfer').click(); await page.waitForTimeout(500);
-  check(/bank reference/.test(await toastText(page)), 'the bank reference is required');
+  check(/FNB petty cash account/.test(await page.locator('#transfer-info').innerText()) && /N\$1,150\.00 on the book/.test(await page.locator('#transfer-info').innerText()) && /box is not touched/.test(await page.locator('#transfer-info').innerText()),
+    'it names the account, shows what it holds, and that the box is not touched');
+  await tabs.nth(2).click(); await page.waitForTimeout(300);
+  check(/outside petty cash/.test(await page.locator('#transfer-info').innerText()) && /Aqua Plumbing Windhoek/.test(await page.locator('#transfer-info').innerText()), 'company account: outside petty cash, kept with the quote');
+  await tabs.nth(1).click(); await page.waitForTimeout(300);
   await page.locator('#transfer-ref').fill('FNB 4471023');
+  await page.locator('#record-transfer').click(); await page.waitForTimeout(600);
+  check(/proof of payment/.test(await toastText(page)), 'the proof of payment is required');
+  await page.locator('#transfer-pop').setInputFiles({ name: 'pop-fnb.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%pop\n') });
   await page.locator('#record-transfer').click(); await page.waitForTimeout(1800);
-  check(/Paid by bank transfer/.test(await page.locator('.banner').first().innerText().catch(() => '')), 'recorded: the request shows "Paid by bank transfer"');
-  check(/FNB 4471023/.test(await page.locator('#transfer-detail').textContent().catch(() => '')), 'the details show the reference (under "What was asked for")');
+  check(/Paid – waiting for the supplier/.test(await page.locator('#supplier-panel').innerText().catch(() => '')), 'recorded: now waiting for the requester to confirm the supplier');
+  check(await page.locator('#open-pop').count() === 1 && await page.locator('#share-pop').count() === 1, 'the proof of payment can be opened and shared');
+  check(await page.locator('#confirm-for-them').count() === 1, 'finance can confirm for the requester (with a reason)');
+  check(/FNB 4471023/.test(await page.locator('#transfer-detail').textContent().catch(() => '')) && /FNB petty cash account/.test(await page.locator('#transfer-detail').textContent().catch(() => '')), 'the details show the reference and the account');
   check(/What was paid/.test(await page.locator('main').innerText()) && !/Change returned/.test(await page.locator('main').innerText()), 'what was paid, with no change line');
+  await page.goto(base + '#/cash'); await page.waitForTimeout(1500);
+  check(/N\$500\.00/.test(await page.locator('#cash-places').innerText().catch(() => '')), 'Petty cash: the bank account went down by N$650 (N$1,150 → N$500)');
   check(!errs.length, `finance transfer: no page errors ${errs.join(' | ')}`);
   await ctx.close();
 }
@@ -91,7 +101,7 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
 /* 5. the GM can record a transfer too; on a phone it fits */
 {
   const { ctx, page, errs } = await open('approver', `#/requests/${uid(122)}`, 390);
-  check(await page.locator('#pay-how button').count() === 2, 'the GM sees the same choice');
+  check(await page.locator('#pay-how button').count() === 3, 'the GM sees the same choice');
   await page.locator('#pay-how button').nth(1).click(); await page.waitForTimeout(300);
   check(await noSideScroll(page), 'phone: the transfer form fits without sideways scrolling');
   check(!errs.length, `GM phone: no page errors ${errs.join(' | ')}`);

@@ -111,7 +111,7 @@ export async function reportsPage(startTab = null) {
     for (const r of requests) { if (r.status === 'draft' || r.approval_required) continue; const k = `${r.requester_id}|${String(r.submitted_at || r.created_at).slice(0, 10)}`; (byDay[k] ||= []).push(r); }
     for (const [k, rs] of Object.entries(byDay)) { const sum = rs.reduce((s, r) => s + Number(r.estimated_total), 0); if (rs.length > 1 && sum > thr()) splits.push({ who: rs[0].requester_id, day: k.split('|')[1], rs, sum }); }
 
-    const reqRow = (r) => h('tr', { class: 'click', onclick: () => { location.hash = `#/requests/${r.id}`; } }, h('td', {}, `#${r.request_no} ${r.purpose}`), h('td', { class: 'muted' }, personName(r.requester_id)), h('td', { class: 'muted' }, fmtDate(r.submitted_at || r.created_at)), h('td', {}, pill(r.status)), h('td', { class: 'num' }, money(exTotal(r) || r.estimated_total)));
+    const reqRow = (r) => h('tr', { class: 'click', onclick: () => { location.hash = `#/requests/${r.id}`; } }, h('td', {}, `#${r.request_no} ${r.purpose}`), h('td', { class: 'muted' }, personName(r.requester_id)), h('td', { class: 'muted' }, fmtDate(r.submitted_at || r.created_at)), h('td', {}, pill(r)), h('td', { class: 'num' }, money(exTotal(r) || r.estimated_total)));
     const tbl = (rows, empty) => rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' }, h('tbody', {}, rows.map(reqRow)))) : h('p', { class: 'hint' }, empty);
 
     const flags = exc.filter((x) => x.state === 'open').length;
@@ -130,6 +130,7 @@ export async function reportsPage(startTab = null) {
       h('div', { class: 'grid-2' },
         h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'By category'), h('span', { class: 'sub' }, periodLabel())), byCat.length ? hBars(byCat, { format: money }) : emptyState('No spend in this period')),
         h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'By supplier'), h('span', { class: 'sub' }, periodLabel())), bySup.length ? hBars(bySup.slice(0, 10), { format: money }) : emptyState('No spend in this period'))),
+        directSheet(requests.filter((r) => r.paid_from === 'company' && r.paid_on && periodMonths().includes(String(r.paid_on).slice(0, 7))), periodLabel()),
         more('By requester', h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'By requester'), h('span', { class: 'sub' }, periodLabel())), byReq.length ? hBars(byReq, { format: money }) : emptyState('No spend in this period')))],
       prices: () => [
         h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Unit price over time'), itemSel), trendChart),
@@ -160,6 +161,17 @@ export async function reportsPage(startTab = null) {
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, multiBranch() ? `Reports · ${state.view ? branchName(state.view) : 'all branches'}` : 'Reports'), h('p', {}, 'The scorecard first; the detail when you want it.')),
       h('div', { class: 'page-actions' }, rangeSel, exportButton(lines))),
     body);
+}
+
+/** Payments from the company account (outside petty cash): not in the petty cash figures above, listed so nothing is missed. */
+function directSheet(rows, label) {
+  if (!rows.length) return null;
+  const total = rows.reduce((a, r) => a + Number(r.disbursed_amount || 0), 0);
+  return h('div', { class: 'sheet', id: 'direct-payments' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Paid from the company account'), h('span', { class: 'sub' }, `${label} · outside petty cash, not in the figures above`)),
+    h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
+      h('tbody', {}, rows.map((r) => h('tr', { class: 'click', onclick: () => { location.hash = `#/requests/${r.id}`; } },
+        h('td', {}, `#${r.request_no} ${r.purpose}`), h('td', { class: 'muted' }, `${fmtDate(r.paid_on)} · ref ${r.payment_ref || '—'}`), h('td', { class: 'num' }, money(r.disbursed_amount))))),
+      h('tfoot', {}, h('tr', {}, h('td', { colspan: 2 }, 'Total'), h('td', { class: 'num' }, money(total)))))));
 }
 
 /** The seven KPIs and the management summary for a month, straight from the records. Also the journal export. */
@@ -200,7 +212,8 @@ function kpiSheet() {
         h('div', {}, h('h3', { style: { marginBottom: '6px' } }, 'By person'), h('table', { class: 'ledger' }, h('tbody', {}, people.map((p) => h('tr', {}, h('td', {}, p.name), h('td', { class: 'num' }, money(p.amount)))))))) : h('p', { class: 'hint' }, 'Nothing spent this month.')),
       q(3, 'Against budget', budgets.length ? h('table', { class: 'ledger' }, h('tbody', {}, budgets.map((b) => h('tr', {}, h('td', {}, b.label), h('td', { class: 'num', style: { color: b.over ? 'var(--red)' : '' } }, `${money(b.used)} of ${money(b.limit)}`), h('td', { class: 'num' }, Number(b.limit) > 0 ? `${Math.round(Number(b.used) / Number(b.limit) * 100)}%` : '—'))))) : h('p', { class: 'hint' }, 'No budgets set.')),
       q(4, 'Are the funds and receipts accounted for', boxes.length ? h('table', { class: 'ledger' }, h('tbody', {}, boxes.map((b) => h('tr', {}, h('td', {}, h('strong', {}, b.branch), h('span', { class: 'muted' }, ` · ${b.status === 'closed' ? 'closed' : 'open'}`)),
-        h('td', {}, `${money(b.funds)} in · ${money(b.spent)} spent · ${money(b.balance)} on the book${b.counted != null ? ` · counted ${money(b.counted)}` : ''}`),
+        h('td', {}, `Box: ${money(b.funds)} in · ${money(b.spent)} spent · ${money(b.balance)} on the book${b.counted != null ? ` · counted ${money(b.counted)}` : ''}`,
+          Number(b.bank_funds) || Number(b.bank_balance) || Number(b.bank_paid) ? h('div', { class: 'muted' }, `Bank account: ${money(b.bank_funds)} in · ${money(b.bank_paid)} paid by transfer · ${money(b.bank_balance)} on the book${b.bank_statement != null ? ` · statement ${money(b.bank_statement)}` : ''}`) : null),
         h('td', { style: { color: Number(b.missing_receipts) ? 'var(--amber)' : '' } }, Number(b.missing_receipts) ? `${b.missing_receipts} receipt${Number(b.missing_receipts) === 1 ? '' : 's'} outstanding` : 'every receipt in'),
         h('td', {}, `${b.signed_off} of ${b.counts} count${Number(b.counts) === 1 ? '' : 's'} signed off${b.pack ? ` · pack ${b.pack}` : ''}`))))) : h('p', { class: 'hint' }, 'No float for this month.')),
       q(5, 'Any irregularities', exc.length ? h('ul', { class: 'ledger-list' }, exc.slice(0, 12).map((x) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, x.title), h('span', {}, `${x.who ? x.who + ' · ' : ''}${x.detail || ''}`)), x.amount != null ? h('span', { class: 'amt' }, money(x.amount)) : null, h('span', { class: `pill ${x.state === 'open' ? 'pill-amber' : 'pill-green'}` }, x.state === 'open' ? 'Open' : 'Reviewed')))) : h('p', { class: 'hint' }, 'None recorded.'),

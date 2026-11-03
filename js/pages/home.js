@@ -22,7 +22,8 @@ async function buildHome() {
   const me = state.me;
   const isMD = role() === 'managing_director';
   const staff = isStaff();
-  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes, receiptsRes, adjRes, excRes] = await Promise.all([
+  const askFrom = state.settings?.cash_confirm_from || new Date().toISOString();
+  const [openRes, mineRes, cashRes, floatRes, itemsRes, statsRes, outlookRes, reportsRes, inboxRes, checksRes, reviewRes, schedRes, countsRes, topUpsRes, receiptsRes, adjRes, excRes, cashAskRes, supplierRes] = await Promise.all([
     staff ? scoped(sb.from('requests').select('*, expense:expenses(proof_status, finance_note)')).in('status', OPEN).order('submitted_at', { ascending: true }) : { data: [] },
     sb.from('requests').select('*').eq('requester_id', me.id).order('updated_at', { ascending: false }).limit(staff ? 20 : 6),
     sb.from('requests').select('*, expense:expenses(proof_status, finance_note)').eq('status', 'disbursed').eq('disbursed_to', me.id).order('disbursed_at'),
@@ -40,6 +41,9 @@ async function buildHome() {
     staff ? sb.from('stock_receipts').select('*, item:items(name, unit, branch_id)').eq('status', 'to_check').order('created_at') : { data: [] },
     oversight() ? sb.from('stock_adjustments').select('*, item:items(name, unit, branch_id)').eq('status', 'to_approve').order('requested_at') : { data: [] },
     role() === 'approver' ? sb.rpc('exceptions_open') : { data: 0 },
+    // 043: cash handed to me that I have not confirmed, and my transfers waiting for the supplier
+    sb.from('requests').select('*').eq('disbursed_to', me.id).eq('paid_via', 'cash').is('cash_received', null).neq('disbursed_by', me.id).gte('disbursed_at', askFrom).order('disbursed_at'),
+    sb.from('requests').select('*').eq('requester_id', me.id).eq('status', 'proof_review').eq('paid_via', 'transfer').order('disbursed_at'),
   ]);
   const open = openRes.data || [];
   const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
@@ -53,6 +57,12 @@ async function buildHome() {
 
   /* ---------------- what is mine to do ---------------- */
   const cards = [];
+  const cashAsk = cashAskRes.data || [];
+  if (cashAsk.length) cards.push(card('Did you receive this cash?', cashAsk.length, h('p', { class: 'hint' }, 'Finance recorded handing it to you. Open it and tap Yes or No.'),
+    h('ul', { class: 'ledger-list', id: 'cash-ask' }, cashAsk.map((q) => requestRow(q)))));
+  const supplierWait = supplierRes.data || [];
+  if (supplierWait.length) cards.push(card('Has the supplier delivered?', supplierWait.length, h('p', { class: 'hint' }, 'Paid by bank transfer. Once the goods or the work are in, open it and tap “Supplier confirmed”.'),
+    h('ul', { class: 'ledger-list', id: 'supplier-wait' }, supplierWait.map((q) => requestRow(q)))));
   if (cash.length || unfiled.length) {
     const grace = Number(state.settings?.advance_grace_days || 5);
     const late = cash.filter((q) => (Date.now() - new Date(q.disbursed_at)) / 86400000 > grace).length;
@@ -154,7 +164,7 @@ async function buildHome() {
     const payouts = byStatus('awaiting_disbursement');
     if (payouts.length) cards.push(card('To pay out', payouts.length, null, list(payouts, (q) => (q.type === 'claim' ? h('div', { class: 'row-actions' }, h('span', { class: 'note' }, 'Claim – reimburse from the float'))
       : q.no_quote ? h('div', { class: 'row-actions' }, h('span', { class: 'note' }, 'No quote – cash from the box')) : null))));
-    const proofs = byStatus('proof_review');
+    const proofs = byStatus('proof_review').filter((q) => q.paid_via !== 'transfer');   // a transfer waits for the supplier, not a receipt check
     if (proofs.length) {
       const matched = proofs.filter((q) => checks[q.id]?.status === 'matches' && q.disbursed_to !== me.id && q.requester_id !== me.id);   // never your own receipt
       cards.push(card('Receipts to check', proofs.length, null, list(proofs, proofActions), null, null, matched.length > 1 ? confirmAllButton(matched) : null));

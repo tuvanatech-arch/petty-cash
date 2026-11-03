@@ -67,7 +67,13 @@ The GM cancels under Admin → Settings → Your Petti subscription, after being
 
 ## Payment requests (db/042)
 
-"Request a payment" (type `cash`) is one form for anything that is not office stock: the requester attaches the supplier's quote or invoice on the form (filed while the request is still a draft), or ticks "No quote" (`no_quote` is stamped when it is sent). Finance pays in cash from the box as before, or records a bank transfer (`pay_by_transfer`: date and bank reference, only with a quote or invoice attached). A transfer never touches the box (no float, no cash ledger line), closes the request at once with the document as proof, shows in the month-end pack under "Paid by bank transfer", and the journal credits `BANK` (reference `PAY-<no>`). The float outlook counts only cash from the box.
+"Request a payment" (type `cash`) is one form for anything that is not office stock: the requester attaches the supplier's quote or invoice on the form (filed while the request is still a draft), or ticks "No quote" (`no_quote` is stamped when it is sent).
+
+## Where petty cash is, and how it is paid (db/043)
+
+Each branch's petty cash is in the cash box and, when the branch has one (`branches.petty_bank_name`, set under Petty cash), the petty cash bank account. Every movement has a `place` (box / bank); `withdrawal` (bank → box) and `deposit` (box → bank) move money between them (`move_cash`, with a slip photo or a note; the GM is told). `float_balance` is the box, `float_bank_balance` the bank; `v_floats` keeps its old columns for the box and adds the bank's. Cash counts check the box; `check_bank` compares the statement (a `cash_counts` row with `place = 'bank'`), signed off by the GM the same way. The close (`close_float` with `p_statement`) does both, and the next month carries both over.
+
+Finance pays a request in cash from the box, or by transfer (`pay_by_transfer`, only with a quote or invoice, always with the proof of payment uploaded to the request's folder): from the petty cash bank account (`paid_from = 'petty_cash'`, part of the float) or from the company account (`'company'`: a direct payment outside petty cash, not in `v_spend_lines`, budgets or the journal; listed apart in the pack and Reports). A transfer waits in `proof_review` (shown as "Waiting for the supplier") until the requester taps "Supplier confirmed" (`confirm_supplier`; finance can, with a reason). Whoever is handed cash confirms it (`confirm_cash`: Yes, or No with a note → GM and finance told, exceptions log); unanswered by the next working day is chased once. The journal credits the box (`petty_cash_account`) or the bank (`petty_bank_account`, default `PETTY-CASH-BANK`).
 
 ## Open items (as of 1 Nov 2026)
 

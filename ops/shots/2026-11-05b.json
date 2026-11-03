@@ -1,0 +1,20 @@
+[
+ {
+  "name": "cash-places",
+  "role": "finance",
+  "step": {
+   "at": "#/cash",
+   "css": "#cash-places",
+   "text": ""
+  }
+ },
+ {
+  "name": "pay-three-ways",
+  "role": "finance",
+  "step": {
+   "at": "#/requests/00000122-0000-4000-8000-000000000000",
+   "css": "#pay-how",
+   "text": ""
+  }
+ }
+]
