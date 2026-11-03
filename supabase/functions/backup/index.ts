@@ -7,7 +7,8 @@ const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { sta
 const TABLES = ["settings", "profiles", "categories", "suppliers", "items", "stock_movements", "stock_reports", "requests", "request_lines", "request_events", "request_messages",
   "expenses", "expense_lines", "expense_proofs", "receipt_inbox", "floats", "float_transactions", "packs", "budgets", "delegations", "notifications", "push_subscriptions", "invitations",
   "companies", "branches", "fx_rates", "schedule_versions", "cash_counts", "top_ups", "stock_receipts", "stock_adjustments", "exception_reviews", "admin_log", "access_reviews",
-  "security_events", "sign_ins", "device_sessions", "request_documents"];
+  "security_events", "sign_ins", "device_sessions", "request_documents",
+  "updates", "update_recipients", "user_places"];
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
