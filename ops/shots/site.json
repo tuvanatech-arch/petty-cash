@@ -28,55 +28,6 @@
    }
   },
   {
-   "name": "hero-phone",
-   "role": "finance",
-   "at": "#/cash",
-   "storage": {
-    "demo_two_step": "on"
-   },
-   "hide": [
-    ".tabbar",
-    ".banner"
-   ],
-   "between": [
-    "Petty cash",
-    "Last counted"
-   ]
-  },
-  {
-   "name": "wf-spent",
-   "role": "finance",
-   "at": "#/requests/00000112-0000-4000-8000-000000000000",
-   "storage": {
-    "demo_two_step": "on"
-   },
-   "hide": [
-    ".tabbar"
-   ],
-   "between": [
-    "What was spent",
-    "Confirmed by"
-   ]
-  },
-  {
-   "name": "wf-history",
-   "role": "finance",
-   "at": "#/requests/00000112-0000-4000-8000-000000000000",
-   "storage": {
-    "demo_two_step": "on"
-   },
-   "hide": [
-    ".tabbar"
-   ],
-   "click": [
-    "summary:has-text('History')"
-   ],
-   "between": [
-    "History",
-    "History"
-   ]
-  },
-  {
    "name": "wf-count",
    "role": "finance",
    "at": "#/cash",
@@ -96,21 +47,6 @@
    "pad": 18
   },
   {
-   "name": "attention",
-   "role": "finance",
-   "at": "#/home",
-   "storage": {
-    "demo_two_step": "on"
-   },
-   "hide": [
-    ".tabbar"
-   ],
-   "between": [
-    "To pay out",
-    "Paper receipts awaited"
-   ]
-  },
-  {
    "name": "delivery",
    "role": "finance",
    "at": "#/home",
@@ -126,20 +62,68 @@
    ]
   },
   {
-   "name": "stock",
+   "name": "laptop",
+   "role": "finance",
+   "at": "#/cash",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "width": 1280,
+   "height": 800,
+   "dpr": 1.5,
+   "hide": [
+    ".banner"
+   ]
+  },
+  {
+   "name": "phone-home",
+   "role": "finance",
+   "at": "#/home",
+   "storage": {
+    "demo_two_step": "on"
+   }
+  },
+  {
+   "name": "phone-1012",
+   "role": "finance",
+   "at": "#/requests/00000112-0000-4000-8000-000000000000",
+   "storage": {
+    "demo_two_step": "on"
+   }
+  },
+  {
+   "name": "phone-history",
+   "role": "finance",
+   "at": "#/requests/00000112-0000-4000-8000-000000000000",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "click": [
+    "summary:has-text('What was asked for')",
+    "summary:has-text('History')"
+   ],
+   "scroll": "summary"
+  },
+  {
+   "name": "phone-attention",
+   "role": "finance",
+   "at": "#/home",
+   "storage": {
+    "demo_two_step": "on"
+   },
+   "scroll": "To pay out"
+  },
+  {
+   "name": "phone-stock",
    "role": "stock_manager",
    "at": "#/stock",
    "storage": {
     "demo_view": "00000081-0000-4000-8000-000000000000"
    },
    "hide": [
-    ".tabbar",
     ".banner-purple"
    ],
-   "between": [
-    "Item",
-    "7 items"
-   ]
+   "scroll": "Items"
   }
  ]
 }
