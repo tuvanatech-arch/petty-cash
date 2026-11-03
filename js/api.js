@@ -140,6 +140,8 @@ export async function loadSessionContext() {
   if (state.twoStep?.blocked) { state.me = null; syncAppBadge(0); return null; }
   const { data: me } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
   state.me = me;
+  // the company's plan and whether Petti has been cancelled (a banner for everyone, limits under Admin)
+  try { const { data: plan, error } = await sb.rpc('plan_status'); state.plan = error ? null : plan; } catch { state.plan = null; }
   if (me && me.active) {
     const today = new Date(); const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const [{ data: settings }, { data: people }, { data: roles }, { data: deleg }, { count }] = await Promise.all([

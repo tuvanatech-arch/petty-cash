@@ -3,6 +3,7 @@ import { sb, state, adminUsers, accountMail, refreshPeople, unwrap, rpc, ROLE_LA
 import { devicesDialog } from '../devices.js';
 import { logoUrl, prepareLogo, saveLogo, removeLogo } from '../brand.js';
 import { schedulePage } from './schedule.js';
+import { exportEverything } from '../export.js';
 import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, today, isoDate, emptyState, showIf, retext } from '../ui.js';
 
 export async function adminPage(tab = 'users') {
@@ -10,7 +11,9 @@ export async function adminPage(tab = 'users') {
   const tabs = [['users', 'People'], ['branches', 'Branches'], ['signins', 'Sign-ins'], ['standins', 'Stand-ins'], ['schedule', 'Schedule'], ['updates', 'Updates'], ['settings', 'Settings']];
   const bar = h('div', { class: 'tabs' }, tabs.map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { location.hash = `#/admin/${k}`; } }, l)));
   const body = tab === 'updates' ? await updatesAdminTab() : tab === 'settings' ? settingsTab() : tab === 'standins' ? await standinsTab() : tab === 'signins' ? await signInsTab() : tab === 'branches' ? await branchesTab() : tab === 'schedule' ? await schedulePage({ embedded: true }) : await usersTab();
-  const action = { users: ['Add person', () => userDialog(null)], standins: ['Add stand-in', () => standinDialog(null)], branches: ['Add branch', () => branchDialog(null)] }[tab];
+  const full = (what) => state.plan?.plan && state.plan[what] === false;
+  const action = { users: ['Add person', () => (full('can_add_person') ? planFullDialog('people') : userDialog(null))], standins: ['Add stand-in', () => standinDialog(null)],
+    branches: ['Add branch', () => (full('can_add_branch') ? planFullDialog('branches') : branchDialog(null))] }[tab];
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Admin'), h('p', {}, 'Who can sign in, the branches, who covers for whom, the authority schedule, and the organisation’s details.')),
       action ? h('div', { class: 'page-actions' }, h('button', { class: 'btn btn-primary', onclick: action[1] }, action[0])) : null),
@@ -19,6 +22,7 @@ export async function adminPage(tab = 'users') {
 
 /* =============================================================== branches */
 async function branchesTab() {
+  state.plan = await rpc('plan_status').catch(() => state.plan);
   const [{ data: companies }, { data: branches }, { data: people }] = await Promise.all([
     sb.from('companies').select('*').order('name'), sb.from('branches').select('*').order('name'), sb.from('profiles').select('id, full_name, role, active, branch_id').eq('active', true)]);
   const { data: floats } = await sb.from('v_floats').select('id, branch_id, period, status, balance').eq('status', 'open');
@@ -109,7 +113,8 @@ async function signInsTab() {
 
 /* =============================================================== people */
 async function usersTab() {
-  const [, counts, twoStep] = await Promise.all([refreshPeople(), rpc('device_counts').catch(() => []), rpc('two_step_people').catch(() => [])]);
+  const [, counts, twoStep, plan] = await Promise.all([refreshPeople(), rpc('device_counts').catch(() => []), rpc('two_step_people').catch(() => []), rpc('plan_status').catch(() => state.plan)]);
+  state.plan = plan;
   const ts = Object.fromEntries((Array.isArray(twoStep) ? twoStep : []).map((t) => [t.user_id, t]));
   const tsCell = (p) => ts[p.id]?.enabled
     ? h('span', { class: 'two-step-cell' }, h('span', { class: 'pill pill-green' }, 'On'), p.id !== state.me.id ? [' ', h('button', { class: 'btn btn-sm btn-quiet', onclick: () => resetTwoStep(p) }, 'Reset')] : null)
@@ -132,6 +137,7 @@ async function usersTab() {
     managing_director: 'Approves above the GM limit, the GM’s own requests and changes to the schedule’s limits and float; sees everything; no administration. Their own requests are paid, then reviewed by the GM.',
   };
   return h('div', {},
+    planLine(),
     h('div', { class: 'sheet' },
       h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
         h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), multiBranch() ? h('th', {}, 'Branch') : null, h('th', {}, 'Devices'), h('th', {}, 'Two-step'), h('th'))),
@@ -380,7 +386,7 @@ function settingsTab() {
     toast('Settings saved.'); refresh();
   });
   const block = (title, ...kids) => h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, title)), ...kids);
-  return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+  return h('div', {}, h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
     h('div', { class: 'banner banner-grey' }, 'Limits, the float, reminders and budgets are on the ', h('a', { href: '#/admin/schedule' }, 'Schedule'), ' tab, where every change is a version and the MD approves what needs approving.'),
     block('Organisation', h('div', { class: 'row' }, field('Organisation name', org), field('Currency symbol', currency)),
       field('People in the office', headcount, 'Used for cost per head in reports.')),
@@ -394,5 +400,72 @@ function settingsTab() {
     block('Month-end pack', h('div', { class: 'row' }, field('Senior accountant', acctName), field('Their email', acctEmail, 'The reviewed pack is emailed here, with the approver in copy.'))),
     block('Accounting export', h('div', { class: 'row' }, field('Accounting package', pkg, 'Named so the journal export can match it; until then it is a generic journal.'), field('Petty cash ledger account', cashAcct, 'The account code the package uses for the cash box. Expense accounts are set per category under Stock → Catalogue → Categories.'))),
     block('Email', h('div', { class: 'row' }, field('Send emails from', emailFrom, 'Must be an address on a domain verified with the email provider; blank uses the test sender.'), field('Link to the app', appUrl, 'Used in emails so people can open the thing that needs them.'))),
-    h('div', { class: 'form-actions' }, b));
+    h('div', { class: 'form-actions' }, b)), subscriptionBlock());
+}
+
+/* =============================================================== the subscription */
+// The plan (set by Tuvana Tech) limits how many people and branches can be switched on. Nothing shows until a plan is set.
+function planLine() {
+  const p = state.plan; if (!p?.plan) return null;
+  const full = p.can_add_person === false;
+  return h('div', { class: `banner ${full ? 'banner-amber' : 'banner-grey'}`, id: 'plan-line' },
+    h('strong', {}, p.people_limit ? `${p.people_used} of ${p.people_limit} people on your ${p.plan_label} plan.` : `${p.people_used} people on your ${p.plan_label} plan.`), ' ',
+    full ? `It is full: switch off someone who has left, or call Tuvana Tech on ${p.support_phone} to upgrade.` : 'People you switch off do not count.');
+}
+
+function planFullDialog(what) {
+  const p = state.plan;
+  modal('Your plan is full', (close) => h('div', {},
+    h('p', {}, what === 'branches'
+      ? `Your ${p.plan_label} plan allows ${p.branch_limit} branch${p.branch_limit === 1 ? '' : 'es'}, and ${p.branches_used} ${p.branches_used === 1 ? 'is' : 'are'} open.`
+      : `Your ${p.plan_label} plan allows ${p.people_limit} people, and ${p.people_used} are switched on.`),
+    h('p', {}, what === 'branches' ? `To add a branch, call Tuvana Tech on ${p.support_phone} to upgrade.` : `Switch off someone who has left (their history stays), or call Tuvana Tech on ${p.support_phone} to upgrade.`),
+    h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn btn-primary', onclick: close }, 'OK'))));
+}
+
+function subscriptionBlock() {
+  const p = state.plan; if (!p?.plan) return null;
+  const cancelled = p.status === 'cancelled';
+  const status = h('p', { class: 'hint', id: 'everything-status' });
+  const download = h('button', { type: 'button', class: 'btn', id: 'download-everything' }, 'Download everything');
+  download.onclick = busy(download, async () => { const r = await exportEverything((t) => { status.textContent = t; }); status.textContent = `Downloaded ${r.months} month${r.months === 1 ? '' : 's'} with ${r.receipts} receipt${r.receipts === 1 ? '' : 's'}.`; });
+  const keep = cancelled ? h('button', { type: 'button', class: 'btn btn-primary', id: 'keep-petti' }, 'Keep Petti') : null;
+  if (keep) keep.onclick = busy(keep, async () => {
+    if (!(await confirmDialog('Keep Petti?', 'The cancellation is withdrawn and nothing will be removed. Billing continues as before.', { ok: 'Keep Petti' }))) return;
+    state.plan = await rpc('keep_subscription'); toast('Petti is staying. Finance and the MD have been told.'); refresh();
+  });
+  const cancel = cancelled ? null : h('button', { type: 'button', class: 'btn btn-quiet btn-danger', id: 'cancel-petti', onclick: () => cancelDialog() }, 'Cancel Petti');
+  return h('div', { class: 'sheet', id: 'subscription' },
+    h('div', { class: 'sheet-head' }, h('h2', {}, 'Your Petti subscription')),
+    h('dl', { class: 'kv' },
+      h('dt', {}, 'Plan'), h('dd', {}, p.plan_label),
+      h('dt', {}, 'People'), h('dd', {}, p.people_limit ? `${p.people_used} of ${p.people_limit}` : String(p.people_used)),
+      h('dt', {}, 'Branches'), h('dd', {}, p.branch_limit ? `${p.branches_used} of ${p.branch_limit}` : String(p.branches_used)),
+      cancelled ? [h('dt', {}, 'Cancelled'), h('dd', { style: { color: 'var(--red)' } }, `By ${p.cancelled_by || 'the administrator'} on ${fmtDate(p.cancelled_at)}. Everything is removed for good on ${fmtDate(p.remove_on)}.`)] : null),
+    h('p', { class: 'muted' }, `To change your plan, call Tuvana Tech on ${p.support_phone}.`),
+    h('div', { class: 'form-actions', style: { justifyContent: 'flex-start', flexWrap: 'wrap' } }, download, keep, cancel), status);
+}
+
+function cancelDialog() {
+  const org = state.settings?.org_name || '';
+  modal('Cancel Petti', (close) => {
+    const status = h('p', { class: 'hint' });
+    const dl = h('button', { type: 'button', class: 'btn btn-primary' }, 'Download everything');
+    dl.onclick = busy(dl, async () => { const r = await exportEverything((t) => { status.textContent = t; }); status.textContent = `Downloaded ${r.months} month${r.months === 1 ? '' : 's'} with ${r.receipts} receipt${r.receipts === 1 ? '' : 's'}. Keep the file somewhere safe.`; });
+    const name = h('input', { class: 'input', id: 'cancel-confirm', autocomplete: 'off' });
+    const go = h('button', { type: 'button', class: 'btn btn-danger', disabled: true, id: 'cancel-go' }, 'Cancel Petti');
+    name.oninput = () => { go.disabled = name.value.trim().toLowerCase() !== org.trim().toLowerCase(); };
+    go.onclick = busy(go, async () => {
+      state.plan = await rpc('cancel_subscription', { p_confirm: name.value });
+      close(); toast(`Petti is cancelled. Everything is removed for good on ${fmtDate(state.plan.remove_on)}.`, { ms: 7000 }); refresh();
+    });
+    return h('div', {},
+      h('p', {}, 'Nothing more will be billed. Petti stays open for 30 days so you can download anything you missed, and you can keep it within those 30 days. After that, your records, receipts and backup copies are removed for good.'),
+      h('h3', { style: { marginTop: '16px' } }, '1. Download everything first'),
+      h('p', { class: 'muted' }, 'One file with every month: the registers as spreadsheets, the receipts, the people, the stock catalogue and the month-end packs. Keep it for as long as the law requires you to keep your records.'),
+      dl, status,
+      h('h3', { style: { marginTop: '16px' } }, '2. Confirm'),
+      field(`Type “${org}” to confirm`, name),
+      h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Keep Petti'), go));
+  });
 }

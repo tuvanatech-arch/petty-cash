@@ -1,6 +1,6 @@
 import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofUrl, removeProof, isStaff, readReceipt, markAlertsRead, canApproveReq, canReviewReq, mdInPlace, LEVEL_LABEL, scoped, myBranch, multiBranch, branchName } from '../api.js';
 import { branchTag } from '../branch.js';
-import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted, refresh, picker } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted, refresh, picker, units } from '../ui.js';
 import { outlookBox } from './cash.js';
 import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } from '../proofs.js';
 import { keepForm, keepRead, keepDrop, whenText } from '../keep.js';
@@ -584,7 +584,7 @@ export async function requestDetailPage(id) {
 
   const movementsSheet = movements.length ? more(`Stock movements (${movements.length})`,
     h('ul', { class: 'ledger-list' }, movements.map((m) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, m.item.name), h('span', {}, `${MOVEMENT_LABEL[m.kind]}${m.issued_to ? ' to ' + personName(m.issued_to) : ''} · ${fmtDate(m.occurred_on || m.created_at)}`)),
-      h('span', { class: 'amt' }, `${Number(m.delta) > 0 ? '+' : ''}${qty(m.delta)} ${m.item.unit}`))))) : null;
+      h('span', { class: 'amt' }, `${Number(m.delta) > 0 ? '+' : ''}${units(m.delta, m.item.unit)}`))))) : null;
 
   const details = h('dl', { class: 'kv' },
     q.stock_reviewed_at ? [h('dt', {}, 'Stock review'), h('dd', {}, `${personName(q.stock_reviewed_by)}, ${fmtDate(q.stock_reviewed_at)}${q.stock_note ? ' – ' + q.stock_note : ''}`)] : null,
@@ -694,7 +694,7 @@ function stockReviewPanel(q, lines, reload, openOrders = []) {
       const buy = h('input', { class: 'input num', type: 'number', min: 0, step: 'any', value: e.qty_to_buy, oninput: (ev) => { e.qty_to_buy = num(ev.target.value); total(); } });
       const price = h('input', { class: 'input num', type: 'number', min: 0, step: '0.01', value: e.est_unit_price, oninput: (ev) => { e.est_unit_price = num(ev.target.value); total(); } });
       const oo = l.item_id ? onOrder(l.item_id) : null; const enough = l.item_id && onhand >= Number(l.qty) && e.qty_to_buy > 0;
-      return h('tr', {}, h('td', {}, l.item?.name || l.description, h('span', { class: 'muted' }, l.item ? ` · ${qty(onhand)} ${l.item.unit} on hand` : ' · not a catalogue item'),
+      return h('tr', {}, h('td', {}, l.item?.name || l.description, h('span', { class: 'muted' }, l.item ? ` · ${units(onhand, l.item.unit)} on hand` : ' · not a catalogue item'),
           enough ? h('div', { class: 'note warn' }, 'Enough on hand – nothing needs buying') : null,
           oo ? h('div', { class: 'note warn' }, `${qty(oo.on_order)} already on order (#${(oo.request_nos || []).filter((n) => n !== q.request_no).join(', #')})`) : null),
         h('td', { class: 'num' }, qty(l.qty)), h('td', { class: 'num', style: { width: '100px' } }, from), h('td', { class: 'num', style: { width: '100px' } }, buy), h('td', { class: 'num', style: { width: '120px' } }, price));

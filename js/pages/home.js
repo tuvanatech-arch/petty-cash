@@ -1,5 +1,5 @@
 import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush, canApproveReq, canReviewReq, scoped, inView, multiBranch, branchName } from '../api.js';
-import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more } from '../ui.js';
+import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more, units } from '../ui.js';
 import { requestRow, expenseOf } from './requests.js';
 import { floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
 import { reportDialog, confirmReceiptDialog, decideAdjustmentActions } from './stock.js';
@@ -129,7 +129,7 @@ async function buildHome() {
   const receipts = (receiptsRes.data || []).filter(inViewItem);
   const limit = Number(state.settings?.stock_adjust_limit || 0);
   const roleOf = (id) => state.people.find((p) => p.id === id)?.role;
-  const receiptRow = (r) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${r.item?.name || 'Item'} · ${qty(r.qty_bought)} ${r.item?.unit || ''} bought`), h('span', {}, `by ${personName(r.bought_by)}, ${fmtDate(r.created_at)}${Number(r.unit_cost) ? ` · ${money(Number(r.qty_bought) * Number(r.unit_cost))}` : ''}`)),
+  const receiptRow = (r) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${r.item?.name || 'Item'} · ${units(r.qty_bought, r.item?.unit)} bought`), h('span', {}, `by ${personName(r.bought_by)}, ${fmtDate(r.created_at)}${Number(r.unit_cost) ? ` · ${money(Number(r.qty_bought) * Number(r.unit_cost))}` : ''}`)),
     h('div', { class: 'row-actions' }, h('button', { class: 'btn btn-sm btn-primary', onclick: () => confirmReceiptDialog(r, null) }, 'Confirm arrival')));
   if (duty('stock_manager')) {
     const mine = receipts.filter((r) => !(r.bought_by === me.id && Number(r.qty_bought) * Number(r.unit_cost || 0) > limit));
@@ -143,7 +143,7 @@ async function buildHome() {
   if (duty('approver')) {
     const adj = (adjRes.data || []).filter(inViewItem).filter((a) => a.requested_by !== me.id);
     if (adj.length) cards.push(card('Stock corrections to approve', adj.length, h('p', { class: 'hint' }, `Above the ${money(limit)} limit the balance only changes once you approve.`),
-      h('ul', { class: 'ledger-list' }, adj.map((a) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${a.item?.name || 'Item'} · ${qty(a.qty_before)} → ${qty(a.qty_after)} ${a.item?.unit || ''}`),
+      h('ul', { class: 'ledger-list' }, adj.map((a) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${a.item?.name || 'Item'} · ${qty(a.qty_before)} → ${units(a.qty_after, a.item?.unit)}`),
         h('span', {}, `${{ count: 'Count difference', correction: 'Correction', delivery: 'Short delivery' }[a.kind] || a.kind} · worth ${money(a.value)} · ${personName(a.requested_by)}, ${fmtDate(a.requested_at)}${a.reason ? ` – “${a.reason}”` : ''}`)), decideAdjustmentActions(a)))), null, 'purple'));
   }
   // the exception log: open entries wait for the GM
@@ -244,7 +244,7 @@ function stockToAct(items, statsArr, reports) {
   const low = items.filter((i) => !byItem[i.id]).filter((i) => { const s = stats[i.id]; return Number(i.qty_on_hand) <= 0 ? (i.recurring || Number(i.reorder_level) > 0) : (Number(i.reorder_level) > 0 && Number(i.qty_on_hand) < Number(i.reorder_level)) || (s?.days_of_cover != null && Number(s.days_of_cover) <= 14); })
     .sort((a, b) => Number(stats[a.id]?.days_of_cover ?? 999) - Number(stats[b.id]?.days_of_cover ?? 999));
   for (const i of low) { const s = stats[i.id]; const out = Number(i.qty_on_hand) <= 0;
-    rows.push(h('li', { class: 'click', onclick: () => { location.hash = '#/stock'; } }, h('div', { class: 'what' }, h('strong', {}, i.name), h('span', {}, out ? 'out of stock' : s?.runout_date ? `${qty(i.qty_on_hand)} ${i.unit} left · runs out about ${fmtDate(s.runout_date)}` : `${qty(i.qty_on_hand)} ${i.unit} left · below reorder level`)), h('span', { class: `pill ${out ? 'pill-red' : 'pill-amber'}` }, out ? 'Out' : 'Low'))); }
+    rows.push(h('li', { class: 'click', onclick: () => { location.hash = '#/stock'; } }, h('div', { class: 'what' }, h('strong', {}, i.name), h('span', {}, out ? 'out of stock' : s?.runout_date ? `${units(i.qty_on_hand, i.unit)} left · runs out about ${fmtDate(s.runout_date)}` : `${units(i.qty_on_hand, i.unit)} left · below reorder level`)), h('span', { class: `pill ${out ? 'pill-red' : 'pill-amber'}` }, out ? 'Out' : 'Low'))); }
   return rows;
 }
 

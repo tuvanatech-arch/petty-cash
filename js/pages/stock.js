@@ -1,7 +1,7 @@
 import { sb, state, can, personName, unwrap, rpc, queueOffline, scoped, multiBranch, myBranch, branchName } from '../api.js';
 import { branchGate } from '../branch.js';
 import { myTopReported } from '../usage.js';
-import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint, showIf, picker } from '../ui.js';
+import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint, showIf, picker, units } from '../ui.js';
 import { barChart } from '../charts.js';
 
 export async function stockPage(tab = 'items') {
@@ -81,7 +81,7 @@ async function itemsTab(manage) {
         return h('tr', { class: `item-row${low(i) ? ' low' : ''}`, onclick: () => (manage ? itemSheet(i, s, { catName, supName, sups }) : reportDialog(i)) },
           h('td', {}, h('strong', {}, i.name), paceBadge(s), manage && i.tracking === 'issued' ? h('span', { class: 'pill pill-purple', style: { marginLeft: '6px' }, title: 'Recorded at each hand-out; a count difference is a variance' }, 'Issued') : null, !i.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null,
             manage ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, [catName(i.category_id), i.recurring ? 'monthly' : null].filter((x) => x && x !== '—').join(' · ')) : null),
-          h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`),
+          h('td', { class: 'num amt' }, `${units(i.qty_on_hand, i.unit)}`),
           manage ? h('td', { class: 'num hide-xs' }, s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : h('span', { class: 'muted' }, '—')) : null,
           runoutCell(i, s),
           h('td', { class: 'num chev' }, manage ? '›' : 'Report ›'));
@@ -108,15 +108,15 @@ function itemSheet(i, s, { catName, supName, sups }) {
     const stat = (k, v) => h('div', { class: 'stat' }, h('span', { class: 'k' }, k), h('span', { class: 'v', style: { fontSize: '1.1rem' } }, v));
     return h('div', {},
       h('div', { class: 'row', style: { marginBottom: '10px' } },
-        stat('On hand', `${qty(i.qty_on_hand)} ${i.unit}`),
+        stat('On hand', `${units(i.qty_on_hand, i.unit)}`),
         stat('Used / month', s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : '—'),
         stat('Runs out', s?.runout_date ? fmtDate(s.runout_date) : Number(i.qty_on_hand) <= 0 ? 'Out' : '—'),
         stat('Last price', i.last_unit_price != null ? money(i.last_unit_price) : '—')),
       h('dl', { class: 'kv', style: { marginBottom: '14px' } },
         h('dt', {}, 'Category'), h('dd', {}, catName(i.category_id)),
         h('dt', {}, 'Supplier'), h('dd', {}, supName(i.preferred_supplier_id)),
-        i.recurring ? [h('dt', {}, 'Monthly'), h('dd', {}, `expect ${qty(i.expected_monthly_qty)} ${i.unit}`)] : null,
-        Number(i.reorder_level) > 0 ? [h('dt', {}, 'Reorder at'), h('dd', {}, `${qty(i.reorder_level)} ${i.unit}`)] : null,
+        i.recurring ? [h('dt', {}, 'Monthly'), h('dd', {}, `expect ${units(i.expected_monthly_qty, i.unit)}`)] : null,
+        Number(i.reorder_level) > 0 ? [h('dt', {}, 'Reorder at'), h('dd', {}, `${units(i.reorder_level, i.unit)}`)] : null,
         s?.pace && s.pace !== 'normal' ? [h('dt', {}, 'Pace'), h('dd', {}, (PACE[s.pace] || PACE.normal).label)] : null),
       h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } },
         h('button', { class: 'btn btn-primary', onclick: () => { close(); usageDialog(i, () => refresh()); } }, 'Used'),
@@ -131,7 +131,7 @@ function itemSheet(i, s, { catName, supName, sups }) {
 export function reportDialog(item) {
   modal(item ? `Report: ${item.name}` : 'Report low stock', async (close) => {
     const items = item ? [item] : (await scoped(sb.from('items').select('id, name, unit, qty_on_hand')).eq('active', true).order('name')).data || [];
-    const sel = select([['', 'Choose an item…'], ...items.map((i) => [i.id, `${i.name} (${qty(i.qty_on_hand)} ${i.unit} on the books)`])], item?.id || '', { disabled: !!item });
+    const sel = select([['', 'Choose an item…'], ...items.map((i) => [i.id, `${i.name} (${units(i.qty_on_hand, i.unit)} on the books)`])], item?.id || '', { disabled: !!item });
     let level = 'low';
     const lvl = h('div', { class: 'tabs', style: { marginBottom: '12px' } });
     const drawLvl = () => mount(lvl, [['low', 'Running low'], ['out', 'Completely out']].map(([k, l]) => h('button', { type: 'button', class: k === level ? 'active' : '', onclick: () => { level = k; drawLvl(); } }, l)));
@@ -183,7 +183,7 @@ async function reportsTab(manage) {
       const onOrder = g.reports.find((r) => r.request_id);
       return h('li', { style: { alignItems: 'flex-start' } }, cb,
         h('div', { class: 'what' }, h('strong', {}, g.item?.name || 'Item', ' ', h('span', { class: `pill ${needed ? 'pill-blue' : out ? 'pill-red' : 'pill-amber'}` }, needed ? 'Needed' : out ? 'Out' : 'Running low'), onOrder ? h('a', { class: 'pill pill-blue', href: `#/requests/${onOrder.request_id}`, style: { marginLeft: '6px', textDecoration: 'none' } }, 'on a restock order') : null),
-          h('span', { style: { whiteSpace: 'normal' } }, `${g.item ? `${qty(g.item.qty_on_hand)} ${g.item.unit} on the books · ` : ''}${g.reports.map((r) => `${personName(r.reported_by)}${r.qty ? ` needs ${qty(r.qty)}` : ''} ${fmtDate(r.created_at)}${r.note ? ` – “${r.note}”` : ''}`).join(' · ')}`)),
+          h('span', { style: { whiteSpace: 'normal' } }, `${g.item ? `${units(g.item.qty_on_hand, g.item.unit)} on the books · ` : ''}${g.reports.map((r) => `${personName(r.reported_by)}${r.qty ? ` needs ${qty(r.qty)}` : ''} ${fmtDate(r.created_at)}${r.note ? ` – “${r.note}”` : ''}`).join(' · ')}`)),
         manage ? h('span', { class: 'amt' }, g.reports.length > 1 ? `${g.reports.length} reports` : '') : null);
     })) : emptyState(manage ? 'Nothing reported' : 'No open reports', manage ? 'When someone on the team reports an item running low or out, it shows here.' : 'Use “Report low / out” when you notice something is finishing.'));
   }
@@ -234,7 +234,7 @@ async function usageTab(manage) {
         h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'On hand'), h('th', { class: 'num' }, 'Used / month'), h('th', { class: 'num' }, 'Days left'), months.map((m) => h('th', { class: 'num' }, short(m))))),
         h('tbody', {}, rows.map((i) => { const s = stats[i.id]; const p = PACE[s?.pace || 'dormant'];
           return h('tr', {}, h('td', {}, h('strong', {}, i.name), h('span', { class: `pill ${p.pill}`, style: { marginLeft: '6px' }, title: p.hint }, p.label), i.recurring ? h('div', { class: 'muted', style: { fontSize: '.78rem' } }, `expected ${qty(i.expected_monthly_qty)} / month`) : null),
-            h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`),
+            h('td', { class: 'num amt' }, `${units(i.qty_on_hand, i.unit)}`),
             h('td', { class: 'num' }, s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : h('span', { class: 'muted' }, '—')),
             h('td', { class: 'num', style: { color: s?.days_of_cover != null && Number(s.days_of_cover) <= 14 ? 'var(--amber)' : '' } }, s?.days_of_cover != null ? `${qty(s.days_of_cover)}` : '—'),
             months.map((m) => { const u = used[i.id + m]; const ro = ranOut[i.id + m];
@@ -313,7 +313,7 @@ function correctDialog(item, done) {
       toast(mv ? 'Correction applied and logged.' : 'Sent to the General Manager to approve. The balance changes once approved.', { ms: mv ? 4000 : 6000 }); close(); done();
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      h('p', { class: 'hint' }, `${qty(item.qty_on_hand)} ${item.unit} on the book. A correction is for breakage, loss or a counting mistake – not for things handed out (use Issue) or used up (use Used).`),
+      h('p', { class: 'hint' }, `${units(item.qty_on_hand, item.unit)} on the book. A correction is for breakage, loss or a counting mistake – not for things handed out (use Issue) or used up (use Used).`),
       h('div', { class: 'row' }, field('Actually on hand', q), field('Reason', note)), line,
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
@@ -331,7 +331,7 @@ async function deliveriesTab() {
   const limit = Number(state.settings?.stock_adjust_limit || 0);
   const row = (r) => { const rq = reqOf(r.request_id); const val = Number(r.qty_bought) * Number(r.unit_cost || 0);
     return h('li', { class: rq ? 'click' : '', onclick: rq ? () => { location.hash = `#/requests/${rq.id}`; } : null },
-      h('div', { class: 'what' }, h('strong', {}, `${r.item?.name || 'Item'} · ${qty(r.qty_bought)} ${r.item?.unit || ''} bought`),
+      h('div', { class: 'what' }, h('strong', {}, `${r.item?.name || 'Item'} · ${units(r.qty_bought, r.item?.unit)} bought`),
         h('span', {}, `${rq ? `#${rq.request_no} ${rq.purpose} · ` : ''}by ${personName(r.bought_by)}, ${fmtDate(r.created_at)}${val ? ` · ${money(val)}` : ''}`),
         r.status !== 'to_check' ? h('span', { style: { display: 'block' } }, `${qty(r.qty_received)} arrived · checked by ${personName(r.checked_by)}, ${fmtDate(r.checked_at)}${r.note ? ` – “${r.note}”` : ''}`) : null),
       r.status === 'to_check' ? h('div', { class: 'row-actions', onclick: (e) => e.stopPropagation() }, h('button', { class: 'btn btn-sm btn-primary', onclick: () => confirmReceiptDialog(r, rq) }, 'Confirm arrival'))
@@ -352,7 +352,7 @@ export function confirmReceiptDialog(r, rq) {
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Confirm');
     const go = busy(b, async () => { await rpc('confirm_stock_receipt', { p_id: r.id, p_received: num(got.value), p_note: note.value.trim() || null }); toast('Delivery confirmed.'); close(); refresh(); });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      h('p', { class: 'hint' }, `${qty(r.qty_bought)} ${r.item?.unit || ''} bought${rq ? ` on #${rq.request_no} ${rq.purpose}` : ''} by ${personName(r.bought_by)}. Count what reached the shelf.`),
+      h('p', { class: 'hint' }, `${units(r.qty_bought, r.item?.unit)} bought${rq ? ` on #${rq.request_no} ${rq.purpose}` : ''} by ${personName(r.bought_by)}. Count what reached the shelf.`),
       h('div', { class: 'row' }, field('Arrived', got), field('Note', note)), line,
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
@@ -368,7 +368,7 @@ async function adjustmentsTab() {
   const KIND = { count: 'Count difference', correction: 'Correction', delivery: 'Short delivery' };
   const STATUS = { applied: ['Applied', 'pill-grey'], to_approve: ['Waiting for the GM', 'pill-amber'], approved: ['Approved', 'pill-green'], rejected: ['Turned down', 'pill-red'] };
   const row = (a) => h('li', {},
-    h('div', { class: 'what' }, h('strong', {}, `${a.item?.name || 'Item'} · ${qty(a.qty_before)} → ${qty(a.qty_after)} ${a.item?.unit || ''}`),
+    h('div', { class: 'what' }, h('strong', {}, `${a.item?.name || 'Item'} · ${qty(a.qty_before)} → ${units(a.qty_after, a.item?.unit)}`),
       h('span', {}, `${KIND[a.kind] || a.kind} · worth ${money(a.value)} · ${personName(a.requested_by)}, ${fmtDate(a.requested_at)}${a.reason ? ` – “${a.reason}”` : ''}`),
       a.decided_at ? h('span', { style: { display: 'block' } }, `${a.status === 'approved' ? 'Approved' : 'Turned down'} by ${personName(a.decided_by)}, ${fmtDate(a.decided_at)}${a.decision_note ? ` – “${a.decision_note}”` : ''}`) : null),
     a.status === 'to_approve' && can('admin') && a.requested_by !== state.me.id ? decideAdjustmentActions(a) : h('span', { class: `pill ${STATUS[a.status][1]}` }, STATUS[a.status][0]));
@@ -393,7 +393,7 @@ function usageDialog(item, done) {
     const note = h('input', { class: 'input', placeholder: 'Optional' });
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Record usage');
     const go = busy(b, async () => { await rpc('record_usage', { p_item: item.id, p_qty: num(q.value), p_on: date.value, p_note: note.value }); toast('Usage recorded.'); close(); done(); });
-    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, h('p', { class: 'hint' }, `${qty(item.qty_on_hand)} ${item.unit} on hand. For things consumed from the store (coffee, cleaning stock) rather than handed to a person.`),
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, h('p', { class: 'hint' }, `${units(item.qty_on_hand, item.unit)} on hand. For things consumed from the store (coffee, cleaning stock) rather than handed to a person.`),
       h('div', { class: 'row' }, field('Quantity used', q), field('On', date)), field('Note', note), h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
@@ -456,7 +456,7 @@ function issueDialog(item, done) {
     const note = h('input', { class: 'input', placeholder: 'Optional' });
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Issue');
     const go = busy(b, async () => { await rpc('issue_stock', { p_item: item.id, p_qty: num(q.value), p_to: to.value, p_note: note.value }); toast('Issued.'); close(); done(); });
-    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, h('p', { class: 'hint' }, `${qty(item.qty_on_hand)} ${item.unit} on hand. For handing stock to a named person; requests issue automatically.`),
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, h('p', { class: 'hint' }, `${units(item.qty_on_hand, item.unit)} on hand. For handing stock to a named person; requests issue automatically.`),
       field('Quantity', q), field('To', to), field('Note', note), h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
@@ -485,7 +485,7 @@ async function movementsTab() {
     h('thead', {}, h('tr', {}, h('th', {}, 'When'), h('th', {}, 'Item'), h('th', {}, 'What'), h('th', { class: 'num' }, 'Change'), h('th', { class: 'num' }, 'Unit cost'), h('th', {}, 'By'))),
     h('tbody', {}, rows.map((m) => h('tr', {}, h('td', { class: 'muted', style: { whiteSpace: 'nowrap' } }, fmtDate(m.occurred_on || m.created_at)), h('td', {}, m.item?.name),
       h('td', {}, MOVEMENT_LABEL[m.kind] || m.kind, m.issued_to ? ` to ${personName(m.issued_to)}` : '', m.request_id ? h('a', { href: `#/requests/${m.request_id}`, class: 'muted', style: { marginLeft: '6px' } }, 'request') : null, m.note ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, m.note) : null),
-      h('td', { class: `num amt`, style: { color: Number(m.delta) < 0 ? 'var(--amber)' : 'var(--green-ink)' } }, `${Number(m.delta) > 0 ? '+' : ''}${qty(m.delta)} ${m.item?.unit || ''}`),
+      h('td', { class: `num amt`, style: { color: Number(m.delta) < 0 ? 'var(--amber)' : 'var(--green-ink)' } }, `${Number(m.delta) > 0 ? '+' : ''}${units(m.delta, m.item?.unit)}`),
       h('td', { class: 'num muted' }, m.unit_cost != null ? money(m.unit_cost) : ''), h('td', { class: 'muted' }, personName(m.created_by))))))) : emptyState('No movements yet', 'Purchases, usage, issues and counts will show here.'));
 }
 

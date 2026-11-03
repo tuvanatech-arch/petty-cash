@@ -17,6 +17,17 @@ const named = (rows, fields) => rows.map((r) => { const o = { ...r }; for (const
 export async function downloadFullExport(float, onProgress = () => {}) {
   const JSZip = await loadZip();
   const zip = new JSZip();
+  const r = await addMonth(zip, float, onProgress);
+  onProgress('Packing…');
+  save(await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' }), `petty-cash-${String(float.period).slice(0, 7)}-export.zip`);
+  onProgress('');
+  return r;
+}
+
+const save = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); };
+
+/** One float's month into the zip: every register as CSV, and its receipts. */
+async function addMonth(zip, float, onProgress, { withBranch = state.branches.length > 1 } = {}) {
   const month = String(float.period).slice(0, 7);
   const next = new Date(float.period); next.setMonth(next.getMonth() + 1);
   const from = String(float.period), to = isoDate(next);
@@ -31,7 +42,7 @@ export async function downloadFullExport(float, onProgress = () => {}) {
     sb.from('stock_receipts').select('*, item:items!inner(name, unit, branch_id)').eq('item.branch_id', float.branch_id).gte('created_at', from).lt('created_at', to).order('created_at').then((r) => r.data || []),
     sb.rpc('exceptions_log', { p_from: from }).then((r) => (r.data || []).filter((x) => x.at < to)),
   ]);
-  const folder = zip.folder(`petty-cash-${month}${state.branches.length > 1 ? `-${branchName(float.branch_id).toLowerCase()}` : ''}`);
+  const folder = zip.folder(`petty-cash-${month}${withBranch ? `-${(branchName(float.branch_id) || String(float.branch_id).slice(0, 8)).toLowerCase().replace(/\s+/g, '-')}` : ''}`);
   const lines = []; const vouchers = [];
   for (const q of reqs) {
     const e = Array.isArray(q.expense) ? q.expense[0] : q.expense;
@@ -62,9 +73,39 @@ export async function downloadFullExport(float, onProgress = () => {}) {
       folder.file(`receipts/${q.request_no}-${String(n).padStart(2, '0')}.${ext}`, await res.arrayBuffer());
     } catch { /* a missing image is noted in the PDF pack; the export carries on */ }
   }
-  onProgress('Packing…');
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `petty-cash-${month}-export.zip`; document.body.append(a); a.click(); a.remove();
-  onProgress('');
   return { files: Object.keys(folder.files || {}).length, receipts: proofs.length };
+}
+
+/** Everything the company has in Petti, in one zip: every month of every branch (registers and receipts), the
+    people, the stock catalogue, and the month-end packs already made. Offered before cancelling. */
+export async function exportEverything(onProgress = () => {}) {
+  const JSZip = await loadZip();
+  const zip = new JSZip();
+  onProgress('Finding every month…');
+  const [floats, people, items, packs] = await Promise.all([
+    sb.from('v_floats').select('*').order('period').then((r) => r.data || []),
+    sb.from('profiles').select('full_name, email, role, active, branch_id, created_at').order('full_name').then((r) => r.data || []),
+    sb.from('items').select('*').order('name').then((r) => r.data || []),
+    sb.from('packs').select('*').then((r) => r.data || []).catch(() => []),
+  ]);
+  let receipts = 0;
+  const withBranch = new Set(floats.map((f) => f.branch_id)).size > 1;   // each branch's months in folders of their own
+  for (const [i, f] of floats.entries()) {
+    const label = `${monthLabel(f.period)}${state.branches.length > 1 ? ` (${branchName(f.branch_id)})` : ''}`;
+    const r = await addMonth(zip, f, (t) => onProgress(t ? `${label}, ${i + 1} of ${floats.length}: ${t}` : ''), { withBranch });
+    receipts += r.receipts;
+  }
+  zip.file('people.csv', csv(people.map((p) => ({ ...p, branch: branchName(p.branch_id) }))));
+  zip.file('stock-catalogue.csv', csv(items));
+  // the month-end packs already made (PDF), when they were kept
+  for (const p of packs) {
+    const path = p.storage_path || p.file_path; if (!path) continue;
+    try { const { data } = await sb.storage.from('packs').download(path); if (data) zip.file(`month-end-packs/${p.file_name || path.split('/').pop()}`, await data.arrayBuffer()); } catch { /* listed in the app */ }
+  }
+  zip.file('README.txt', `Everything in Petti for ${state.settings?.org_name || 'the company'}\nMade ${new Date().toISOString()} by ${state.me?.full_name || ''}\n\nOne folder per month (and branch): vouchers, expense lines, the cash ledger, cash counts, top-ups, stock movements, corrections, deliveries, exceptions and the receipts.\npeople.csv: everyone who had an account. stock-catalogue.csv: the items. month-end-packs: the PDF packs that were made.\n`);
+  onProgress('Packing…');
+  const name = `petti-${(state.settings?.org_name || 'records').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-everything-${isoDate(new Date())}.zip`;
+  save(await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' }), name);
+  onProgress('');
+  return { months: floats.length, receipts };
 }

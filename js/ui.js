@@ -90,6 +90,18 @@ export function qty(v) {
   const n = Number(v || 0);
   return Number.isInteger(n) ? String(n) : n.toLocaleString(locale(), { maximumFractionDigits: 2 });
 }
+// units of measure that read the same for any amount
+const SAME = new Set(['each', 'g', 'kg', 'mg', 'ml', 'l', 'lt', 'm', 'cm', 'mm', 'km', 'pcs', 'pc', 'dozen', 'gross']);
+/** "1 ream", "5 reams", "2 boxes", "0 bottles", "3 each": a unit fitted to the amount (only exactly 1 is singular). */
+export function unitFor(v, unit) {
+  const u = String(unit || '').trim(); const n = Number(v || 0);
+  if (!u || Math.abs(n) === 1 || SAME.has(u.toLowerCase()) || !/^[a-z]+$/i.test(u) || /s$/i.test(u) && !/ss$/i.test(u)) return u;
+  if (/(s|x|z|ch|sh)$/i.test(u)) return u + 'es';
+  if (/[^aeiou]y$/i.test(u)) return u.slice(0, -1) + 'ies';
+  return u + 's';
+}
+/** A quantity with its unit: "5 reams". */
+export function units(v, unit) { const u = unitFor(v, unit); return u ? `${qty(v)} ${u}` : qty(v); }
 export function fmtDate(d, { time = false } = {}) {
   if (!d) return '—';
   const dt = typeof d === 'string' && d.length === 10 ? new Date(d + 'T00:00:00') : new Date(d);

@@ -157,9 +157,12 @@ export async function render() {
     return h('a', { href: it.href, class: active ? 'active' : '' }, it.label, badge);
   };
   const token = ++renderToken;
-  // at most one banner, most important first: unsent counts, then standing in, then install
+  // at most one banner, most important first: Petti cancelled, unsent counts, standing in, then install
   const queued = offlineQueueLength();
-  const banner = queued ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `${queued} count${queued === 1 ? '' : 's'} saved on this device`), 'Sent as soon as there is a connection.')
+  const closing = state.plan?.status === 'cancelled' && state.plan.remove_on;
+  const banner = closing ? h('div', { class: 'banner banner-amber', id: 'cancelled-banner' }, h('strong', {}, `Petti has been cancelled. Everything is removed for good on ${fmtDate(state.plan.remove_on)}.`), ' ',
+      can('admin') ? h('a', { href: '#/admin/settings' }, 'Download everything, or keep Petti') : can('finance') ? 'Download the records you need from Petty cash before then.' : 'Ask finance for any records you need before then.')
+    : queued ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `${queued} count${queued === 1 ? '' : 's'} saved on this device`), 'Sent as soon as there is a connection.')
     : state.standingIn.length ? h('div', { class: 'banner banner-purple' }, h('strong', {}, `Standing in as ${state.standingIn.map((d) => `${ROLE_LABEL[d.role].replace(' (admin)', '').toLowerCase()} for ${personName(d.from_user)}`).join(' and ')} until ${fmtDate(state.standingIn[0].ends_on)}`), 'Their queue is on your Home; what you do is recorded under your name. Day-to-day only: the catalogue and settings stay with them.')
     : installBanner();
   const tabs = tabItems();

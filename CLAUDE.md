@@ -49,15 +49,26 @@ Run `select public.update_feedback(30)` on the live database: what people said a
 5. Announce (above).
 6. SQL containing DELETE or DROP is refused by the migration tool: give it to the owner as a "run in Supabase" file instead.
 
+## Website (usepetti.com)
+
+Plain files in `site/` (Netlify project `usepetti`, deploys on every push to main, so a site change goes live when pushed). Every claim on it must match the app; business terms (prices, trial, setup fee) only as the owner approved them. Pictures are real screens from the preview, never edited: `node ops/site-shots.mjs ops/shots/site.json` (fixed clock, "Demo Company"). `node test/site-test.mjs` must say PASS (layout at three widths, links, menu, keyboard, the trial form without sending).
+
 ## Health check
 
 Every weekday at 10:11 (Windhoek) a scheduled task runs `select public.health_report(26)` (db/039) and checks that app.usepetti.com and usepetti.com load. It pushes to the owner's phone only when something is wrong: a failed scheduled job, no nightly copy (or one with fewer tables than the night before), failed calls to the server functions, or 10+ errors from phones. Run it yourself at the start of a session too. A new table that holds records goes into `TABLES` in `functions/backup/index.ts`.
 
 Every night at 02:30 UTC `functions/offsite` (db/040) sends the latest records copy and every new or changed receipt, pack and logo to Tuvana Tech's own Backblaze bucket (EU Central, Amsterdam), with a key that can only add files. It also does a practice restore of exactly what it sent (`restore_check` loads each table's rows into a scratch copy). Runs are in `public.offsite_runs`; the health check reports failures. It does nothing until the four secrets `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET`, `B2_ENDPOINT` are set (the owner adds them; never handle the keys yourself).
 
+## Plans and cancelling (db/041)
+
+Each client's plan limits how many people (accounts switched on) and branches it can have; Admin → People shows the places used and blocks adding beyond them, and the database enforces the same. Tuvana Tech sets the plan, never the client: `update public.subscription set plan = 'business', people_limit = 30, branch_limit = 3, status = 'active' where id = 1;` (starter 10/1, business 30/3, group as agreed; `ops/new-client.mjs` sets it from the client file's `plan`). A plan of null shows nothing and limits nothing. Setting or changing a client's plan changes what its GM sees: announce it to the GM.
+
+The GM cancels under Admin → Settings → Your Petti subscription, after being offered "Download everything". Petti stays open 30 days (the GM can keep it); the daily health check alerts on the day of cancelling (stop billing) and on the removal day: then remove the client's Supabase project and empty its Backblaze bucket, as the terms promise.
+
 ## Open items (as of 1 Nov 2026)
 
-- Backblaze: the owner creates the account, bucket and Write Only key and adds the four secrets; then run `select public.call_function('offsite', '{}', 150000)` until `more` is false and check `restore_ok` in `offsite_runs`.
+- MGP has no plan set yet: the owner decides (Business, or the founding price) before it is set and announced to the GM.
+- Privacy notice and terms of service: drafts in Claude Docs, with a Namibian lawyer; publish as usepetti.com/privacy and /terms only once approved, then link them from the footer and the trial form.
 - Email via Resend (owner sets up; then redeploy send-notifications, send-push, send-pack, account-mail).
 - Owner runs `db/018b_run_in_supabase.sql` and `db/026b_run_in_supabase.sql`. The unused `stock_adjust_raise_v1` can be dropped at the same time.
 - MGP's logo: the GM uploads it under Admin → Settings → Company logo (the light-background version). The accounting package name, and Magreth loading the catalogue.

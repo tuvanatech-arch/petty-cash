@@ -2,10 +2,10 @@
 // Actions:
 //   status          -> { needs_bootstrap }            (no auth)
 //   bootstrap       -> create the first administrator (only while no users exist)
-//   create          -> create a user with a role and temporary password   (approver only)
+//   create          -> create a user with a role and temporary password   (approver only; needs a place on the plan)
 //   update          -> change full name / role / email                    (approver only; roles include managing_director)
 //   reset_password  -> set a new temporary password                       (approver only)
-//   set_active      -> deactivate / reactivate (blocks sign-in)           (approver only)
+//   set_active      -> deactivate / reactivate (blocks sign-in)           (approver only; reactivating needs a place on the plan)
 //   delete          -> remove an account that never did anything           (approver only)
 //   reset_two_step  -> clear someone's two-step sign-in (a lost phone)     (GM or MD, never their own)
 // Every action except status and bootstrap needs a sign-in that passed two-step sign-in where it applies.
@@ -51,6 +51,14 @@ async function caller(req: Request) {
 // who holds each position is part of the authority schedule: record a new version when it changes (no-op otherwise)
 async function syncPositions(by: string) {
   try { await admin.rpc("schedule_positions_sync", { p_by: by }); } catch { /* the next schedule version picks it up */ }
+}
+
+// the plan's people limit (also enforced in the database), checked first so the message is plain
+async function checkPlace() {
+  const { data } = await admin.rpc("plan_status");
+  if (data && data.plan && data.can_add_person === false) {
+    throw new Error(`Your ${data.plan_label} plan allows ${data.people_limit} people and all the places are taken. Switch off someone who has left, or call Tuvana Tech on ${data.support_phone} to upgrade.`);
+  }
 }
 
 function checkPassword(p: unknown) {
@@ -127,6 +135,7 @@ Deno.serve(async (req) => {
       if (!full_name) throw new Error("Enter the person's name");
       if (!ROLES.includes(role)) throw new Error("Unknown role");
       checkPassword(body.password);
+      await checkPlace();
       // The profile trigger reads the role from an open invitation (app_metadata is not yet
       // set when the trigger fires), so record one first.
       const { data: inv, error: invErr } = await admin.from("invitations").insert({ email, full_name, role, invited_by: me.id }).select("id").single();
@@ -216,6 +225,7 @@ Deno.serve(async (req) => {
     if (action === "set_active") {
       const active = Boolean(body.active);
       if (user_id === me.id && !active) throw new Error("You cannot deactivate yourself");
+      if (active) await checkPlace();
       const { error } = await admin.from("profiles").update({ active }).eq("id", user_id);
       if (error) throw error;
       // a banned user cannot sign in; "none" lifts the ban

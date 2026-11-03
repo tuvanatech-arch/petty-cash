@@ -1,5 +1,5 @@
 import { sb, state, can, personName, unwrap, scoped, multiBranch, branchName, rpc } from '../api.js';
-import { h, mount, money, qty, fmtDate, monthLabel, pill, emptyState, select, field, isoDate, more, toast, busy, confirmDialog, refresh } from '../ui.js';
+import { h, mount, money, qty, fmtDate, monthLabel, pill, emptyState, select, field, isoDate, more, toast, busy, confirmDialog, refresh, units } from '../ui.js';
 import { barChart, lineChart, hBars } from '../charts.js';
 
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -141,7 +141,7 @@ export async function reportsPage(startTab = null) {
         h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' }, h('thead', {}, h('tr', {}, h('th', {}, 'Item'), h('th', { class: 'num' }, 'Expected'), recMonths.map((k) => h('th', { class: 'num' }, shortMonth(k))), h('th', { class: 'num' }, 'On hand'))),
           h('tbody', {}, recRows.map(({ i, bought }) => h('tr', {}, h('td', {}, i.name), h('td', { class: 'num muted' }, qty(i.expected_monthly_qty)),
             recMonths.map((k) => { const b = bought[k] || 0; const exp = Number(i.expected_monthly_qty); return h('td', { class: 'num', style: { color: exp && b > exp * 1.25 ? 'var(--amber)' : '' } }, b ? qty(b) : '—'); }),
-            h('td', { class: 'num amt' }, `${qty(i.qty_on_hand)} ${i.unit}`))))))) : null,
+            h('td', { class: 'num amt' }, `${units(i.qty_on_hand, i.unit)}`))))))) : null,
       ],
       controls: () => [
       exceptionsSheet(exc),

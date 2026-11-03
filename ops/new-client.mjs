@@ -23,9 +23,12 @@ const apply = flags.includes('--apply');
 const c = JSON.parse(readFileSync(cfgPath, 'utf8'));
 
 // ---------- check the description ----------
-const need = ['slug', 'org_name', 'company_code', 'branch_name', 'branch_code', 'currency', 'currency_code', 'time_zone', 'number_locale', 'supabase_url', 'publishable_key', 'app_url'];
+const need = ['slug', 'org_name', 'company_code', 'branch_name', 'branch_code', 'currency', 'currency_code', 'time_zone', 'number_locale', 'supabase_url', 'publishable_key', 'app_url', 'plan'];
+// the plan sets the limits (see usepetti.com): starter 10 people / 1 branch, business 30 / 3, group as agreed (people_limit, branch_limit)
+const PLANS = { starter: [10, 1], business: [30, 3], group: [null, null] };
 const missing = need.filter((k) => !c[k]);
 if (missing.length) { console.error(`missing in ${cfgPath}: ${missing.join(', ')}`); process.exit(1); }
+if (!PLANS[c.plan]) { console.error('plan: starter, business or group'); process.exit(1); }
 if (!/^[a-z0-9-]+$/.test(c.slug)) { console.error('slug: lowercase letters, digits and hyphens only'); process.exit(1); }
 if (!/^[A-Z]{3}$/.test(c.currency_code)) { console.error('currency_code: three capital letters (NAD, AOA, ZAR, BWP…)'); process.exit(1); }
 try { new Intl.DateTimeFormat('en', { timeZone: c.time_zone }); } catch { console.error(`time_zone "${c.time_zone}" is not a real time zone`); process.exit(1); }
@@ -62,6 +65,7 @@ update public.settings set org_name = ${q(c.org_name)}, currency = ${q(c.currenc
   time_zone = ${q(c.time_zone)}, titles = ${q(JSON.stringify(titles))}::jsonb, schedule_ref = ${q(c.schedule_ref || '')}, policy_ref = ${q(c.policy_ref || '')},
   app_url = ${q(c.app_url)}, email_from = ${q(c.email_from || `${c.org_name} <onboarding@resend.dev>`)}, headcount = ${Number(c.headcount) || 0}, updated_at = now()
 where id = 1;
+update public.subscription set plan = ${q(c.plan)}, people_limit = ${c.people_limit ?? PLANS[c.plan][0] ?? 'null'}, branch_limit = ${c.branch_limit ?? PLANS[c.plan][1] ?? 'null'}, status = 'trial', trial_ends = ${c.trial_ends ? q(c.trial_ends) : 'null'} where id = 1;
 update public.companies set name = ${q(c.org_name)}, code = ${q(c.company_code)}, currency = ${q(c.currency)}, currency_code = ${q(c.currency_code)} where is_base;
 update public.branches set name = ${q(c.branch_name)}, code = ${q(c.branch_code)} where company_id = (select id from public.companies where is_base);
 
