@@ -78,6 +78,8 @@ function sharpness(g, w, h) {   // variance of the Laplacian: low = blurred
 }
 
 /** Turn a picture into a scan, or say what is wrong with it. */
+export const isScreenshot = (file) => /^image\/(png|webp)$/i.test(file?.type || '') || /screen ?shot|screenshot|scr_/i.test(file?.name || '');
+
 export async function scanReceipt(file) {
   if (!file) return { ok: false, problems: ['No file.'] };
   if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')) return { ok: true, file, problems: [], pdf: true };
@@ -85,6 +87,9 @@ export async function scanReceipt(file) {
   const img = await loadImage(file);
   const W = img.naturalWidth, H = img.naturalHeight;
   if (Math.min(W, H) < 600) return { ok: false, file, problems: ['The picture is too small to read. Move closer, or use the camera instead of a screenshot.'] };
+  // a screenshot (a bank app's payment, an e-receipt) is already flat and sharp: no slip to find, keep it as it is.
+  // Phones save screenshots as PNG (camera photos are JPEG/HEIC) and usually name them "Screenshot…".
+  if (isScreenshot(file)) return { ok: true, file, problems: [], digital: true };
 
   // 1. find the slip on a small copy
   const k = ANALYSE / Math.max(W, H); const aw = Math.round(W * k), ah = Math.round(H * k);

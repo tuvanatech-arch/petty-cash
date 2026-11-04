@@ -28,7 +28,7 @@ async function receiptPng(page, blur) {
     x.fillStyle = '#222'; x.font = 'bold 40px monospace'; x.fillText('CHECKERS', 460, 300);
     x.font = '26px monospace'; for (let i = 0; i < 18; i++) x.fillText(`ITEM ${i + 1}  ....  N$ ${(12 + i * 3.5).toFixed(2)}`, 340, 380 + i * 48);
     x.font = 'bold 32px monospace'; x.fillText('TOTAL  N$ 125.50', 380, 1300); x.restore();
-    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.92));
     return [...new Uint8Array(await blob.arrayBuffer())];
   }, blur);
   return Buffer.from(data);
@@ -82,11 +82,11 @@ async function receiptPng(page, blur) {
 for (const w of [1280, 390]) {
   const { ctx, page, errs } = await open('stock_manager', `#/requests/${uid(105)}`, w);
   const input = page.locator('label.upload input[type=file]').first();
-  await input.setInputFiles({ name: 'shaky.png', mimeType: 'image/png', buffer: await receiptPng(page, 9) }); await page.waitForTimeout(2500);
+  await input.setInputFiles({ name: 'shaky.jpg', mimeType: 'image/jpeg', buffer: await receiptPng(page, 9) }); await page.waitForTimeout(2500);
   const bad = await page.locator('.toast').allInnerTexts();
   check(bad.some((t) => /Not accepted/.test(t) && /blur|sharp|shak|still/i.test(t)), `${w}: a blurred photo is refused, saying why`);
   const before = await page.locator('main img, main .proof').count();
-  await input.setInputFiles({ name: 'slip.png', mimeType: 'image/png', buffer: await receiptPng(page, 0) }); await page.waitForTimeout(3500);
+  await input.setInputFiles({ name: 'slip.jpg', mimeType: 'image/jpeg', buffer: await receiptPng(page, 0) }); await page.waitForTimeout(3500);
   const good = await page.locator('.toast').allInnerTexts();
   check(good.some((t) => /Receipt accepted/.test(t)), `${w}: a clear photo is straightened and accepted ${good.join(' / ')}`);
   check(await page.locator('main img, main .proof').count() >= before, `${w}: it shows with the receipts`);
