@@ -75,7 +75,11 @@ h3 { font-size: 1.25rem; line-height: 1.25; font-weight: 700; }
 .note { font-size: .95rem; color: var(--muted); border-left: 3px solid var(--sand); padding-left: 12px; }
 
 /* ---------- header and hero ---------- */
-.top { background: var(--bottle); color: var(--on-dark); padding-bottom: 0; }
+.top { background: var(--bottle); color: var(--on-dark); padding-bottom: 0; position: relative; }
+/* faint ruled lines, like the pages of a cash book */
+.top::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .07;
+  background-image: linear-gradient(var(--on-dark) 1px, transparent 1px); background-size: 100% 34px; }
+.top > * { position: relative; }
 .nav { display: flex; align-items: center; gap: 24px; min-height: 76px; position: relative; }
 .nav .mark { color: var(--white); margin-right: auto; }
 .nav-links { list-style: none; display: flex; align-items: center; gap: 26px; margin: 0; padding: 0; }
