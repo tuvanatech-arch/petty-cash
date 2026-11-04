@@ -1,13 +1,1741 @@
-bucket 5 4a612cb0
-column 683 46d16d14
-constraint 222 7267c408
-cron 19 a1ed20c4
-enum 6 f8b0c72c
-function 227 38fdd3ca
-grant-fn 227 a4d4ebdb
-index 107 06b5dd1b
-policy 129 5937417d
-realtime 15 c237a16f
-rls 50 c59f7e3c
-trigger 34 5404029a
-view 5 0e921bd1
+bucket|backups|9e1326a3
+bucket|branding|77c27679
+bucket|item-photos|6f1f8e00
+bucket|packs|39259287
+bucket|proofs|f7969e41
+column|access_reviews.id|e55af8b0
+column|access_reviews.note|79860fb3
+column|access_reviews.quarter|eff8ba70
+column|access_reviews.reviewed_at|672d3af2
+column|access_reviews.reviewed_by|f33d6490
+column|access_reviews.snapshot|654cb4c1
+column|admin_log.action|8599de9d
+column|admin_log.actor_id|f33d6490
+column|admin_log.area|8599de9d
+column|admin_log.at|672d3af2
+column|admin_log.detail|9c9abb31
+column|admin_log.id|75b87920
+column|admin_log.subject|79860fb3
+column|app_config.key|8599de9d
+column|app_config.updated_at|672d3af2
+column|app_config.value|8599de9d
+column|branches.active|61cee0bf
+column|branches.code|8599de9d
+column|branches.company_id|836fd58d
+column|branches.created_at|672d3af2
+column|branches.id|e55af8b0
+column|branches.name|8599de9d
+column|branches.petty_bank_name|79860fb3
+column|branches.usual_float|a9515a24
+column|budgets.active|61cee0bf
+column|budgets.branch_id|f33d6490
+column|budgets.category_id|f33d6490
+column|budgets.created_at|672d3af2
+column|budgets.id|e55af8b0
+column|budgets.monthly_limit|010a4e0a
+column|budgets.note|79860fb3
+column|budgets.person_id|f33d6490
+column|cash_counts.answer_note|79860fb3
+column|cash_counts.counted|6085c881
+column|cash_counts.counted_at|672d3af2
+column|cash_counts.counted_by|836fd58d
+column|cash_counts.difference|0126a6e7
+column|cash_counts.exception|b51be08a
+column|cash_counts.expected|6085c881
+column|cash_counts.float_id|836fd58d
+column|cash_counts.id|e55af8b0
+column|cash_counts.kind|a4e13f09
+column|cash_counts.note|79860fb3
+column|cash_counts.outstanding|1773ba14
+column|cash_counts.place|2a48dfa5
+column|cash_counts.review_note|79860fb3
+column|cash_counts.reviewed_at|03d9f475
+column|cash_counts.reviewed_by|f33d6490
+column|cash_counts.status|befde1ba
+column|cash_counts.variance_limit|1773ba14
+column|cash_counts.written_off|761fc45a
+column|categories.account_code|79860fb3
+column|categories.active|61cee0bf
+column|categories.id|e55af8b0
+column|categories.kind|b931b1df
+column|categories.name|8599de9d
+column|client_logs.at|672d3af2
+column|client_logs.build|79860fb3
+column|client_logs.detail|79860fb3
+column|client_logs.device|9c9abb31
+column|client_logs.id|e55af8b0
+column|client_logs.level|e5a6bf7f
+column|client_logs.message|8599de9d
+column|client_logs.url|79860fb3
+column|client_logs.user_agent|79860fb3
+column|client_logs.user_id|f33d6490
+column|companies.active|61cee0bf
+column|companies.code|8599de9d
+column|companies.created_at|672d3af2
+column|companies.currency|6540f9e5
+column|companies.currency_code|f2d51406
+column|companies.id|e55af8b0
+column|companies.is_base|b51be08a
+column|companies.name|8599de9d
+column|delegations.created_at|672d3af2
+column|delegations.created_by|f33d6490
+column|delegations.ends_on|eff8ba70
+column|delegations.from_user|836fd58d
+column|delegations.id|e55af8b0
+column|delegations.note|79860fb3
+column|delegations.role|25a4c226
+column|delegations.starts_on|b15b8774
+column|delegations.to_user|836fd58d
+column|device_sessions.approx|b51be08a
+column|device_sessions.country|79860fb3
+column|device_sessions.first_seen|672d3af2
+column|device_sessions.ip|f0dab1f0
+column|device_sessions.label|79860fb3
+column|device_sessions.last_seen|672d3af2
+column|device_sessions.lat|697ecd2f
+column|device_sessions.lon|697ecd2f
+column|device_sessions.place|79860fb3
+column|device_sessions.session_id|836fd58d
+column|device_sessions.standalone|111c3371
+column|device_sessions.tz|79860fb3
+column|device_sessions.user_agent|79860fb3
+column|device_sessions.user_id|836fd58d
+column|exception_reviews.kind|8599de9d
+column|exception_reviews.note|79860fb3
+column|exception_reviews.outcome|8599de9d
+column|exception_reviews.ref|836fd58d
+column|exception_reviews.reviewed_at|672d3af2
+column|exception_reviews.reviewed_by|f33d6490
+column|expense_lines.description|5ced6c5e
+column|expense_lines.expense_id|836fd58d
+column|expense_lines.id|e55af8b0
+column|expense_lines.item_id|f33d6490
+column|expense_lines.line_total|7cae69c7
+column|expense_lines.qty|010a4e0a
+column|expense_lines.supplier_id|f33d6490
+column|expense_lines.supplier_name|79860fb3
+column|expense_lines.unit_price|010a4e0a
+column|expense_lines.void|b51be08a
+column|expense_proofs.expense_id|836fd58d
+column|expense_proofs.extracted|9c9abb31
+column|expense_proofs.file_name|8599de9d
+column|expense_proofs.id|e55af8b0
+column|expense_proofs.mime|79860fb3
+column|expense_proofs.sha256|79860fb3
+column|expense_proofs.storage_path|8599de9d
+column|expense_proofs.uploaded_at|672d3af2
+column|expense_proofs.uploaded_by|f33d6490
+column|expenses.change_returned|a57ada14
+column|expenses.confirmed_at|03d9f475
+column|expenses.confirmed_by|f33d6490
+column|expenses.created_at|672d3af2
+column|expenses.duplicate_note|79860fb3
+column|expenses.finance_note|79860fb3
+column|expenses.id|e55af8b0
+column|expenses.no_receipt_note|79860fb3
+column|expenses.notes|79860fb3
+column|expenses.paper_slip|111c3371
+column|expenses.physical_received_at|03d9f475
+column|expenses.physical_received_by|f33d6490
+column|expenses.physical_required_at|03d9f475
+column|expenses.physical_required_by|f33d6490
+column|expenses.proof_status|fb0309d7
+column|expenses.request_id|836fd58d
+column|expenses.spent_at|b15b8774
+column|expenses.spent_by|836fd58d
+column|expenses.supplier_name|79860fb3
+column|expenses.total|a57ada14
+column|float_transactions.amount|010a4e0a
+column|float_transactions.created_at|672d3af2
+column|float_transactions.created_by|f33d6490
+column|float_transactions.float_id|836fd58d
+column|float_transactions.id|e55af8b0
+column|float_transactions.kind|b69c7381
+column|float_transactions.note|79860fb3
+column|float_transactions.place|2a48dfa5
+column|float_transactions.slip_path|79860fb3
+column|floats.branch_id|836fd58d
+column|floats.closed_at|03d9f475
+column|floats.closed_by|f33d6490
+column|floats.closing_bank|761fc45a
+column|floats.counted_cash|a9515a24
+column|floats.id|e55af8b0
+column|floats.notes|79860fb3
+column|floats.opened_at|672d3af2
+column|floats.opened_by|f33d6490
+column|floats.opening_amount|a57ada14
+column|floats.period|eff8ba70
+column|floats.status|b1eb50af
+column|fx_rates.company_id|836fd58d
+column|fx_rates.month|eff8ba70
+column|fx_rates.rate|e1f7c220
+column|fx_rates.set_at|672d3af2
+column|fx_rates.set_by|f33d6490
+column|invitations.accepted_at|03d9f475
+column|invitations.created_at|672d3af2
+column|invitations.email|8599de9d
+column|invitations.full_name|5ced6c5e
+column|invitations.id|e55af8b0
+column|invitations.invited_by|f33d6490
+column|invitations.role|bbbd95c7
+column|ip_places.approx|b51be08a
+column|ip_places.city|79860fb3
+column|ip_places.country|79860fb3
+column|ip_places.country_name|79860fb3
+column|ip_places.ip|b454b973
+column|ip_places.lat|697ecd2f
+column|ip_places.lon|697ecd2f
+column|ip_places.looked_up_at|672d3af2
+column|ip_places.org|79860fb3
+column|ip_places.region|79860fb3
+column|ip_places.source|79860fb3
+column|item_suggestions.branch_id|f33d6490
+column|item_suggestions.category_id|f33d6490
+column|item_suggestions.created_at|672d3af2
+column|item_suggestions.est_price|a9515a24
+column|item_suggestions.gm_at|03d9f475
+column|item_suggestions.gm_by|f33d6490
+column|item_suggestions.gm_note|79860fb3
+column|item_suggestions.id|e55af8b0
+column|item_suggestions.item_id|f33d6490
+column|item_suggestions.monthly_qty|a9515a24
+column|item_suggestions.name|8599de9d
+column|item_suggestions.photo_path|79860fb3
+column|item_suggestions.reason|8599de9d
+column|item_suggestions.status|39cf693a
+column|item_suggestions.stock_at|03d9f475
+column|item_suggestions.stock_by|f33d6490
+column|item_suggestions.stock_note|79860fb3
+column|item_suggestions.suggested_by|836fd58d
+column|item_suggestions.suggested_role|25a4c226
+column|item_suggestions.where_to_buy|79860fb3
+column|items.active|61cee0bf
+column|items.branch_id|836fd58d
+column|items.category_id|f33d6490
+column|items.created_at|672d3af2
+column|items.expected_monthly_qty|a57ada14
+column|items.id|e55af8b0
+column|items.last_unit_price|a9515a24
+column|items.name|8599de9d
+column|items.pack_note|79860fb3
+column|items.photos|eef63cc4
+column|items.preferred_supplier_id|f33d6490
+column|items.qty_on_hand|a57ada14
+column|items.recurring|b51be08a
+column|items.reorder_level|a57ada14
+column|items.sku|79860fb3
+column|items.suggested_at|03d9f475
+column|items.suggested_by|f33d6490
+column|items.tracking|da9309c3
+column|items.unit|95dd005e
+column|mail_log.at|672d3af2
+column|mail_log.detail|79860fb3
+column|mail_log.email|8599de9d
+column|mail_log.id|e55af8b0
+column|mail_log.kind|8599de9d
+column|mail_log.sent|111c3371
+column|notifications.body|79860fb3
+column|notifications.created_at|672d3af2
+column|notifications.email_attempts|6c2375ba
+column|notifications.email_status|79860fb3
+column|notifications.emailed_at|03d9f475
+column|notifications.id|e55af8b0
+column|notifications.kind|8599de9d
+column|notifications.link|79860fb3
+column|notifications.push_status|79860fb3
+column|notifications.pushed_at|03d9f475
+column|notifications.read_at|03d9f475
+column|notifications.request_id|f33d6490
+column|notifications.title|8599de9d
+column|notifications.user_id|836fd58d
+column|offsite_runs.bytes_sent|38e930e6
+column|offsite_runs.error|79860fb3
+column|offsite_runs.files_sent|6c2375ba
+column|offsite_runs.files_upto|03d9f475
+column|offsite_runs.finished_at|03d9f475
+column|offsite_runs.id|42b3b1a0
+column|offsite_runs.more|b51be08a
+column|offsite_runs.records_run|79860fb3
+column|offsite_runs.restore_note|79860fb3
+column|offsite_runs.restore_ok|111c3371
+column|offsite_runs.skipped|6c2375ba
+column|offsite_runs.started_at|672d3af2
+column|packs.built_at|672d3af2
+column|packs.built_by|f33d6490
+column|packs.created_at|672d3af2
+column|packs.file_name|8599de9d
+column|packs.float_id|836fd58d
+column|packs.id|e55af8b0
+column|packs.note|79860fb3
+column|packs.pages|5133ea82
+column|packs.period|eff8ba70
+column|packs.send_status|79860fb3
+column|packs.sent_at|03d9f475
+column|packs.sent_by|f33d6490
+column|packs.sent_to|79860fb3
+column|packs.size_bytes|42c82e24
+column|packs.status|34c5d55f
+column|packs.storage_path|8599de9d
+column|packs.summary|9c9abb31
+column|profiles.active|61cee0bf
+column|profiles.branch_id|836fd58d
+column|profiles.created_at|672d3af2
+column|profiles.email|8599de9d
+column|profiles.email_notifications|61cee0bf
+column|profiles.extra_branches|78f3c967
+column|profiles.full_name|5ced6c5e
+column|profiles.id|836fd58d
+column|profiles.role|bbbd95c7
+column|profiles.seen_tips|04c8f465
+column|profiles.view_branch|f33d6490
+column|push_subscriptions.auth|8599de9d
+column|push_subscriptions.created_at|672d3af2
+column|push_subscriptions.endpoint|8599de9d
+column|push_subscriptions.fail_reason|79860fb3
+column|push_subscriptions.failed_at|03d9f475
+column|push_subscriptions.id|e55af8b0
+column|push_subscriptions.last_used_at|03d9f475
+column|push_subscriptions.p256dh|8599de9d
+column|push_subscriptions.session_id|f33d6490
+column|push_subscriptions.user_agent|79860fb3
+column|push_subscriptions.user_id|836fd58d
+column|receipt_inbox.created_at|672d3af2
+column|receipt_inbox.extracted|9c9abb31
+column|receipt_inbox.file_name|8599de9d
+column|receipt_inbox.filed_at|03d9f475
+column|receipt_inbox.filed_request_id|f33d6490
+column|receipt_inbox.id|e55af8b0
+column|receipt_inbox.mime|79860fb3
+column|receipt_inbox.read_error|79860fb3
+column|receipt_inbox.sha256|79860fb3
+column|receipt_inbox.status|d970408d
+column|receipt_inbox.storage_path|8599de9d
+column|receipt_inbox.user_id|836fd58d
+column|request_documents.created_at|672d3af2
+column|request_documents.extracted|9c9abb31
+column|request_documents.file_name|79860fb3
+column|request_documents.id|e55af8b0
+column|request_documents.kind|215afc8b
+column|request_documents.mime|79860fb3
+column|request_documents.request_id|836fd58d
+column|request_documents.storage_path|8599de9d
+column|request_documents.uploaded_by|836fd58d
+column|request_events.action|8599de9d
+column|request_events.actor_id|f33d6490
+column|request_events.created_at|672d3af2
+column|request_events.from_status|e6358e1b
+column|request_events.id|e55af8b0
+column|request_events.note|79860fb3
+column|request_events.request_id|836fd58d
+column|request_events.to_status|e6358e1b
+column|request_lines.description|5ced6c5e
+column|request_lines.est_unit_price|a57ada14
+column|request_lines.id|e55af8b0
+column|request_lines.item_id|f33d6490
+column|request_lines.line_no|4d70c991
+column|request_lines.qty|010a4e0a
+column|request_lines.qty_from_stock|a57ada14
+column|request_lines.qty_to_buy|a9515a24
+column|request_lines.request_id|836fd58d
+column|request_messages.author_id|836fd58d
+column|request_messages.body|8599de9d
+column|request_messages.created_at|672d3af2
+column|request_messages.id|e55af8b0
+column|request_messages.request_id|836fd58d
+column|requests.approval_level|79860fb3
+column|requests.approval_note|79860fb3
+column|requests.approval_required|b51be08a
+column|requests.approved_at|03d9f475
+column|requests.approved_by|f33d6490
+column|requests.branch_id|836fd58d
+column|requests.budget_note|79860fb3
+column|requests.cash_received|111c3371
+column|requests.cash_received_at|03d9f475
+column|requests.cash_received_note|79860fb3
+column|requests.category_id|f33d6490
+column|requests.closed_at|03d9f475
+column|requests.closed_by|f33d6490
+column|requests.created_at|672d3af2
+column|requests.disbursed_amount|a9515a24
+column|requests.disbursed_at|03d9f475
+column|requests.disbursed_by|f33d6490
+column|requests.disbursed_to|f33d6490
+column|requests.estimated_total|a57ada14
+column|requests.float_id|f33d6490
+column|requests.for_store|b51be08a
+column|requests.id|e55af8b0
+column|requests.needed_by|b7332b3b
+column|requests.no_quote|b51be08a
+column|requests.not_stock|b51be08a
+column|requests.over_budget|b51be08a
+column|requests.paid_from|e254278e
+column|requests.paid_on|b7332b3b
+column|requests.paid_via|a6c4dd23
+column|requests.payment_ref|79860fb3
+column|requests.proof_reason|79860fb3
+column|requests.proof_rule|d4a51e69
+column|requests.proof_set_at|03d9f475
+column|requests.proof_set_by|f33d6490
+column|requests.purpose|5ced6c5e
+column|requests.rejected_at|03d9f475
+column|requests.rejected_by|f33d6490
+column|requests.rejection_reason|79860fb3
+column|requests.request_no|53f51506
+column|requests.requester_id|836fd58d
+column|requests.review_note|79860fb3
+column|requests.review_reason|79860fb3
+column|requests.review_role|9a46e9c0
+column|requests.reviewed_at|03d9f475
+column|requests.reviewed_by|f33d6490
+column|requests.route_note|79860fb3
+column|requests.schedule_version|5133ea82
+column|requests.status|a1a065f5
+column|requests.stock_note|79860fb3
+column|requests.stock_reviewed_at|03d9f475
+column|requests.stock_reviewed_by|f33d6490
+column|requests.submitted_at|03d9f475
+column|requests.supplier_confirmed_at|03d9f475
+column|requests.supplier_confirmed_by|f33d6490
+column|requests.supplier_note|79860fb3
+column|requests.type|5b42c307
+column|requests.updated_at|672d3af2
+column|requests.urgent|b51be08a
+column|requests.urgent_chased_at|03d9f475
+column|requests.urgent_escalated_at|03d9f475
+column|requests.urgent_marked_at|03d9f475
+column|requests.urgent_marked_by|f33d6490
+column|requests.urgent_reason|79860fb3
+column|requests.urgent_stage_at|03d9f475
+column|schedule_versions.area|86ee0bc8
+column|schedule_versions.changes|61dd7c43
+column|schedule_versions.decided_at|03d9f475
+column|schedule_versions.decided_by|f33d6490
+column|schedule_versions.decision_note|79860fb3
+column|schedule_versions.effective_at|03d9f475
+column|schedule_versions.id|e55af8b0
+column|schedule_versions.md_status|79860fb3
+column|schedule_versions.proposed|04c8f465
+column|schedule_versions.proposed_at|672d3af2
+column|schedule_versions.proposed_by|f33d6490
+column|schedule_versions.reason|79860fb3
+column|schedule_versions.snapshot|9c9abb31
+column|schedule_versions.status|5be99e02
+column|schedule_versions.version_no|5133ea82
+column|security_events.actor_id|f33d6490
+column|security_events.at|672d3af2
+column|security_events.detail|9c9abb31
+column|security_events.id|75b87920
+column|security_events.kind|8599de9d
+column|security_events.session_id|f33d6490
+column|security_events.user_id|836fd58d
+column|settings.accountant_email|79860fb3
+column|settings.accountant_name|79860fb3
+column|settings.accounting_package|79860fb3
+column|settings.advance_escalate_days|5a054d48
+column|settings.advance_grace_days|4e9dfe7d
+column|settings.app_url|5ced6c5e
+column|settings.approval_threshold|480d4d31
+column|settings.block_with_outstanding|b51be08a
+column|settings.budget_mode|b396a072
+column|settings.cash_confirm_from|03d9f475
+column|settings.cash_count_days|5a054d48
+column|settings.cash_variance_limit|1773ba14
+column|settings.change_tolerance_pct|bc3fac61
+column|settings.claims_need_approval|61cee0bf
+column|settings.count_day|21ebae1c
+column|settings.currency|6540f9e5
+column|settings.default_monthly_float|a57ada14
+column|settings.email_from|32e3d6eb
+column|settings.float_rollover|b51be08a
+column|settings.gm_limit|fbc07365
+column|settings.gm_step|61cee0bf
+column|settings.headcount|6c2375ba
+column|settings.id|4d70c991
+column|settings.logo_path|79860fb3
+column|settings.logo_updated_at|03d9f475
+column|settings.md_step|61cee0bf
+column|settings.number_locale|6e4c1b9c
+column|settings.org_name|5f01deb0
+column|settings.petty_bank_account|ff30ae2b
+column|settings.petty_cash_account|79860fb3
+column|settings.policy_ref|5ced6c5e
+column|settings.policy_url|79860fb3
+column|settings.quick_payout_limit|480d4d31
+column|settings.reserve_buffer_pct|ee64f94e
+column|settings.schedule_ref|5ced6c5e
+column|settings.split_window_days|5a054d48
+column|settings.stock_adjust_limit|480d4d31
+column|settings.time_zone|c26f9484
+column|settings.titles|fba9503b
+column|settings.two_step_from|b7332b3b
+column|settings.two_step_roles|32436ea9
+column|settings.updated_at|672d3af2
+column|sign_ins.approx|b51be08a
+column|sign_ins.at|672d3af2
+column|sign_ins.country|79860fb3
+column|sign_ins.flags|eef63cc4
+column|sign_ins.ip|f0dab1f0
+column|sign_ins.label|79860fb3
+column|sign_ins.place|79860fb3
+column|sign_ins.session_id|836fd58d
+column|sign_ins.user_agent|79860fb3
+column|sign_ins.user_id|836fd58d
+column|stock_adjustments.decided_at|03d9f475
+column|stock_adjustments.decided_by|f33d6490
+column|stock_adjustments.decision_note|79860fb3
+column|stock_adjustments.delta|010a4e0a
+column|stock_adjustments.id|e55af8b0
+column|stock_adjustments.item_id|836fd58d
+column|stock_adjustments.kind|8599de9d
+column|stock_adjustments.limit_at|a57ada14
+column|stock_adjustments.movement_id|f33d6490
+column|stock_adjustments.qty_after|010a4e0a
+column|stock_adjustments.qty_before|010a4e0a
+column|stock_adjustments.reason|79860fb3
+column|stock_adjustments.receipt_id|f33d6490
+column|stock_adjustments.requested_at|672d3af2
+column|stock_adjustments.requested_by|f33d6490
+column|stock_adjustments.status|94fa61a6
+column|stock_adjustments.unit_cost|a9515a24
+column|stock_adjustments.value|a57ada14
+column|stock_movements.created_at|672d3af2
+column|stock_movements.created_by|f33d6490
+column|stock_movements.delta|010a4e0a
+column|stock_movements.expense_id|f33d6490
+column|stock_movements.id|e55af8b0
+column|stock_movements.issued_to|f33d6490
+column|stock_movements.item_id|836fd58d
+column|stock_movements.kind|738a1157
+column|stock_movements.note|79860fb3
+column|stock_movements.occurred_on|b15b8774
+column|stock_movements.request_id|f33d6490
+column|stock_movements.supplier_id|f33d6490
+column|stock_movements.unit_cost|a9515a24
+column|stock_movements.void|b51be08a
+column|stock_receipts.bought_by|f33d6490
+column|stock_receipts.checked_at|03d9f475
+column|stock_receipts.checked_by|f33d6490
+column|stock_receipts.created_at|672d3af2
+column|stock_receipts.expense_id|f33d6490
+column|stock_receipts.id|e55af8b0
+column|stock_receipts.item_id|836fd58d
+column|stock_receipts.movement_id|f33d6490
+column|stock_receipts.note|79860fb3
+column|stock_receipts.qty_bought|010a4e0a
+column|stock_receipts.qty_received|a9515a24
+column|stock_receipts.request_id|f33d6490
+column|stock_receipts.status|4c130a87
+column|stock_receipts.unit_cost|a9515a24
+column|stock_reports.created_at|672d3af2
+column|stock_reports.id|e55af8b0
+column|stock_reports.item_id|836fd58d
+column|stock_reports.level|8599de9d
+column|stock_reports.note|79860fb3
+column|stock_reports.qty|761fc45a
+column|stock_reports.reported_by|836fd58d
+column|stock_reports.request_id|f33d6490
+column|stock_reports.resolution|79860fb3
+column|stock_reports.resolved_at|03d9f475
+column|stock_reports.resolved_by|f33d6490
+column|subscription.branch_limit|5133ea82
+column|subscription.cancelled_at|03d9f475
+column|subscription.cancelled_by|f33d6490
+column|subscription.id|4d70c991
+column|subscription.people_limit|5133ea82
+column|subscription.plan|79860fb3
+column|subscription.remove_on|b7332b3b
+column|subscription.status|791921f2
+column|subscription.trial_ends|b7332b3b
+column|subscription.updated_at|672d3af2
+column|suppliers.active|61cee0bf
+column|suppliers.contact|79860fb3
+column|suppliers.id|e55af8b0
+column|suppliers.name|8599de9d
+column|suppliers.notes|79860fb3
+column|top_ups.amount|6085c881
+column|top_ups.count_id|f33d6490
+column|top_ups.decided_at|03d9f475
+column|top_ups.decided_by|f33d6490
+column|top_ups.decision_note|79860fb3
+column|top_ups.float_id|836fd58d
+column|top_ups.id|e55af8b0
+column|top_ups.level|427d1448
+column|top_ups.reason|8599de9d
+column|top_ups.received_amount|761fc45a
+column|top_ups.received_at|03d9f475
+column|top_ups.received_by|f33d6490
+column|top_ups.requested_at|672d3af2
+column|top_ups.requested_by|836fd58d
+column|top_ups.route_note|79860fb3
+column|top_ups.status|2cc07a9b
+column|top_ups.transaction_id|f33d6490
+column|two_step_codes.attempts|6c2375ba
+column|two_step_codes.code_hash|8599de9d
+column|two_step_codes.created_at|672d3af2
+column|two_step_codes.expires_at|0b54134f
+column|two_step_codes.id|e55af8b0
+column|two_step_codes.session_id|8599de9d
+column|two_step_codes.used_at|03d9f475
+column|two_step_codes.user_id|836fd58d
+column|two_step_sessions.session_id|8599de9d
+column|two_step_sessions.user_id|836fd58d
+column|two_step_sessions.verified_at|672d3af2
+column|update_recipients.clear|111c3371
+column|update_recipients.comment|79860fb3
+column|update_recipients.delivered_at|672d3af2
+column|update_recipients.rated_at|03d9f475
+column|update_recipients.reminded_at|03d9f475
+column|update_recipients.seen_at|03d9f475
+column|update_recipients.update_id|836fd58d
+column|update_recipients.user_id|836fd58d
+column|updates.branches|78f3c967
+column|updates.cancelled_at|03d9f475
+column|updates.cancelled_by|f33d6490
+column|updates.created_at|672d3af2
+column|updates.created_by|f33d6490
+column|updates.id|e55af8b0
+column|updates.image|79860fb3
+column|updates.impact|8599de9d
+column|updates.link|79860fb3
+column|updates.link_label|79860fb3
+column|updates.release|8599de9d
+column|updates.roles|2b6445c0
+column|updates.send_at|672d3af2
+column|updates.sent_at|03d9f475
+column|updates.status|c394960f
+column|updates.steps|eef63cc4
+column|updates.title|8599de9d
+column|updates.tour|61dd7c43
+column|updates.users|78f3c967
+column|user_places.country|8599de9d
+column|user_places.first_seen|672d3af2
+column|user_places.last_seen|672d3af2
+column|user_places.user_id|836fd58d
+column|v_floats.adjusted|761fc45a
+column|v_floats.allocated|761fc45a
+column|v_floats.balance|761fc45a
+column|v_floats.bank_adjusted|761fc45a
+column|v_floats.bank_balance|761fc45a
+column|v_floats.bank_funded|761fc45a
+column|v_floats.bank_paid|761fc45a
+column|v_floats.bank_returned|761fc45a
+column|v_floats.branch_id|f33d6490
+column|v_floats.carried_over|761fc45a
+column|v_floats.closed_at|03d9f475
+column|v_floats.closed_by|f33d6490
+column|v_floats.closing_bank|761fc45a
+column|v_floats.counted_cash|a9515a24
+column|v_floats.deposited|761fc45a
+column|v_floats.id|f33d6490
+column|v_floats.notes|79860fb3
+column|v_floats.opened_at|03d9f475
+column|v_floats.opened_by|f33d6490
+column|v_floats.opening_amount|a9515a24
+column|v_floats.outstanding|761fc45a
+column|v_floats.period|b7332b3b
+column|v_floats.returned|761fc45a
+column|v_floats.spent|761fc45a
+column|v_floats.status|79860fb3
+column|v_floats.topped_up|761fc45a
+column|v_floats.withdrawn|761fc45a
+column|v_item_monthly_usage.bought|761fc45a
+column|v_item_monthly_usage.item_id|f33d6490
+column|v_item_monthly_usage.month|b7332b3b
+column|v_item_monthly_usage.used|761fc45a
+column|v_item_runouts.item_id|f33d6490
+column|v_item_runouts.month|b7332b3b
+column|v_item_runouts.ran_out_on|b7332b3b
+column|v_price_history.id|f33d6490
+column|v_price_history.item_id|f33d6490
+column|v_price_history.item_name|79860fb3
+column|v_price_history.on_date|b7332b3b
+column|v_price_history.qty|a9515a24
+column|v_price_history.request_id|f33d6490
+column|v_price_history.request_no|5133ea82
+column|v_price_history.supplier_id|f33d6490
+column|v_price_history.supplier_name|79860fb3
+column|v_price_history.unit|79860fb3
+column|v_price_history.unit_price|a9515a24
+column|v_spend_lines.approval_required|111c3371
+column|v_spend_lines.approved_by|f33d6490
+column|v_spend_lines.branch_id|f33d6490
+column|v_spend_lines.category_id|f33d6490
+column|v_spend_lines.category_name|79860fb3
+column|v_spend_lines.description|79860fb3
+column|v_spend_lines.disbursed_amount|a9515a24
+column|v_spend_lines.disbursed_to|f33d6490
+column|v_spend_lines.expense_total|a9515a24
+column|v_spend_lines.float_id|f33d6490
+column|v_spend_lines.for_store|111c3371
+column|v_spend_lines.id|f33d6490
+column|v_spend_lines.item_id|f33d6490
+column|v_spend_lines.line_total|a9515a24
+column|v_spend_lines.month|b7332b3b
+column|v_spend_lines.paid_from|79860fb3
+column|v_spend_lines.paid_via|79860fb3
+column|v_spend_lines.payment_ref|79860fb3
+column|v_spend_lines.qty|a9515a24
+column|v_spend_lines.request_id|f33d6490
+column|v_spend_lines.request_no|5133ea82
+column|v_spend_lines.requester_id|f33d6490
+column|v_spend_lines.requester_name|79860fb3
+column|v_spend_lines.spent_at|b7332b3b
+column|v_spend_lines.status|e6358e1b
+column|v_spend_lines.supplier_id|f33d6490
+column|v_spend_lines.supplier_name|79860fb3
+column|v_spend_lines.type|d35038c4
+column|v_spend_lines.unit|79860fb3
+column|v_spend_lines.unit_price|a9515a24
+constraint|access_reviews.access_reviews_pkey|4c6419b3
+constraint|access_reviews.access_reviews_reviewed_by_fkey|e1a9d37c
+constraint|admin_log.admin_log_actor_id_fkey|0519801d
+constraint|admin_log.admin_log_pkey|4c6419b3
+constraint|app_config.app_config_pkey|729d3ed6
+constraint|branches.branches_company_id_fkey|829b1985
+constraint|branches.branches_pkey|4c6419b3
+constraint|budgets.budgets_branch_id_fkey|bcb88b52
+constraint|budgets.budgets_category_id_fkey|18486844
+constraint|budgets.budgets_check|4ae13e2d
+constraint|budgets.budgets_monthly_limit_check|43a8926e
+constraint|budgets.budgets_person_id_fkey|a0322488
+constraint|budgets.budgets_pkey|4c6419b3
+constraint|cash_counts.cash_counts_counted_by_fkey|dc5b33b2
+constraint|cash_counts.cash_counts_counted_check|5409d82b
+constraint|cash_counts.cash_counts_float_id_fkey|c2dfe943
+constraint|cash_counts.cash_counts_kind_check|9f471643
+constraint|cash_counts.cash_counts_pkey|4c6419b3
+constraint|cash_counts.cash_counts_place_check|082c82fb
+constraint|cash_counts.cash_counts_reviewed_by_fkey|e1a9d37c
+constraint|cash_counts.cash_counts_status_check|fe4b3e21
+constraint|categories.categories_kind_check|e95eba79
+constraint|categories.categories_name_key|6cd24014
+constraint|categories.categories_pkey|4c6419b3
+constraint|client_logs.client_logs_pkey|4c6419b3
+constraint|client_logs.client_logs_user_id_fkey|976d1f05
+constraint|companies.companies_pkey|4c6419b3
+constraint|delegations.delegations_check|9532d4dd
+constraint|delegations.delegations_check1|8d2586bb
+constraint|delegations.delegations_created_by_fkey|55e2649d
+constraint|delegations.delegations_from_user_fkey|e97701b9
+constraint|delegations.delegations_pkey|4c6419b3
+constraint|delegations.delegations_to_user_fkey|5939d894
+constraint|device_sessions.device_sessions_pkey|11548a03
+constraint|device_sessions.device_sessions_session_id_fkey|98e3fb1d
+constraint|device_sessions.device_sessions_user_id_fkey|f52ea365
+constraint|exception_reviews.exception_reviews_outcome_check|faf8a197
+constraint|exception_reviews.exception_reviews_pkey|075ae348
+constraint|exception_reviews.exception_reviews_reviewed_by_fkey|e1a9d37c
+constraint|expense_lines.expense_lines_expense_id_fkey|aa8c1742
+constraint|expense_lines.expense_lines_item_id_fkey|7ed02387
+constraint|expense_lines.expense_lines_pkey|4c6419b3
+constraint|expense_lines.expense_lines_qty_check|3a79769f
+constraint|expense_lines.expense_lines_supplier_id_fkey|51bbf0dd
+constraint|expense_lines.expense_lines_unit_price_check|9fcdebca
+constraint|expense_proofs.expense_proofs_expense_id_fkey|aa8c1742
+constraint|expense_proofs.expense_proofs_pkey|4c6419b3
+constraint|expense_proofs.expense_proofs_uploaded_by_fkey|1c843895
+constraint|expenses.expenses_confirmed_by_fkey|740e329a
+constraint|expenses.expenses_physical_received_by_fkey|694af565
+constraint|expenses.expenses_physical_required_by_fkey|4e671bd3
+constraint|expenses.expenses_pkey|4c6419b3
+constraint|expenses.expenses_request_id_fkey|52f6d9d1
+constraint|expenses.expenses_request_id_key|00c1d80c
+constraint|expenses.expenses_spent_by_fkey|66af40e2
+constraint|float_transactions.float_transactions_amount_check|3f649020
+constraint|float_transactions.float_transactions_created_by_fkey|55e2649d
+constraint|float_transactions.float_transactions_float_id_fkey|75323eb1
+constraint|float_transactions.float_transactions_pkey|4c6419b3
+constraint|float_transactions.float_transactions_place_check|082c82fb
+constraint|floats.floats_branch_id_fkey|bcb88b52
+constraint|floats.floats_closed_by_fkey|24761c79
+constraint|floats.floats_opened_by_fkey|bfb01551
+constraint|floats.floats_pkey|4c6419b3
+constraint|floats.floats_status_check|a741f2f7
+constraint|fx_rates.fx_rates_company_id_fkey|829b1985
+constraint|fx_rates.fx_rates_pkey|4bd65fa4
+constraint|fx_rates.fx_rates_rate_check|60c004d9
+constraint|fx_rates.fx_rates_set_by_fkey|8577df2e
+constraint|invitations.invitations_invited_by_fkey|084f5e24
+constraint|invitations.invitations_pkey|4c6419b3
+constraint|ip_places.ip_places_pkey|f66b7c65
+constraint|item_suggestions.item_suggestions_branch_id_fkey|bcb88b52
+constraint|item_suggestions.item_suggestions_category_id_fkey|18486844
+constraint|item_suggestions.item_suggestions_gm_by_fkey|a3771cc5
+constraint|item_suggestions.item_suggestions_item_id_fkey|7ed02387
+constraint|item_suggestions.item_suggestions_name_check|5b11e55d
+constraint|item_suggestions.item_suggestions_pkey|4c6419b3
+constraint|item_suggestions.item_suggestions_reason_check|45f9c83d
+constraint|item_suggestions.item_suggestions_status_check|11cfd321
+constraint|item_suggestions.item_suggestions_stock_by_fkey|14c879a3
+constraint|item_suggestions.item_suggestions_suggested_by_fkey|4452c09a
+constraint|items.items_branch_id_fkey|bcb88b52
+constraint|items.items_category_id_fkey|18486844
+constraint|items.items_photos_max3|012680b8
+constraint|items.items_pkey|4c6419b3
+constraint|items.items_preferred_supplier_id_fkey|9fca5d23
+constraint|items.items_suggested_by_fkey|cd870660
+constraint|items.items_tracking_check|8c2666ae
+constraint|mail_log.mail_log_pkey|4c6419b3
+constraint|notifications.notifications_pkey|4c6419b3
+constraint|notifications.notifications_request_id_fkey|52f6d9d1
+constraint|notifications.notifications_user_id_fkey|f52ea365
+constraint|offsite_runs.offsite_runs_pkey|4c6419b3
+constraint|packs.packs_built_by_fkey|1ef788c1
+constraint|packs.packs_float_id_fkey|c2dfe943
+constraint|packs.packs_float_id_key|a23ff5ac
+constraint|packs.packs_pkey|4c6419b3
+constraint|packs.packs_sent_by_fkey|eec37cfb
+constraint|packs.packs_status_check|f3efe66c
+constraint|profiles.profiles_branch_id_fkey|bcb88b52
+constraint|profiles.profiles_id_fkey|0061c9fb
+constraint|profiles.profiles_pkey|4c6419b3
+constraint|profiles.profiles_view_branch_fkey|8403c234
+constraint|push_subscriptions.push_subscriptions_endpoint_key|c54f4973
+constraint|push_subscriptions.push_subscriptions_pkey|4c6419b3
+constraint|push_subscriptions.push_subscriptions_session_id_fkey|98e3fb1d
+constraint|push_subscriptions.push_subscriptions_user_id_fkey|e41ecacf
+constraint|receipt_inbox.receipt_inbox_filed_request_id_fkey|01415de3
+constraint|receipt_inbox.receipt_inbox_pkey|4c6419b3
+constraint|receipt_inbox.receipt_inbox_status_check|c1dcf155
+constraint|receipt_inbox.receipt_inbox_user_id_fkey|e41ecacf
+constraint|request_documents.request_documents_pkey|4c6419b3
+constraint|request_documents.request_documents_request_id_fkey|52f6d9d1
+constraint|request_documents.request_documents_uploaded_by_fkey|1c843895
+constraint|request_events.request_events_actor_id_fkey|0519801d
+constraint|request_events.request_events_pkey|4c6419b3
+constraint|request_events.request_events_request_id_fkey|52f6d9d1
+constraint|request_lines.request_lines_item_id_fkey|7ed02387
+constraint|request_lines.request_lines_pkey|4c6419b3
+constraint|request_lines.request_lines_qty_check|3a79769f
+constraint|request_lines.request_lines_request_id_fkey|52f6d9d1
+constraint|request_messages.request_messages_author_id_fkey|d932fb98
+constraint|request_messages.request_messages_pkey|4c6419b3
+constraint|request_messages.request_messages_request_id_fkey|03f6a4a1
+constraint|requests.requests_approval_level_check|09d900c9
+constraint|requests.requests_approved_by_fkey|2c8b284f
+constraint|requests.requests_branch_id_fkey|bcb88b52
+constraint|requests.requests_category_id_fkey|18486844
+constraint|requests.requests_closed_by_fkey|24761c79
+constraint|requests.requests_disbursed_by_fkey|b7344299
+constraint|requests.requests_disbursed_to_fkey|b0eca7e2
+constraint|requests.requests_float_id_fkey|c2dfe943
+constraint|requests.requests_paid_from_check|0290bab5
+constraint|requests.requests_paid_via_check|b894529a
+constraint|requests.requests_pkey|4c6419b3
+constraint|requests.requests_proof_rule_check|afd47134
+constraint|requests.requests_proof_set_by_fkey|f7376da8
+constraint|requests.requests_rejected_by_fkey|5716d8a6
+constraint|requests.requests_requester_id_fkey|d12eb86b
+constraint|requests.requests_reviewed_by_fkey|e1a9d37c
+constraint|requests.requests_stock_reviewed_by_fkey|63dcc6bc
+constraint|requests.requests_supplier_confirmed_by_fkey|85f5c657
+constraint|requests.requests_urgent_marked_by_fkey|02d10c72
+constraint|requests.requests_urgent_reason|6cc56342
+constraint|schedule_versions.schedule_versions_area_check|0d9376e0
+constraint|schedule_versions.schedule_versions_decided_by_fkey|7997bb93
+constraint|schedule_versions.schedule_versions_md_status_check|be74ba17
+constraint|schedule_versions.schedule_versions_pkey|4c6419b3
+constraint|schedule_versions.schedule_versions_proposed_by_fkey|3213b2c8
+constraint|schedule_versions.schedule_versions_status_check|1493d1f5
+constraint|schedule_versions.schedule_versions_version_no_key|1b35d6ba
+constraint|security_events.security_events_actor_id_fkey|90305217
+constraint|security_events.security_events_pkey|4c6419b3
+constraint|security_events.security_events_user_id_fkey|f52ea365
+constraint|settings.settings_budget_mode_check|8a0bdff8
+constraint|settings.settings_count_day_check|696fb125
+constraint|settings.settings_id_check|d1e072e9
+constraint|settings.settings_pkey|4c6419b3
+constraint|sign_ins.sign_ins_pkey|11548a03
+constraint|sign_ins.sign_ins_user_id_fkey|f52ea365
+constraint|stock_adjustments.stock_adjustments_decided_by_fkey|7997bb93
+constraint|stock_adjustments.stock_adjustments_item_id_fkey|7ed02387
+constraint|stock_adjustments.stock_adjustments_kind_check|d62a438d
+constraint|stock_adjustments.stock_adjustments_movement_id_fkey|d7e3f255
+constraint|stock_adjustments.stock_adjustments_pkey|4c6419b3
+constraint|stock_adjustments.stock_adjustments_receipt_id_fkey|66c11339
+constraint|stock_adjustments.stock_adjustments_requested_by_fkey|a82e071d
+constraint|stock_adjustments.stock_adjustments_status_check|a3991ca5
+constraint|stock_movements.stock_movements_created_by_fkey|55e2649d
+constraint|stock_movements.stock_movements_expense_id_fkey|7e6bc118
+constraint|stock_movements.stock_movements_issued_to_fkey|b24d3a25
+constraint|stock_movements.stock_movements_item_id_fkey|7ed02387
+constraint|stock_movements.stock_movements_pkey|4c6419b3
+constraint|stock_movements.stock_movements_request_id_fkey|991fbeaf
+constraint|stock_movements.stock_movements_supplier_id_fkey|51bbf0dd
+constraint|stock_receipts.stock_receipts_bought_by_fkey|ecfc8da9
+constraint|stock_receipts.stock_receipts_checked_by_fkey|4d94e33c
+constraint|stock_receipts.stock_receipts_expense_id_fkey|7e6bc118
+constraint|stock_receipts.stock_receipts_item_id_fkey|7ed02387
+constraint|stock_receipts.stock_receipts_movement_id_fkey|d7e3f255
+constraint|stock_receipts.stock_receipts_pkey|4c6419b3
+constraint|stock_receipts.stock_receipts_request_id_fkey|991fbeaf
+constraint|stock_receipts.stock_receipts_status_check|6dd49105
+constraint|stock_reports.stock_reports_item_id_fkey|7ed02387
+constraint|stock_reports.stock_reports_level_check|0678d1e6
+constraint|stock_reports.stock_reports_pkey|4c6419b3
+constraint|stock_reports.stock_reports_reported_by_fkey|28003009
+constraint|stock_reports.stock_reports_request_id_fkey|03f6a4a1
+constraint|stock_reports.stock_reports_resolved_by_fkey|801d72ba
+constraint|subscription.subscription_branch_limit_check|0c427f82
+constraint|subscription.subscription_cancelled_by_fkey|bc7b1f67
+constraint|subscription.subscription_id_check|d1e072e9
+constraint|subscription.subscription_people_limit_check|0ef32e21
+constraint|subscription.subscription_pkey|4c6419b3
+constraint|subscription.subscription_plan_check|4a8ca27e
+constraint|subscription.subscription_status_check|1fbf0513
+constraint|suppliers.suppliers_name_key|6cd24014
+constraint|suppliers.suppliers_pkey|4c6419b3
+constraint|top_ups.top_ups_amount_check|ff7f8fc5
+constraint|top_ups.top_ups_count_id_fkey|4094f23a
+constraint|top_ups.top_ups_decided_by_fkey|7997bb93
+constraint|top_ups.top_ups_float_id_fkey|c2dfe943
+constraint|top_ups.top_ups_level_check|a701dd46
+constraint|top_ups.top_ups_pkey|4c6419b3
+constraint|top_ups.top_ups_received_by_fkey|b2be17da
+constraint|top_ups.top_ups_requested_by_fkey|a82e071d
+constraint|top_ups.top_ups_status_check|1c29ff24
+constraint|top_ups.top_ups_transaction_id_fkey|4a09d2e7
+constraint|two_step_codes.two_step_codes_pkey|4c6419b3
+constraint|two_step_codes.two_step_codes_user_id_fkey|f52ea365
+constraint|two_step_sessions.two_step_sessions_pkey|11548a03
+constraint|two_step_sessions.two_step_sessions_user_id_fkey|f52ea365
+constraint|update_recipients.update_recipients_pkey|4f52d804
+constraint|update_recipients.update_recipients_update_id_fkey|c7e7242a
+constraint|update_recipients.update_recipients_user_id_fkey|f52ea365
+constraint|updates.updates_cancelled_by_fkey|bc7b1f67
+constraint|updates.updates_created_by_fkey|55e2649d
+constraint|updates.updates_pkey|4c6419b3
+constraint|updates.updates_status_check|585519ea
+constraint|user_places.user_places_pkey|075da652
+constraint|user_places.user_places_user_id_fkey|f52ea365
+cron|petty-access-review|3f0165d0
+cron|petty-advance-reminders|e5233ef3
+cron|petty-backup|86ac5587
+cron|petty-cash-count|3da33e40
+cron|petty-month-close|cea3046b
+cron|petty-monthly-summary|fe50e8a9
+cron|petty-offsite|d8f1522b
+cron|petty-send-notifications|a75e96d2
+cron|petty-stale-items|84f14320
+cron|petty-stock-use|1b972036
+cron|petty-update-reminders|942e01f0
+cron|petty-updates|8b8870f9
+cron|petty-urgent-chase|f9c32b09
+cron|petty-weekly-count|6a073e4c
+cron|petty-weekly-digest|78b4f474
+cron|prune_client_logs|652304fc
+cron|prune_mail_log|e5222ff6
+cron|prune_sign_ins|2cc44c37
+cron|tidy_sessions|81650442
+enum|float_tx_kind|955c420e
+enum|movement_kind|11fbbfbb
+enum|proof_status|a954c12e
+enum|request_status|5ce70cad
+enum|request_type|6b8bd09e
+enum|user_role|78b72a8d
+function|access_list()|6cfe8c37
+function|access_review_status()|18e3ee94
+function|account_ready_notify()|4d4ac47f
+function|adjust_stock(p_item uuid, p_new_qty numeric, p_note text)|a7ea55ed
+function|admin_log_branches()|60f6e777
+function|admin_log_delegations()|84679d71
+function|admin_log_profiles()|ff5adde5
+function|announce_notice(p_title text, p_impact text, p_steps text[], p_link text, p_roles user_role[], p_branches uuid[], p_users uuid[], p_send_at timestamp with time zone)|13460dfb
+function|announce_update(p_release text, p_title text, p_impact text, p_steps text[], p_link text, p_link_label text, p_roles user_role[], p_branches uuid[], p_users uuid[], p_send_at timestamp with time zone)|469ac5a0
+function|answer_cash_count(p_id uuid, p_note text)|f2a30f0f
+function|app_tz()|bd8a5143
+function|apply_budget(p_request uuid, p_next request_status)|5c08d06c
+function|apply_route(p_request uuid, p_amount numeric, p_needs boolean)|27f032f3
+function|apply_stock_movement()|f99f4902
+function|approval_level_for(p_amount numeric)|9e842179
+function|approval_route(p_request uuid, p_amount numeric, p_needs boolean)|2ffc62bb
+function|approve_request(p_request uuid, p_note text)|0a2c3177
+function|ask_for_stock(p_item uuid, p_name text, p_qty numeric, p_level text, p_note text, p_category uuid)|54ff8332
+function|bank_ledger(p_float uuid)|93bcddc7
+function|branch_default()|22e6c653
+function|branch_float(p_branch uuid)|150f433f
+function|branch_name(p_branch uuid)|059f29e5
+function|branch_outlooks()|45697528
+function|budget_check(p_request uuid)|4e015b01
+function|budget_status()|6daac318
+function|call_function(p_name text, p_body jsonb, p_timeout integer)|ee0bbc70
+function|can_view_request(p_request uuid)|f6c2c08b
+function|cancel_request(p_request uuid, p_note text)|7df1cd29
+function|cancel_subscription(p_confirm text)|4d44e5f5
+function|cancel_top_up(p_id uuid)|8317cd89
+function|cancel_update(p_id uuid)|9b27fac9
+function|cash_actions()|03f84bab
+function|cash_count_place(p_float uuid, p_counted numeric, p_note text, p_kind text, p_tell boolean, p_place text)|95d187e5
+function|cash_count_record(p_float uuid, p_counted numeric, p_note text, p_kind text, p_tell boolean)|09b898ce
+function|cash_count_text(c cash_counts)|d6db6919
+function|cash_ledger(p_float uuid)|6c1795a6
+function|change_schedule(p_values jsonb, p_reason text)|fe573e71
+function|check_bank(p_statement numeric, p_note text)|f90fa20c
+function|check_session()|c55ba356
+function|claim_without_receipt(p_request uuid, p_note text)|81984e40
+function|claims_summary(p_from date, p_to date)|42d005ad
+function|close_float(p_float uuid, p_counted_cash numeric, p_notes text)|6630f7f1
+function|close_float(p_float uuid, p_counted_cash numeric, p_notes text, p_statement numeric)|26237523
+function|confirm_access_review(p_note text)|ae3211af
+function|confirm_cash(p_request uuid, p_received boolean, p_note text)|7c460a82
+function|confirm_stock_receipt(p_id uuid, p_received numeric, p_note text)|a95b8b5a
+function|confirm_supplier(p_request uuid, p_note text)|75e90cd9
+function|count_cash(p_counted numeric, p_note text)|e5193e42
+function|create_restock_request(p_purpose text)|b3159423
+function|cur()|ee980ae3
+function|current_float()|059ed9a4
+function|decide_schedule(p_id uuid, p_approve boolean, p_note text)|d7f5220a
+function|decide_stock_adjustment(p_id uuid, p_approve boolean, p_note text)|22aebc08
+function|decide_top_up(p_id uuid, p_approve boolean, p_note text)|309a094e
+function|delegations_conflict_guard()|6fe83eca
+function|device_counts()|97b7163d
+function|devices(p_user uuid)|38080de2
+function|disburse_request(p_request uuid, p_amount numeric, p_to uuid, p_note text)|9eb03955
+function|dispatch_updates()|19b88793
+function|escalate_request(p_request uuid, p_new_estimate numeric, p_note text)|552a783e
+function|exceptions_log(p_from date)|c3af5b49
+function|exceptions_open()|2eaaa804
+function|expense_checks(p_request uuid)|3ad7f84e
+function|expenses_duplicate_guard()|8a4018e0
+function|explain_duplicate(p_request uuid, p_note text)|256e67a9
+function|file_inbox_document(p_inbox uuid, p_request uuid, p_new_path text, p_kind text)|850a9144
+function|file_inbox_receipt(p_inbox uuid, p_request uuid, p_new_path text)|6621146d
+function|finance_review_expense(p_request uuid, p_action text, p_note text)|6a3d7b3a
+function|float_balance(p_float uuid)|d4a7f6f0
+function|float_bank_balance(p_float uuid)|2a0e3e03
+function|float_outlook(p_request uuid)|c4dfdff1
+function|float_place_total(p_float uuid, p_place text)|18ec3dc2
+function|float_transaction(p_float uuid, p_kind float_tx_kind, p_amount numeric, p_note text)|cceaa0da
+function|float_transaction(p_float uuid, p_kind float_tx_kind, p_amount numeric, p_note text, p_place text)|2b114339
+function|fx_rate(p_branch uuid, p_month date)|9c97410d
+function|handle_new_user()|567659b7
+function|has_role(p user_role)|e747a9ae
+function|health_report(p_hours integer)|f2dbe717
+function|is_link_preview(p_ua text)|1ca56926
+function|is_staff()|807eca7c
+function|issue_stock(p_item uuid, p_qty numeric, p_to uuid, p_note text)|689216e6
+function|item_open_orders()|1eb87bfa
+function|item_suggestions_tidy()|8945565f
+function|item_usage_stats()|6672d21c
+function|items_tidy()|0a78dc6b
+function|journal(p_month date)|750e528c
+function|keep_subscription()|1c7e64bb
+function|km_between(lat1 double precision, lon1 double precision, lat2 double precision, lon2 double precision)|536c45a9
+function|kpis(p_month date)|650c282a
+function|lock_closed_float()|c5efad9d
+function|log_event(p_request uuid, p_action text, p_from request_status, p_to request_status, p_note text)|8d470a78
+function|management_summary(p_month date)|4323a25f
+function|mark_notifications_read(p_ids uuid[])|c11bc7d8
+function|mark_tip(p_key text, p_seen boolean)|d6e44387
+function|mark_update_seen(p_ids uuid[])|6fbcc63b
+function|money_text(v numeric)|7f61aaeb
+function|move_cash(p_kind text, p_amount numeric, p_note text, p_slip_path text)|1e4de8d5
+function|my_branch()|a4e8a3aa
+function|my_branch_list()|9462e485
+function|my_branches()|df0739e5
+function|my_role()|41afaead
+function|my_roles()|783c1968
+function|my_two_step()|4558bd4c
+function|my_updates()|09de1282
+function|next_working_morning(p_hour integer)|3c3f10af
+function|no_proof_list(p_from date, p_to date)|35b6069e
+function|notification_link(p_kind text, p_request uuid)|a1b532a8
+function|notifications_link_fill()|27abfc1b
+function|notifications_push_trigger()|270b9c8e
+function|notify_branch_role(p_branch uuid, p_role user_role, p_kind text, p_title text, p_body text, p_link text, p_request uuid)|b36000b1
+function|notify_review(p_request uuid)|91581279
+function|notify_role(p_role user_role, p_kind text, p_title text, p_body text, p_link text, p_request uuid)|95d51a8f
+function|notify_stage(p_request uuid)|190ba80d
+function|notify_user(p_user uuid, p_kind text, p_title text, p_body text, p_link text, p_request uuid)|6ccfefb7
+function|offsite_pending(p_since timestamp with time zone, p_limit integer)|129cdf5f
+function|open_float(p_period date, p_amount numeric, p_note text)|a6798c3b
+function|open_float(p_period date, p_amount numeric, p_note text, p_place text)|3e7dc215
+function|outlook_for(p_branch uuid, p_request uuid)|29baf0c4
+function|pack_mark_sent(p_pack uuid, p_how text)|a2f958de
+function|pack_register(p_float uuid, p_path text, p_file_name text, p_size bigint, p_pages integer, p_summary jsonb)|5d298f60
+function|paper_slip_due()|89fcb216
+function|pay_by_transfer(p_request uuid, p_amount numeric, p_paid_on date, p_reference text, p_from text, p_pop_path text, p_pop_name text, p_pop_mime text, p_note text)|9bd623fd
+function|pay_by_transfer(p_request uuid, p_amount numeric, p_paid_on date, p_reference text, p_note text)|382a900e
+function|person_name(p_user uuid)|9521324e
+function|plan_branch_guard()|ff31861e
+function|plan_people_guard()|9f614b88
+function|plan_status()|1d35c8e8
+function|post_message(p_request uuid, p_body text)|27b348db
+function|profile_history(p_user uuid)|41b636eb
+function|profiles_signout_inactive()|279b7373
+function|proof_used(p_sha256 text, p_request uuid)|1e4c7ef1
+function|prune_sign_ins()|af3e6e68
+function|push_public_key()|eee571e9
+function|qty_text(q numeric)|4e58b2a0
+function|quick_count(p_lines jsonb, p_on date, p_note text)|3af958b9
+function|quick_limit()|d9f64006
+function|quick_payout(p_to uuid, p_amount numeric, p_purpose text, p_category uuid, p_note text)|99405931
+function|rate_update(p_id uuid, p_clear boolean, p_comment text)|07188d78
+function|receipt_duplicate_of(p_expense uuid)|ca3f10c4
+function|receive_stock(p_item uuid, p_qty numeric, p_unit_cost numeric, p_supplier uuid, p_note text)|f3c461c2
+function|receive_top_up(p_id uuid, p_amount numeric)|350e0380
+function|receive_top_up(p_id uuid, p_amount numeric, p_place text)|0598dd05
+function|record_checkin(p_user uuid, p_session uuid, p_where jsonb, p_device jsonb)|81426a0f
+function|record_expense(p_request uuid, p_spent_at date, p_lines jsonb, p_notes text)|03942d20
+function|record_usage(p_item uuid, p_qty numeric, p_on date, p_note text)|714de729
+function|refer_to_md(p_request uuid, p_note text)|48c3c2fc
+function|reject_request(p_request uuid, p_reason text)|506ccf6e
+function|remind_access_review()|992ae6f9
+function|remind_cash_count()|047117df
+function|remind_month_close()|751966d4
+function|remind_outstanding_advances()|dd4b1ec9
+function|remind_stale_items()|d082d9e1
+function|remind_unread_updates()|97aacdc5
+function|remind_unusual_use()|046c007b
+function|remind_weekly_count()|ce16da7e
+function|report_stock(p_item uuid, p_level text, p_note text)|f5028168
+function|req_label(r requests)|5b0e572f
+function|request_top_up(p_amount numeric, p_reason text, p_counted numeric, p_count_note text)|ad2d2304
+function|requests_before_delete()|04331bfb
+function|requests_not_stock_notice()|4f2d60a0
+function|requests_quote_stamp()|c0634bb2
+function|requests_schedule_stamp()|7a75c8ae
+function|requests_stock_guard()|72d480d6
+function|requests_urgent_stage()|d27678ac
+function|reset_request_numbers()|7916b5a7
+function|resolve_report(p_report uuid, p_note text)|b5dc2dfa
+function|restock_from_reports(p_reports uuid[])|cd54b5a9
+function|restore_check(p_table text, p_rows jsonb)|3094dc9c
+function|review_cash_count(p_id uuid, p_accept boolean, p_note text, p_write_off boolean)|1e5dd0b4
+function|review_exception(p_kind text, p_ref uuid, p_outcome text, p_note text)|c7751cae
+function|review_item_suggestion(p_id uuid, p_ok boolean, p_note text)|605162f6
+function|review_request(p_request uuid, p_note text)|44d8ac16
+function|review_schedule(p_ids uuid[], p_note text)|cbd8afa5
+function|role_filled(p user_role)|479a1364
+function|save_branch(p_id uuid, p_company uuid, p_name text, p_code text, p_usual_float numeric, p_active boolean, p_copy_catalogue_from uuid)|f9640730
+function|save_claim(p_request uuid, p_purpose text, p_category uuid, p_spent_at date, p_supplier text, p_notes text)|824ad49b
+function|schedule_budget(p_budget uuid, p_category uuid, p_person uuid, p_limit numeric, p_note text, p_active boolean, p_reason text)|c09ef6c0
+function|schedule_check(v jsonb)|744ab934
+function|schedule_clean(p jsonb)|0c4f26ef
+function|schedule_diff(a jsonb, b jsonb)|657733f2
+function|schedule_fmt(p_kind text, p_v jsonb)|aebdfa28
+function|schedule_keys()|d5547c20
+function|schedule_positions_sync(p_by uuid, p_reason text)|78dd1d2e
+function|schedule_record(p_area text, p_reason text, p_by uuid, p_md text, p_decided_by uuid, p_note text, p_pending uuid)|6f1180e8
+function|schedule_snapshot(p_values jsonb)|5ae6de7a
+function|schedule_tell(v schedule_versions)|209a9434
+function|schedule_version_no()|f6d7f9b2
+function|schedule_write(p jsonb)|2080544d
+function|send_monthly_summary()|eb9b9c23
+function|set_fx_rate(p_company uuid, p_month date, p_rate numeric)|f5077742
+function|set_paper_slip(p_request uuid, p_has boolean)|52cc0370
+function|set_person_branches(p_user uuid, p_home uuid, p_extra uuid[])|03152586
+function|set_petty_bank(p_name text)|4452fcfe
+function|set_petty_bank(p_name text, p_opening numeric, p_note text)|693327c7
+function|set_proof_rule(p_request uuid, p_rule text, p_reason text)|3b1fee8f
+function|set_update_extras(p_id uuid, p_tour jsonb, p_image text)|88672d55
+function|set_urgent(p_request uuid, p_urgent boolean, p_reason text)|27652b35
+function|set_view_branch(p_branch uuid)|9e6c7e42
+function|settings_check_region()|65021599
+function|settings_schedule_guard()|28826d01
+function|setup_status()|626fafa1
+function|sign_in_log(p_from timestamp with time zone)|d80e82e7
+function|sign_ins_flag()|f2bdf496
+function|sign_ins_from_session()|4c316cbe
+function|sign_out_devices(p_sessions uuid[], p_user uuid, p_keep uuid)|00667927
+function|stock_actions()|798fca4c
+function|stock_adjust_raise(p_item uuid, p_new_qty numeric, p_kind text, p_reason text, p_receipt uuid, p_on date, p_force boolean)|52e9b86e
+function|stock_reports_on_receipt()|548eb5f8
+function|stock_review(p_request uuid, p_lines jsonb, p_note text)|bddbd3a6
+function|submit_request(p_request uuid)|5e2cac76
+function|submitted_note()|8c56766c
+function|suggest_item(p_name text, p_reason text, p_monthly_qty numeric, p_price numeric, p_where text, p_photo text, p_category uuid)|00a48620
+function|threshold()|075fc5a6
+function|tidy_item_name(p text)|5b9cfd24
+function|tidy_sessions()|636084b2
+function|tidy_text(p text)|539f6b01
+function|tidy_unit(p text)|c26b35dc
+function|touch_updated_at()|ca726834
+function|try_uuid(p text)|6ef012cd
+function|two_step_blocked()|02eddff0
+function|two_step_blocked_for(p_user uuid, p_aal text)|1b9cc414
+function|two_step_blocked_session(p_user uuid, p_aal text, p_session text)|eb3355ff
+function|two_step_people()|16265a3a
+function|undo_disbursement(p_request uuid, p_note text)|293372dd
+function|update_feedback(p_days integer)|198911f4
+function|update_status()|8aed5bfe
+function|urgent_chase()|a738dcd5
+function|verify_login_code(p_code text)|4d06582e
+function|weekly_digest()|d46e4d52
+function|withdraw_item_suggestion(p_id uuid)|405cbfd3
+function|withdraw_schedule(p_id uuid)|e5dc5eaa
+function|working_days_since(p_from timestamp with time zone)|6e679b12
+grant-fn|access_list()|792f2bd2
+grant-fn|access_review_status()|57f26658
+grant-fn|account_ready_notify()|c56ec2e1
+grant-fn|adjust_stock(p_item uuid, p_new_qty numeric, p_note text)|792f2bd2
+grant-fn|admin_log_branches()|c56ec2e1
+grant-fn|admin_log_delegations()|c56ec2e1
+grant-fn|admin_log_profiles()|c56ec2e1
+grant-fn|announce_notice(p_title text, p_impact text, p_steps text[], p_link text, p_roles user_role[], p_branches uuid[], p_users uuid[], p_send_at timestamp with time zone)|57f26658
+grant-fn|announce_update(p_release text, p_title text, p_impact text, p_steps text[], p_link text, p_link_label text, p_roles user_role[], p_branches uuid[], p_users uuid[], p_send_at timestamp with time zone)|c56ec2e1
+grant-fn|answer_cash_count(p_id uuid, p_note text)|792f2bd2
+grant-fn|app_tz()|57f26658
+grant-fn|apply_budget(p_request uuid, p_next request_status)|c56ec2e1
+grant-fn|apply_route(p_request uuid, p_amount numeric, p_needs boolean)|c56ec2e1
+grant-fn|apply_stock_movement()|c56ec2e1
+grant-fn|approval_level_for(p_amount numeric)|792f2bd2
+grant-fn|approval_route(p_request uuid, p_amount numeric, p_needs boolean)|c56ec2e1
+grant-fn|approve_request(p_request uuid, p_note text)|792f2bd2
+grant-fn|ask_for_stock(p_item uuid, p_name text, p_qty numeric, p_level text, p_note text, p_category uuid)|792f2bd2
+grant-fn|bank_ledger(p_float uuid)|792f2bd2
+grant-fn|branch_default()|c56ec2e1
+grant-fn|branch_float(p_branch uuid)|c56ec2e1
+grant-fn|branch_name(p_branch uuid)|57f26658
+grant-fn|branch_outlooks()|792f2bd2
+grant-fn|budget_check(p_request uuid)|792f2bd2
+grant-fn|budget_status()|792f2bd2
+grant-fn|call_function(p_name text, p_body jsonb, p_timeout integer)|c56ec2e1
+grant-fn|can_view_request(p_request uuid)|792f2bd2
+grant-fn|cancel_request(p_request uuid, p_note text)|792f2bd2
+grant-fn|cancel_subscription(p_confirm text)|792f2bd2
+grant-fn|cancel_top_up(p_id uuid)|792f2bd2
+grant-fn|cancel_update(p_id uuid)|57f26658
+grant-fn|cash_actions()|792f2bd2
+grant-fn|cash_count_place(p_float uuid, p_counted numeric, p_note text, p_kind text, p_tell boolean, p_place text)|c56ec2e1
+grant-fn|cash_count_record(p_float uuid, p_counted numeric, p_note text, p_kind text, p_tell boolean)|c56ec2e1
+grant-fn|cash_count_text(c cash_counts)|57f26658
+grant-fn|cash_ledger(p_float uuid)|792f2bd2
+grant-fn|change_schedule(p_values jsonb, p_reason text)|792f2bd2
+grant-fn|check_bank(p_statement numeric, p_note text)|792f2bd2
+grant-fn|check_session()|7fa9f9a6
+grant-fn|claim_without_receipt(p_request uuid, p_note text)|57f26658
+grant-fn|claims_summary(p_from date, p_to date)|792f2bd2
+grant-fn|close_float(p_float uuid, p_counted_cash numeric, p_notes text)|792f2bd2
+grant-fn|close_float(p_float uuid, p_counted_cash numeric, p_notes text, p_statement numeric)|792f2bd2
+grant-fn|confirm_access_review(p_note text)|792f2bd2
+grant-fn|confirm_cash(p_request uuid, p_received boolean, p_note text)|792f2bd2
+grant-fn|confirm_stock_receipt(p_id uuid, p_received numeric, p_note text)|792f2bd2
+grant-fn|confirm_supplier(p_request uuid, p_note text)|792f2bd2
+grant-fn|count_cash(p_counted numeric, p_note text)|792f2bd2
+grant-fn|create_restock_request(p_purpose text)|792f2bd2
+grant-fn|cur()|792f2bd2
+grant-fn|current_float()|c56ec2e1
+grant-fn|decide_schedule(p_id uuid, p_approve boolean, p_note text)|792f2bd2
+grant-fn|decide_stock_adjustment(p_id uuid, p_approve boolean, p_note text)|792f2bd2
+grant-fn|decide_top_up(p_id uuid, p_approve boolean, p_note text)|792f2bd2
+grant-fn|delegations_conflict_guard()|57f26658
+grant-fn|device_counts()|792f2bd2
+grant-fn|devices(p_user uuid)|792f2bd2
+grant-fn|disburse_request(p_request uuid, p_amount numeric, p_to uuid, p_note text)|792f2bd2
+grant-fn|dispatch_updates()|c56ec2e1
+grant-fn|escalate_request(p_request uuid, p_new_estimate numeric, p_note text)|792f2bd2
+grant-fn|exceptions_log(p_from date)|792f2bd2
+grant-fn|exceptions_open()|792f2bd2
+grant-fn|expense_checks(p_request uuid)|792f2bd2
+grant-fn|expenses_duplicate_guard()|57f26658
+grant-fn|explain_duplicate(p_request uuid, p_note text)|792f2bd2
+grant-fn|file_inbox_document(p_inbox uuid, p_request uuid, p_new_path text, p_kind text)|792f2bd2
+grant-fn|file_inbox_receipt(p_inbox uuid, p_request uuid, p_new_path text)|792f2bd2
+grant-fn|finance_review_expense(p_request uuid, p_action text, p_note text)|792f2bd2
+grant-fn|float_balance(p_float uuid)|792f2bd2
+grant-fn|float_bank_balance(p_float uuid)|792f2bd2
+grant-fn|float_outlook(p_request uuid)|792f2bd2
+grant-fn|float_place_total(p_float uuid, p_place text)|792f2bd2
+grant-fn|float_transaction(p_float uuid, p_kind float_tx_kind, p_amount numeric, p_note text)|792f2bd2
+grant-fn|float_transaction(p_float uuid, p_kind float_tx_kind, p_amount numeric, p_note text, p_place text)|792f2bd2
+grant-fn|fx_rate(p_branch uuid, p_month date)|57f26658
+grant-fn|handle_new_user()|c56ec2e1
+grant-fn|has_role(p user_role)|792f2bd2
+grant-fn|health_report(p_hours integer)|c56ec2e1
+grant-fn|is_link_preview(p_ua text)|57f26658
+grant-fn|is_staff()|792f2bd2
+grant-fn|issue_stock(p_item uuid, p_qty numeric, p_to uuid, p_note text)|792f2bd2
+grant-fn|item_open_orders()|792f2bd2
+grant-fn|item_suggestions_tidy()|57f26658
+grant-fn|item_usage_stats()|792f2bd2
+grant-fn|items_tidy()|57f26658
+grant-fn|journal(p_month date)|792f2bd2
+grant-fn|keep_subscription()|792f2bd2
+grant-fn|km_between(lat1 double precision, lon1 double precision, lat2 double precision, lon2 double precision)|57f26658
+grant-fn|kpis(p_month date)|792f2bd2
+grant-fn|lock_closed_float()|c56ec2e1
+grant-fn|log_event(p_request uuid, p_action text, p_from request_status, p_to request_status, p_note text)|c56ec2e1
+grant-fn|management_summary(p_month date)|792f2bd2
+grant-fn|mark_notifications_read(p_ids uuid[])|792f2bd2
+grant-fn|mark_tip(p_key text, p_seen boolean)|792f2bd2
+grant-fn|mark_update_seen(p_ids uuid[])|57f26658
+grant-fn|money_text(v numeric)|792f2bd2
+grant-fn|move_cash(p_kind text, p_amount numeric, p_note text, p_slip_path text)|792f2bd2
+grant-fn|my_branch()|57f26658
+grant-fn|my_branch_list()|57f26658
+grant-fn|my_branches()|57f26658
+grant-fn|my_role()|792f2bd2
+grant-fn|my_roles()|792f2bd2
+grant-fn|my_two_step()|792f2bd2
+grant-fn|my_updates()|57f26658
+grant-fn|next_working_morning(p_hour integer)|57f26658
+grant-fn|no_proof_list(p_from date, p_to date)|57f26658
+grant-fn|notification_link(p_kind text, p_request uuid)|57f26658
+grant-fn|notifications_link_fill()|c56ec2e1
+grant-fn|notifications_push_trigger()|c56ec2e1
+grant-fn|notify_branch_role(p_branch uuid, p_role user_role, p_kind text, p_title text, p_body text, p_link text, p_request uuid)|c56ec2e1
+grant-fn|notify_review(p_request uuid)|c56ec2e1
+grant-fn|notify_role(p_role user_role, p_kind text, p_title text, p_body text, p_link text, p_request uuid)|c56ec2e1
+grant-fn|notify_stage(p_request uuid)|c56ec2e1
+grant-fn|notify_user(p_user uuid, p_kind text, p_title text, p_body text, p_link text, p_request uuid)|c56ec2e1
+grant-fn|offsite_pending(p_since timestamp with time zone, p_limit integer)|c56ec2e1
+grant-fn|open_float(p_period date, p_amount numeric, p_note text)|792f2bd2
+grant-fn|open_float(p_period date, p_amount numeric, p_note text, p_place text)|792f2bd2
+grant-fn|outlook_for(p_branch uuid, p_request uuid)|792f2bd2
+grant-fn|pack_mark_sent(p_pack uuid, p_how text)|792f2bd2
+grant-fn|pack_register(p_float uuid, p_path text, p_file_name text, p_size bigint, p_pages integer, p_summary jsonb)|792f2bd2
+grant-fn|paper_slip_due()|c56ec2e1
+grant-fn|pay_by_transfer(p_request uuid, p_amount numeric, p_paid_on date, p_reference text, p_from text, p_pop_path text, p_pop_name text, p_pop_mime text, p_note text)|792f2bd2
+grant-fn|pay_by_transfer(p_request uuid, p_amount numeric, p_paid_on date, p_reference text, p_note text)|792f2bd2
+grant-fn|person_name(p_user uuid)|792f2bd2
+grant-fn|plan_branch_guard()|57f26658
+grant-fn|plan_people_guard()|57f26658
+grant-fn|plan_status()|792f2bd2
+grant-fn|post_message(p_request uuid, p_body text)|792f2bd2
+grant-fn|profile_history(p_user uuid)|c56ec2e1
+grant-fn|profiles_signout_inactive()|57f26658
+grant-fn|proof_used(p_sha256 text, p_request uuid)|792f2bd2
+grant-fn|prune_sign_ins()|c56ec2e1
+grant-fn|push_public_key()|792f2bd2
+grant-fn|qty_text(q numeric)|57f26658
+grant-fn|quick_count(p_lines jsonb, p_on date, p_note text)|792f2bd2
+grant-fn|quick_limit()|792f2bd2
+grant-fn|quick_payout(p_to uuid, p_amount numeric, p_purpose text, p_category uuid, p_note text)|792f2bd2
+grant-fn|rate_update(p_id uuid, p_clear boolean, p_comment text)|57f26658
+grant-fn|receipt_duplicate_of(p_expense uuid)|c56ec2e1
+grant-fn|receive_stock(p_item uuid, p_qty numeric, p_unit_cost numeric, p_supplier uuid, p_note text)|792f2bd2
+grant-fn|receive_top_up(p_id uuid, p_amount numeric)|792f2bd2
+grant-fn|receive_top_up(p_id uuid, p_amount numeric, p_place text)|792f2bd2
+grant-fn|record_checkin(p_user uuid, p_session uuid, p_where jsonb, p_device jsonb)|c56ec2e1
+grant-fn|record_expense(p_request uuid, p_spent_at date, p_lines jsonb, p_notes text)|792f2bd2
+grant-fn|record_usage(p_item uuid, p_qty numeric, p_on date, p_note text)|792f2bd2
+grant-fn|refer_to_md(p_request uuid, p_note text)|792f2bd2
+grant-fn|reject_request(p_request uuid, p_reason text)|792f2bd2
+grant-fn|remind_access_review()|c56ec2e1
+grant-fn|remind_cash_count()|c56ec2e1
+grant-fn|remind_month_close()|c56ec2e1
+grant-fn|remind_outstanding_advances()|c56ec2e1
+grant-fn|remind_stale_items()|c56ec2e1
+grant-fn|remind_unread_updates()|c56ec2e1
+grant-fn|remind_unusual_use()|c56ec2e1
+grant-fn|remind_weekly_count()|c56ec2e1
+grant-fn|report_stock(p_item uuid, p_level text, p_note text)|792f2bd2
+grant-fn|req_label(r requests)|792f2bd2
+grant-fn|request_top_up(p_amount numeric, p_reason text, p_counted numeric, p_count_note text)|792f2bd2
+grant-fn|requests_before_delete()|c56ec2e1
+grant-fn|requests_not_stock_notice()|57f26658
+grant-fn|requests_quote_stamp()|57f26658
+grant-fn|requests_schedule_stamp()|57f26658
+grant-fn|requests_stock_guard()|c56ec2e1
+grant-fn|requests_urgent_stage()|c56ec2e1
+grant-fn|reset_request_numbers()|792f2bd2
+grant-fn|resolve_report(p_report uuid, p_note text)|792f2bd2
+grant-fn|restock_from_reports(p_reports uuid[])|792f2bd2
+grant-fn|restore_check(p_table text, p_rows jsonb)|c56ec2e1
+grant-fn|review_cash_count(p_id uuid, p_accept boolean, p_note text, p_write_off boolean)|792f2bd2
+grant-fn|review_exception(p_kind text, p_ref uuid, p_outcome text, p_note text)|792f2bd2
+grant-fn|review_item_suggestion(p_id uuid, p_ok boolean, p_note text)|792f2bd2
+grant-fn|review_request(p_request uuid, p_note text)|792f2bd2
+grant-fn|review_schedule(p_ids uuid[], p_note text)|792f2bd2
+grant-fn|role_filled(p user_role)|57f26658
+grant-fn|save_branch(p_id uuid, p_company uuid, p_name text, p_code text, p_usual_float numeric, p_active boolean, p_copy_catalogue_from uuid)|792f2bd2
+grant-fn|save_claim(p_request uuid, p_purpose text, p_category uuid, p_spent_at date, p_supplier text, p_notes text)|792f2bd2
+grant-fn|schedule_budget(p_budget uuid, p_category uuid, p_person uuid, p_limit numeric, p_note text, p_active boolean, p_reason text)|792f2bd2
+grant-fn|schedule_check(v jsonb)|c56ec2e1
+grant-fn|schedule_clean(p jsonb)|c56ec2e1
+grant-fn|schedule_diff(a jsonb, b jsonb)|57f26658
+grant-fn|schedule_fmt(p_kind text, p_v jsonb)|57f26658
+grant-fn|schedule_keys()|57f26658
+grant-fn|schedule_positions_sync(p_by uuid, p_reason text)|792f2bd2
+grant-fn|schedule_record(p_area text, p_reason text, p_by uuid, p_md text, p_decided_by uuid, p_note text, p_pending uuid)|c56ec2e1
+grant-fn|schedule_snapshot(p_values jsonb)|792f2bd2
+grant-fn|schedule_tell(v schedule_versions)|c56ec2e1
+grant-fn|schedule_version_no()|57f26658
+grant-fn|schedule_write(p jsonb)|c56ec2e1
+grant-fn|send_monthly_summary()|c56ec2e1
+grant-fn|set_fx_rate(p_company uuid, p_month date, p_rate numeric)|792f2bd2
+grant-fn|set_paper_slip(p_request uuid, p_has boolean)|57f26658
+grant-fn|set_person_branches(p_user uuid, p_home uuid, p_extra uuid[])|792f2bd2
+grant-fn|set_petty_bank(p_name text)|792f2bd2
+grant-fn|set_petty_bank(p_name text, p_opening numeric, p_note text)|792f2bd2
+grant-fn|set_proof_rule(p_request uuid, p_rule text, p_reason text)|57f26658
+grant-fn|set_update_extras(p_id uuid, p_tour jsonb, p_image text)|c56ec2e1
+grant-fn|set_urgent(p_request uuid, p_urgent boolean, p_reason text)|792f2bd2
+grant-fn|set_view_branch(p_branch uuid)|57f26658
+grant-fn|settings_check_region()|c56ec2e1
+grant-fn|settings_schedule_guard()|57f26658
+grant-fn|setup_status()|792f2bd2
+grant-fn|sign_in_log(p_from timestamp with time zone)|792f2bd2
+grant-fn|sign_ins_flag()|c56ec2e1
+grant-fn|sign_ins_from_session()|c56ec2e1
+grant-fn|sign_out_devices(p_sessions uuid[], p_user uuid, p_keep uuid)|792f2bd2
+grant-fn|stock_actions()|792f2bd2
+grant-fn|stock_adjust_raise(p_item uuid, p_new_qty numeric, p_kind text, p_reason text, p_receipt uuid, p_on date, p_force boolean)|c56ec2e1
+grant-fn|stock_reports_on_receipt()|c56ec2e1
+grant-fn|stock_review(p_request uuid, p_lines jsonb, p_note text)|792f2bd2
+grant-fn|submit_request(p_request uuid)|792f2bd2
+grant-fn|submitted_note()|c56ec2e1
+grant-fn|suggest_item(p_name text, p_reason text, p_monthly_qty numeric, p_price numeric, p_where text, p_photo text, p_category uuid)|792f2bd2
+grant-fn|threshold()|792f2bd2
+grant-fn|tidy_item_name(p text)|57f26658
+grant-fn|tidy_sessions()|c56ec2e1
+grant-fn|tidy_text(p text)|57f26658
+grant-fn|tidy_unit(p text)|57f26658
+grant-fn|touch_updated_at()|c56ec2e1
+grant-fn|try_uuid(p text)|792f2bd2
+grant-fn|two_step_blocked()|792f2bd2
+grant-fn|two_step_blocked_for(p_user uuid, p_aal text)|c56ec2e1
+grant-fn|two_step_blocked_session(p_user uuid, p_aal text, p_session text)|c56ec2e1
+grant-fn|two_step_people()|792f2bd2
+grant-fn|undo_disbursement(p_request uuid, p_note text)|792f2bd2
+grant-fn|update_feedback(p_days integer)|792f2bd2
+grant-fn|update_status()|57f26658
+grant-fn|urgent_chase()|c56ec2e1
+grant-fn|verify_login_code(p_code text)|792f2bd2
+grant-fn|weekly_digest()|c56ec2e1
+grant-fn|withdraw_item_suggestion(p_id uuid)|792f2bd2
+grant-fn|withdraw_schedule(p_id uuid)|792f2bd2
+grant-fn|working_days_since(p_from timestamp with time zone)|57f26658
+index|access_reviews_pkey|fb03fc0a
+index|access_reviews_quarter_uq|42455771
+index|admin_log_at_idx|1564f0f5
+index|admin_log_pkey|fdb30383
+index|app_config_pkey|49dde9fb
+index|branches_code_uq|27ec8260
+index|branches_name_uq|91f12f78
+index|branches_pkey|ad4a9c0a
+index|budgets_pkey|6c0ebd45
+index|budgets_scope_uq|091608fd
+index|cash_counts_float|5f0c27c2
+index|cash_counts_pkey|6a270a0b
+index|categories_name_key|490f218c
+index|categories_pkey|030682f4
+index|client_logs_at|53d8a1d3
+index|client_logs_at_idx|86cd010e
+index|client_logs_pkey|8afbb7cc
+index|companies_code_uq|c8f1f3e9
+index|companies_pkey|5432bdbc
+index|delegations_pkey|6c4bfdb7
+index|delegations_to_user|e53fd7b1
+index|device_sessions_pkey|7ca9b0ff
+index|device_sessions_user_idx|eabb222c
+index|exception_reviews_pkey|7aab7287
+index|expense_lines_expense_id_idx|7ac1be54
+index|expense_lines_item_id_idx|8580178b
+index|expense_lines_pkey|a375369a
+index|expense_proofs_expense_id_idx|4a295b20
+index|expense_proofs_pkey|500fce8c
+index|expense_proofs_sha256|1ada783f
+index|expenses_pkey|c978673d
+index|expenses_request_id_key|52977be3
+index|float_transactions_pkey|da5f9aa3
+index|floats_branch_idx|5a0e3bae
+index|floats_branch_period_uq|2de0bb54
+index|floats_pkey|c24f0e27
+index|fx_rates_pkey|d3309ea9
+index|invitations_lower_idx|36fe2c92
+index|invitations_pkey|26d1075a
+index|ip_places_pkey|5a0b0c6e
+index|item_suggestions_branch|6f4a39f7
+index|item_suggestions_pkey|79e81a02
+index|items_branch_idx|48322f9a
+index|items_branch_name_uq|8caeccca
+index|items_pkey|fdbb6737
+index|mail_log_email_at|57d9cf51
+index|mail_log_pkey|5634f99f
+index|notifications_pkey|3435fbb5
+index|notifications_unsent|b31c71db
+index|notifications_user_unread|46ac994b
+index|offsite_runs_pkey|777dc59f
+index|packs_float_id_key|77a131ca
+index|packs_pkey|562a6f32
+index|profiles_pkey|b7142bbf
+index|push_subscriptions_endpoint_key|a7b02382
+index|push_subscriptions_pkey|a6e46197
+index|push_subscriptions_session_idx|8b6704a5
+index|receipt_inbox_pkey|76fd74df
+index|receipt_inbox_user_idx|4cd223f2
+index|request_documents_pkey|3c1a73ac
+index|request_documents_request|4bb5e30c
+index|request_events_pkey|d6ec6efb
+index|request_events_request_id_idx|91ecc7d0
+index|request_lines_pkey|f8949a7e
+index|request_lines_request_id_idx|25dc8c9d
+index|request_messages_pkey|5d99d0e6
+index|request_messages_req_idx|e242e4e5
+index|requests_branch_idx|e5da3f80
+index|requests_float_id_idx|92075249
+index|requests_pkey|67dede39
+index|requests_requester_id_idx|cb1eea55
+index|requests_status_idx|10286ef9
+index|schedule_versions_one_pending|41cdd981
+index|schedule_versions_pkey|2b9a49a3
+index|schedule_versions_recent|a4e17ace
+index|schedule_versions_version_no_key|0554661b
+index|security_events_pkey|62119a1f
+index|security_events_user_idx|47f6f887
+index|settings_pkey|f55de130
+index|sign_ins_at_idx|b2286a69
+index|sign_ins_pkey|f9981fd7
+index|sign_ins_user_idx|35073d3f
+index|stock_adjustments_item_idx|a5c9a3cf
+index|stock_adjustments_pkey|7d64b889
+index|stock_adjustments_status_idx|9fe750b1
+index|stock_movements_expense_id_idx|f70354e1
+index|stock_movements_item_id_created_at_idx|f9874ed5
+index|stock_movements_item_occurred|82636c37
+index|stock_movements_pkey|203e451a
+index|stock_receipts_item_idx|cf3fdfd1
+index|stock_receipts_pkey|4ea68992
+index|stock_receipts_status_idx|c0844c92
+index|stock_reports_open_idx|22c48b1d
+index|stock_reports_pkey|de8cfb94
+index|subscription_pkey|19010ea6
+index|suppliers_name_key|981262b4
+index|suppliers_pkey|5d193796
+index|top_ups_one_open|c7719704
+index|top_ups_pkey|868811a6
+index|two_step_codes_pkey|cb6ef94b
+index|two_step_codes_user|567fbaf6
+index|two_step_sessions_pkey|e236344f
+index|update_recipients_pkey|fd3630ba
+index|update_recipients_user|67988143
+index|updates_due|0587948a
+index|updates_pkey|1b2603f1
+index|user_places_pkey|348918de
+policy|public.access_reviews.access_reviews_select|f1050a8a
+policy|public.access_reviews.two_step_required|8c576b37
+policy|public.admin_log.admin_log_select|f1050a8a
+policy|public.admin_log.two_step_required|8c576b37
+policy|public.app_config.two_step_required|8c576b37
+policy|public.branches.branches_select|5ba43985
+policy|public.branches.two_step_required|8c576b37
+policy|public.budgets.budgets_select|5ba43985
+policy|public.budgets.budgets_write|697cee48
+policy|public.budgets.two_step_required|8c576b37
+policy|public.cash_counts.cash_counts_select|5db6ab7c
+policy|public.cash_counts.two_step_required|8c576b37
+policy|public.categories.categories_select|5ba43985
+policy|public.categories.categories_write|f08fb24f
+policy|public.categories.two_step_required|8c576b37
+policy|public.client_logs.client_logs_insert|858bedd7
+policy|public.client_logs.client_logs_insert_anon|4bb1e195
+policy|public.client_logs.client_logs_select|f1050a8a
+policy|public.client_logs.two_step_required|8c576b37
+policy|public.companies.companies_select|5ba43985
+policy|public.companies.two_step_required|8c576b37
+policy|public.delegations.delegations_select|5ba43985
+policy|public.delegations.delegations_write|95afacc4
+policy|public.delegations.two_step_required|8c576b37
+policy|public.device_sessions.two_step_required|8c576b37
+policy|public.exception_reviews.exception_reviews_select|2581b970
+policy|public.exception_reviews.two_step_required|8c576b37
+policy|public.expense_lines.expense_lines_select|82e0ec10
+policy|public.expense_lines.two_step_required|8c576b37
+policy|public.expense_proofs.expense_proofs_delete|e29d8dcc
+policy|public.expense_proofs.expense_proofs_insert|3b04d694
+policy|public.expense_proofs.expense_proofs_select|880fdc08
+policy|public.expense_proofs.two_step_required|8c576b37
+policy|public.expenses.expenses_select|c4ebe5d3
+policy|public.expenses.two_step_required|8c576b37
+policy|public.float_transactions.float_tx_select|1bce6c5f
+policy|public.float_transactions.two_step_required|8c576b37
+policy|public.floats.floats_select|fd861e73
+policy|public.floats.two_step_required|8c576b37
+policy|public.fx_rates.fx_rates_select|5ba43985
+policy|public.fx_rates.two_step_required|8c576b37
+policy|public.invitations.invitations_admin|8329a050
+policy|public.invitations.two_step_required|8c576b37
+policy|public.ip_places.two_step_required|8c576b37
+policy|public.item_suggestions.item_suggestions_read|dc37840c
+policy|public.item_suggestions.two_step_required|8c576b37
+policy|public.items.items_select|dc37840c
+policy|public.items.items_write|45ee0dc3
+policy|public.items.two_step_required|8c576b37
+policy|public.mail_log.two_step_required|8c576b37
+policy|public.notifications.notifications_select|23ec6996
+policy|public.notifications.notifications_update|279b0918
+policy|public.notifications.two_step_required|8c576b37
+policy|public.offsite_runs.two_step_required|8c576b37
+policy|public.packs.packs_select|31d497b9
+policy|public.packs.two_step_required|8c576b37
+policy|public.profiles.profiles_select|5ba43985
+policy|public.profiles.profiles_update_admin|cf0ab54d
+policy|public.profiles.profiles_update_self|18d34272
+policy|public.profiles.two_step_required|8c576b37
+policy|public.push_subscriptions.push_subs_delete|ba0212bc
+policy|public.push_subscriptions.push_subs_insert|33354b51
+policy|public.push_subscriptions.push_subs_select|23ec6996
+policy|public.push_subscriptions.push_subs_update|279b0918
+policy|public.push_subscriptions.two_step_required|8c576b37
+policy|public.receipt_inbox.receipt_inbox_insert|33354b51
+policy|public.receipt_inbox.receipt_inbox_select|23ec6996
+policy|public.receipt_inbox.receipt_inbox_update|279b0918
+policy|public.receipt_inbox.two_step_required|8c576b37
+policy|public.request_documents.request_documents_select|c4ebe5d3
+policy|public.request_documents.two_step_required|8c576b37
+policy|public.request_events.request_events_select|c4ebe5d3
+policy|public.request_events.two_step_required|8c576b37
+policy|public.request_lines.request_lines_select|c4ebe5d3
+policy|public.request_lines.request_lines_write|99500d9b
+policy|public.request_lines.two_step_required|8c576b37
+policy|public.request_messages.request_messages_select|c4ebe5d3
+policy|public.request_messages.two_step_required|8c576b37
+policy|public.requests.requests_delete_draft|bccc136f
+policy|public.requests.requests_insert|9b143a48
+policy|public.requests.requests_select|8a6337c3
+policy|public.requests.requests_update_draft|dcb2f9c6
+policy|public.requests.two_step_required|8c576b37
+policy|public.schedule_versions.schedule_versions_select|2de78d0a
+policy|public.schedule_versions.two_step_required|8c576b37
+policy|public.security_events.security_events_select|c39c6361
+policy|public.security_events.two_step_required|8c576b37
+policy|public.settings.settings_select|5ba43985
+policy|public.settings.settings_update|cf0ab54d
+policy|public.settings.two_step_required|8c576b37
+policy|public.sign_ins.sign_ins_select|58a22cd8
+policy|public.sign_ins.two_step_required|8c576b37
+policy|public.stock_adjustments.stock_adjustments_select|06ff4a7d
+policy|public.stock_adjustments.two_step_required|8c576b37
+policy|public.stock_movements.stock_movements_select|5ba43985
+policy|public.stock_movements.two_step_required|8c576b37
+policy|public.stock_receipts.stock_receipts_select|e6f952ce
+policy|public.stock_receipts.two_step_required|8c576b37
+policy|public.stock_reports.stock_reports_select|5ba43985
+policy|public.stock_reports.two_step_required|8c576b37
+policy|public.subscription.subscription_read|5ba43985
+policy|public.subscription.two_step_required|8c576b37
+policy|public.suppliers.suppliers_select|5ba43985
+policy|public.suppliers.suppliers_write|f08fb24f
+policy|public.suppliers.two_step_required|8c576b37
+policy|public.top_ups.top_ups_select|5c5edd0e
+policy|public.top_ups.two_step_required|8c576b37
+policy|public.two_step_codes.two_step_required|8c576b37
+policy|public.two_step_sessions.two_step_required|8c576b37
+policy|public.update_recipients.two_step_required|8c576b37
+policy|public.update_recipients.update_recipients_select|9ece4193
+policy|public.updates.two_step_required|8c576b37
+policy|public.updates.updates_select|9648b1d6
+policy|public.user_places.two_step_required|8c576b37
+policy|storage.objects.branding_admin_insert|7f028dd6
+policy|storage.objects.branding_admin_update|4756d93d
+policy|storage.objects.branding_read|90201e91
+policy|storage.objects.item_photos_insert|60852bc6
+policy|storage.objects.item_photos_read|f9dee2e6
+policy|storage.objects.packs_finance_update|da5af7ad
+policy|storage.objects.packs_finance_write|f09193ad
+policy|storage.objects.packs_staff_read|b77af1b1
+policy|storage.objects.proofs_delete|f760d9e4
+policy|storage.objects.proofs_inbox_insert|c005b739
+policy|storage.objects.proofs_inbox_move|22aab818
+policy|storage.objects.proofs_inbox_select|24e75aeb
+policy|storage.objects.proofs_insert|0970517d
+policy|storage.objects.proofs_select|dc834855
+policy|storage.objects.two_step_required|8c576b37
+realtime|branches|ed2b5c01
+realtime|cash_counts|ed2b5c01
+realtime|expenses|ed2b5c01
+realtime|float_transactions|ed2b5c01
+realtime|floats|ed2b5c01
+realtime|items|ed2b5c01
+realtime|request_documents|ed2b5c01
+realtime|request_messages|ed2b5c01
+realtime|requests|ed2b5c01
+realtime|schedule_versions|ed2b5c01
+realtime|stock_adjustments|ed2b5c01
+realtime|stock_movements|ed2b5c01
+realtime|stock_receipts|ed2b5c01
+realtime|stock_reports|ed2b5c01
+realtime|top_ups|ed2b5c01
+rls|access_reviews|b326b506
+rls|admin_log|b326b506
+rls|app_config|b326b506
+rls|branches|b326b506
+rls|budgets|b326b506
+rls|cash_counts|b326b506
+rls|categories|b326b506
+rls|client_logs|b326b506
+rls|companies|b326b506
+rls|delegations|b326b506
+rls|device_sessions|b326b506
+rls|exception_reviews|b326b506
+rls|expense_lines|b326b506
+rls|expense_proofs|b326b506
+rls|expenses|b326b506
+rls|float_transactions|b326b506
+rls|floats|b326b506
+rls|fx_rates|b326b506
+rls|invitations|b326b506
+rls|ip_places|b326b506
+rls|item_suggestions|b326b506
+rls|items|b326b506
+rls|mail_log|b326b506
+rls|notifications|b326b506
+rls|offsite_runs|b326b506
+rls|packs|b326b506
+rls|profiles|b326b506
+rls|push_subscriptions|b326b506
+rls|receipt_inbox|b326b506
+rls|request_documents|b326b506
+rls|request_events|b326b506
+rls|request_lines|b326b506
+rls|request_messages|b326b506
+rls|requests|b326b506
+rls|schedule_versions|b326b506
+rls|security_events|b326b506
+rls|settings|b326b506
+rls|sign_ins|b326b506
+rls|stock_adjustments|b326b506
+rls|stock_movements|b326b506
+rls|stock_receipts|b326b506
+rls|stock_reports|b326b506
+rls|subscription|b326b506
+rls|suppliers|b326b506
+rls|top_ups|b326b506
+rls|two_step_codes|b326b506
+rls|two_step_sessions|b326b506
+rls|update_recipients|b326b506
+rls|updates|b326b506
+rls|user_places|b326b506
+trigger|branches.admin_log_branches|6a46c643
+trigger|branches.branches_plan_guard|a1cc5f78
+trigger|delegations.admin_log_delegations|dd62d229
+trigger|delegations.delegations_conflict_guard|955ee2f1
+trigger|device_sessions.sign_ins_from_session|513ec12d
+trigger|expense_lines.lock_closed_float_lines|e7eac411
+trigger|expenses.expenses_duplicate_guard|85948dba
+trigger|expenses.lock_closed_float_exp|5c0fe42f
+trigger|float_transactions.lock_closed_float_tx|faf23799
+trigger|item_suggestions.item_suggestions_branch_default|1dd65c08
+trigger|item_suggestions.item_suggestions_tidy|76d5b3a6
+trigger|items.items_branch_default|15970b1a
+trigger|items.items_tidy|98f4c28e
+trigger|notifications.notifications_link_fill|4778e011
+trigger|notifications.notifications_push|f53f4f02
+trigger|profiles.admin_log_profiles|4099f781
+trigger|profiles.profiles_plan_guard|ef45bdbf
+trigger|profiles.profiles_signout_inactive|0e5222a7
+trigger|requests.lock_closed_float_req|592c82b7
+trigger|requests.requests_before_delete|7a0a2a7f
+trigger|requests.requests_branch_default|f7ad63b7
+trigger|requests.requests_not_stock_notice|ad1fde1d
+trigger|requests.requests_paper_slip_due|b8e78def
+trigger|requests.requests_quote_stamp|640a37e7
+trigger|requests.requests_schedule_stamp|53953a16
+trigger|requests.requests_stock_guard|4f0c9ba0
+trigger|requests.requests_submitted_note|58dc06cb
+trigger|requests.requests_touch|a5a6773a
+trigger|requests.requests_urgent_stage|f043ff95
+trigger|security_events.sign_ins_flag|bbd0fcbc
+trigger|settings.settings_check_region|c377cee1
+trigger|settings.settings_schedule_guard|206f0ed4
+trigger|stock_movements.stock_movements_apply|af04eec7
+trigger|stock_movements.stock_reports_on_receipt|b4f2937b
+trigger|users.account_ready_notify|e71dcf96
+trigger|users.on_auth_user_created|786e53a3
+view|v_floats|aae12ea1
+view|v_item_monthly_usage|844d55c6
+view|v_item_runouts|e7010648
+view|v_price_history|660597ea
+view|v_spend_lines|fb120bb3

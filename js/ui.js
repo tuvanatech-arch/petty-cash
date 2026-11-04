@@ -312,7 +312,7 @@ export function picker(sel, { top = [], topLabel = 'You use these most', placeho
     if (sel.disabled) return;
     search.value = ''; active = 0; paint();
     showIf(panel, true); face.setAttribute('aria-expanded', 'true'); wrap.classList.add('open');
-    setTimeout(() => search.focus(), 30);
+    setTimeout(() => { search.focus({ preventScroll: true }); fitAbove(panel); }, 30);
     document.addEventListener('pointerdown', outside, true);
   }
   function close() {
@@ -376,4 +376,14 @@ export function onceHint(key, ...text) {
 /** A collapsed section: summary line visible, body on tap. */
 export function more(summary, ...body) {
   return h('details', { class: 'more' }, h('summary', {}, summary), h('div', { class: 'more-body' }, ...body));
+}
+
+/** Scroll so the whole of an opened list sits above the phone's bottom bar (and the keyboard). */
+export function fitAbove(el) {
+  if (!el?.isConnected) return;
+  const bar = document.querySelector('.tabbar'); const vv = window.visualViewport;
+  const barTop = bar && getComputedStyle(bar).display !== 'none' && bar.offsetHeight < window.innerHeight / 2 ? window.innerHeight - bar.offsetHeight : Infinity;   // where the bar sits when shown
+  const bottom = Math.min(barTop, vv ? vv.height + vv.offsetTop : window.innerHeight) - 12;
+  const r = el.getBoundingClientRect();
+  if (r.bottom > bottom) window.scrollBy({ top: Math.min(r.bottom - bottom, r.top - 70), behavior: 'smooth' });
 }

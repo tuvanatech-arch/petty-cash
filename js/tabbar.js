@@ -182,3 +182,19 @@ export function tabBar(navItems, activeKey) {
 
 /** The side menu's number for a screen (computer screens). */
 export const sideBadge = (key) => (['requests', 'cash', 'stock', 'admin', 'schedule'].includes(key) ? badge(key) : null);
+
+/* While someone types, the bar steps aside (more room above the keyboard); text boxes check spelling. */
+const TEXTY = 'textarea, input:not([type]), input[type="text"], input[type="search"]';
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el?.matches || el.closest('.tabbar')) return;
+  if (el.matches(TEXTY + ', input[type="number"], input[type="email"], input[type="tel"], input[type="date"], input[type="password"], select')) document.documentElement.classList.add('typing');
+  if (el.matches(TEXTY) && !el.hasAttribute('spellcheck')) { el.setAttribute('spellcheck', 'true'); if (!el.hasAttribute('autocapitalize')) el.setAttribute('autocapitalize', 'sentences'); el.setAttribute('autocorrect', 'on'); }
+});
+document.addEventListener('focusout', () => setTimeout(() => {
+  const a = document.activeElement;
+  if (!a || a === document.body || !a.matches?.('input, textarea, select')) {
+    document.documentElement.classList.remove('typing');
+    const open = document.querySelector('.picker.open .picker-panel'); if (open) import('./ui.js').then((u) => u.fitAbove(open));
+  }
+}, 120));

@@ -122,6 +122,25 @@ for (const [role, want] of Object.entries(EXPECT)) {
   await ctx.close();
 }
 
+/* typing: the bar steps aside, spelling is checked; an opened item list sits above the bar */
+{
+  const { ctx, page } = await open('stock_manager', '#/requests/new/stock', { w: 390, hgt: 700 });
+  const box = page.locator('main textarea:visible, main input.input:visible').first();
+  await box.focus(); await page.waitForTimeout(400);
+  check(await page.evaluate(() => document.documentElement.classList.contains('typing') && document.querySelector('.tabbar').getBoundingClientRect().top >= window.innerHeight - 2), 'typing: the bar steps aside');
+  check((await box.getAttribute('spellcheck')) === 'true', 'typing: spelling is checked');
+  await page.locator('main h1').click(); await page.waitForTimeout(500);
+  check(!(await page.evaluate(() => document.documentElement.classList.contains('typing'))), 'done typing: the bar comes back');
+  const face = page.locator('.picker-face').first();
+  if (await face.count()) {
+    await face.click(); await page.waitForTimeout(900);
+    await page.evaluate(() => document.activeElement.blur()); await page.waitForTimeout(500);
+    const ok = await page.evaluate(() => { const p = document.querySelector('.picker.open .picker-panel'); const bar = document.querySelector('.tabbar').getBoundingClientRect().top; return p && p.getBoundingClientRect().bottom <= bar + 1; });
+    check(ok, 'an opened item list sits above the bar');
+  } else check(false, 'item list found on the stock request');
+  await ctx.close();
+}
+
 await b.close(); server.close();
 console.log(fails.length ? `FAIL tabbar-ui (${fails.length})` : 'PASS tabbar-ui');
 process.exit(fails.length ? 1 : 0);
