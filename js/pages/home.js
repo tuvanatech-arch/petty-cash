@@ -1,6 +1,6 @@
 import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush, canApproveReq, canReviewReq, scoped, inView, multiBranch, branchName } from '../api.js';
 import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more, units } from '../ui.js';
-import { requestRow, expenseOf } from './requests.js';
+import { requestRow, expenseOf, urgentFirst } from './requests.js';
 import { floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
 import { reportDialog, confirmReceiptDialog, decideAdjustmentActions } from './stock.js';
 import { setupCard, welcomeStrip } from '../learn.js';
@@ -45,7 +45,7 @@ async function buildHome() {
     sb.from('requests').select('*').eq('disbursed_to', me.id).eq('paid_via', 'cash').is('cash_received', null).neq('disbursed_by', me.id).gte('disbursed_at', askFrom).order('disbursed_at'),
     sb.from('requests').select('*').eq('requester_id', me.id).eq('status', 'proof_review').eq('paid_via', 'transfer').order('disbursed_at'),
   ]);
-  const open = openRes.data || [];
+  const open = urgentFirst(openRes.data || []);   // urgent requests at the top of every queue (049)
   const checks = {}; for (const c of checksRes.data || []) checks[c.request_id] = c;
   const floats = floatRes.data || [];
   const outlooks = Array.isArray(outlookRes.data) ? outlookRes.data : [];
@@ -180,6 +180,15 @@ async function buildHome() {
     const physical = byStatus('physical_required');
     if (physical.length) cards.push(card('Paper receipts awaited', physical.length, null, list(physical)));
   }
+  // urgent requests waiting for me (049): one red card at the very top, before everything else
+  const urgentMine = open.filter((q) => q.urgent && (
+    (q.status === 'pending_approval' && toApprove.includes(q))
+    || (q.status === 'awaiting_disbursement' && duty('finance'))
+    || (q.status === 'stock_review' && duty('stock_manager'))));
+  if (urgentMine.length) cards.unshift({ n: 0, el: h('div', { class: 'sheet urgent-card', id: 'urgent-card' },
+    h('div', { class: 'sheet-head' }, h('h2', {}, 'Urgent'), h('span', { class: 'sub' }, urgentMine.length)),
+    h('p', { class: 'hint' }, 'Marked urgent: deal with these first. Each one says why.'),
+    h('ul', { class: 'ledger-list' }, urgentMine.map((q) => requestRow(q, { showRequester: true, note: q.urgent_reason })))) });
   const n = cards.reduce((s, c) => s + c.n, 0);
 
   /* ---------------- everything else, in one line ---------------- */

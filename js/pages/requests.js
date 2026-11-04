@@ -21,13 +21,18 @@ export function requestRow(q, { showRequester = false, note = null } = {}) {
   const over = Number(q.estimated_total) > thr() || Number(q.disbursed_amount) > thr();
   return h('li', { class: 'click', onclick: () => { location.hash = `#/requests/${q.id}`; } },
     h('div', { class: 'what' },
-      h('strong', {}, `#${q.request_no} · ${q.purpose || (q.type === 'stock' ? 'Stock request' : q.type === 'claim' ? 'Claim' : 'Payment request')}`, branchTag(q.branch_id)),
+      h('strong', {}, isUrgent(q) ? h('span', { class: 'pill pill-red urgent-tag' }, 'Urgent') : null, `#${q.request_no} · ${q.purpose || (q.type === 'stock' ? 'Stock request' : q.type === 'claim' ? 'Claim' : 'Payment request')}`, branchTag(q.branch_id)),
       h('span', {}, [typeLabel(q), showRequester ? ` · ${personName(q.requester_id)}` : '', ` · ${fmtDate(q.submitted_at || q.created_at)}`].join(''),
         q.over_budget ? h('span', { style: { color: 'var(--amber)' } }, ' · over budget') : null,
         note ? h('span', { style: { color: 'var(--amber)' } }, ` · ${note}`) : null)),
     pill(q),
     h('span', { class: `amt${over ? ' threshold' : ''}`, title: over ? 'Above the approval threshold' : '' }, money(amount)));
 }
+
+/** Urgent and still waiting for someone (049): shown first, with a red label. */
+export const isUrgent = (q) => !!q.urgent && ['draft', 'stock_review', 'pending_approval', 'awaiting_disbursement'].includes(q.status);
+/** Urgent requests first; otherwise the order stays as it was. */
+export const urgentFirst = (list) => [...list].sort((a, b) => Number(isUrgent(b)) - Number(isUrgent(a)));
 
 /* =============================================================== list page */
 export async function requestsPage() {
@@ -53,7 +58,7 @@ export async function requestsPage() {
     const views = [view === 'status' ? ['status', 'Filtered'] : null, ['open', 'Open'], isStaff() ? ['mine', 'Mine'] : null, ['closed', 'Finished'], ['all', 'All']].filter(Boolean);
     mount(tabs, views.map(([k, l]) => h('button', { class: k === view ? 'active' : '', onclick: () => { view = k; load(); } }, l)));
     const filtered = rows.filter((r) => !search || `#${r.request_no} ${r.purpose}`.toLowerCase().includes(search));
-    mount(list, filtered.length ? h('ul', { class: 'ledger-list' }, filtered.map((r) => requestRow(r, { showRequester: isStaff() })))
+    mount(list, filtered.length ? h('ul', { class: 'ledger-list' }, urgentFirst(filtered).map((r) => requestRow(r, { showRequester: isStaff() })))
       : emptyState('Nothing here', view === 'open' ? 'No open requests.' : 'No requests match.'));
   }
   await load();
@@ -119,6 +124,14 @@ export async function newRequestPage(editId, presetType) {
   let userPickedCategory = !!existing?.category_id;
   purpose.addEventListener('input', () => { if (type === 'cash' && !userPickedCategory) { const g = guessCategory(purpose.value, cats); if (g && category.value !== g.id) { category.value = g.id; guessed.textContent = `Category guessed: ${g.name} – change it if wrong.`; budget(); } else if (!g) guessed.textContent = ''; } });
   const needed = h('input', { class: 'input', type: 'date', value: existing?.needed_by || '' });
+  // urgent (049): the person who acts next is alerted at once; the reason is required
+  const urgentTick = h('input', { type: 'checkbox', id: 'urgent', checked: !!existing?.urgent });
+  const urgentWhy = h('input', { class: 'input', id: 'urgent-why', maxlength: 160, value: existing?.urgent_reason || '', placeholder: 'e.g. Water leaking in the kitchen, the plumber is on site' });
+  const urgentWhyField = field('Why is it urgent?', urgentWhy, 'Whoever acts next gets an alert straight away, and it goes to the top of their list. Use it only when it cannot wait; it never skips an approval.');
+  const urgentPart = h('div', { class: 'field urgent-field', id: 'urgent-box' }, h('label', { class: 'check', for: 'urgent' }, urgentTick, ' Urgent'), urgentWhyField);
+  const drawUrgent = () => showIf(urgentWhyField, urgentTick.checked);
+  urgentTick.onchange = () => { drawUrgent(); if (urgentTick.checked) urgentWhy.focus(); };
+  drawUrgent();
   const category = select([['', 'No category'], ...cats.filter((c) => c.kind !== 'stock').map((c) => [c.id, c.name])], existing?.category_id || '');
   const spentAt = h('input', { class: 'input', type: 'date', value: expense?.spent_at || today(), max: today() });
   const supplier = h('input', { class: 'input', value: expense?.supplier_name || '', placeholder: 'Where you bought it' });
@@ -232,9 +245,14 @@ export async function newRequestPage(editId, presetType) {
   }
   async function save(submit) {
     err.textContent = '';
+    if (urgentTick.checked && urgentWhy.value.trim().length < 3) { urgentWhy.focus(); throw new Error('Say why it is urgent, or untick “Urgent”.'); }
     if (submit && type === 'cash' && simpleCash && num(amountIn.value) <= 0) throw new Error('Enter the amount.');
     if (submit && type === 'cash' && !forStore && !quoteDocs.length && !noQuote) { quoteBox.scrollIntoView?.({ block: 'center' }); throw new Error('Attach the quote or invoice, or tick “No quote”.'); }
     const id = await saveHead(submit);
+    if (urgentTick.checked !== !!existing?.urgent || (urgentTick.checked && urgentWhy.value.trim() !== (existing?.urgent_reason || ''))) {
+      const u = await rpc('set_urgent', { p_request: id, p_urgent: urgentTick.checked, p_reason: urgentTick.checked ? urgentWhy.value.trim() : null });
+      existing = { ...(existing || {}), urgent: u.urgent, urgent_reason: u.urgent_reason };
+    }
     // "I have no receipt" ticked: make sure the reason is saved before the claim goes
     const nr = type === 'claim' ? receiptBox.querySelector('#no-receipt') : null;
     if (submit && nr?.checked && !receiptBox.querySelector('.paper-q')) {
@@ -416,7 +434,7 @@ export async function newRequestPage(editId, presetType) {
   const keepName = () => (existing ? `req_${existing.id}` : 'req_new');
   const snap = () => ({
     label: purpose.value.trim() || (type === 'claim' ? 'A claim' : 'A new request'), link: existing ? `#/requests/${existing.id}/edit` : `#/requests/new${type === 'claim' ? '/claim' : ''}`,
-    id: existing?.id || null, type, purpose: purpose.value, category: category.value, needed: needed.value, spentAt: spentAt.value, supplier: supplier.value, notes: notes.value,
+    id: existing?.id || null, type, purpose: purpose.value, category: category.value, needed: needed.value, urgent: urgentTick.checked, urgentWhy: urgentWhy.value, spentAt: spentAt.value, supplier: supplier.value, notes: notes.value,
     amount: amountIn.value, simpleCash, notStock, noQuote, lines: lines.map((l) => ({ item_id: l.item_id || '', description: l.description || '', qty: l.qty, est_unit_price: l.est_unit_price })),
     noReceipt: receiptBox.querySelector('#no-receipt-why')?.value || '',
   });
@@ -426,7 +444,7 @@ export async function newRequestPage(editId, presetType) {
   if (kept && !againId && (kept.id || null) === (existing?.id || null)) {
     if (!existing && kept.type && (kept.type !== 'stock' || stockAllowed)) type = kept.type;
     purpose.value = kept.purpose || ''; category.value = kept.category || ''; userPickedCategory = !!kept.category;
-    needed.value = kept.needed || ''; if (kept.spentAt) spentAt.value = kept.spentAt; supplier.value = kept.supplier || ''; notes.value = kept.notes || '';
+    needed.value = kept.needed || ''; if (kept.urgent != null) { urgentTick.checked = !!kept.urgent; urgentWhy.value = kept.urgentWhy || ''; drawUrgent(); } if (kept.spentAt) spentAt.value = kept.spentAt; supplier.value = kept.supplier || ''; notes.value = kept.notes || '';
     amountIn.value = kept.amount || ''; simpleCash = !!kept.simpleCash; notStock = !!kept.notStock; noQuote = !!kept.noQuote;
     if (Array.isArray(kept.lines) && kept.lines.length) lines = kept.lines.map((l) => ({ ...l }));
     if (existing && kept.noReceipt) noReceiptOpen = true;
@@ -446,6 +464,7 @@ export async function newRequestPage(editId, presetType) {
       cashPart = h('div', {},
         h('div', { class: 'row' }, field('Needed by', needed, 'Optional'), field('Category', category), field('Date you paid', spentAt), field('Shop / supplier', supplier)),
         field('Notes for finance', notes),
+        urgentPart,
         amountBox,
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Lines'), linesBox, budgetBox,
           linesHint),
@@ -550,7 +569,7 @@ export async function requestDetailPage(id) {
     h('div', {},
       h('div', { class: 'ref' }, `${isClaim ? 'Claim' : 'Request'} #${q.request_no} · ${typeLabel(q)} · raised by ${personName(q.requester_id)} on ${fmtDate(q.created_at)}`),
       h('h1', {}, q.purpose || 'Request'),
-      h('p', {}, pill(q), ' ',
+      h('p', {}, isUrgent(q) ? [h('span', { class: 'pill pill-red urgent-tag' }, 'Urgent'), ' '] : null, pill(q), ' ',
         isClaim && q.status !== 'draft' ? h('span', { class: 'pill pill-purple', title: 'Money spent before anyone approved it' }, 'Paid out of pocket · no prior approval') : q.approval_required ? h('span', { class: 'pill pill-purple' }, q.approval_level ? `${LEVEL_LABEL[q.approval_level]} approval` : `Above ${money(thr())}`) : null, ' ',
         q.review_reason ? h('span', { class: `pill ${q.reviewed_at ? 'pill-green' : 'pill-amber'}`, title: q.review_reason }, q.reviewed_at ? 'Reviewed after payment' : 'For review after payment') : null, ' ',
         q.over_budget ? h('span', { class: 'pill pill-amber', title: q.budget_note || '' }, 'Over budget') : null,
@@ -590,6 +609,7 @@ export async function requestDetailPage(id) {
     h('tfoot', {}, h('tr', {}, h('td', { colspan: showSplit ? 5 : 3 }, isClaim ? 'Claimed' : reviewed ? 'To be bought' : 'Estimated'), h('td', { class: `num${over ? ' threshold' : ''}` }, money(q.estimated_total))))));
 
   const stage = await stagePanel(q, lines, expense, reload, check, openOrders);
+  const urgentPanel = await urgentBlock(q, reload);
   const reviewPanel = canReviewReq(q) ? (() => {
     const note = h('textarea', { class: 'input', placeholder: 'What you checked, or what should happen next (optional)' });
     const b = h('button', { class: 'btn btn-primary' }, 'Mark reviewed');
@@ -663,13 +683,52 @@ export async function requestDetailPage(id) {
   const requestedSheet = finished && expenseSheet
     ? h('div', { class: 'sheet flat' }, more(isClaim ? 'What was claimed, and who signed it off' : 'What was asked for, and who signed it off', ...requestedBody))
     : h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'Claimed' : 'Requested')), ...requestedBody);
-  return h('div', {}, head, cashQuestion(q, reload), stage, reviewPanel,
+  return h('div', {}, head, urgentPanel, cashQuestion(q, reload), stage, reviewPanel,
     h('div', { class: 'grid-2' },
       h('div', {}, finished ? [expenseSheet, requestedSheet] : [requestedSheet, expenseSheet]),
       h('div', {}, messagesSheet, record)));
 }
 
 /* =============================================================== stage panels */
+/* ---------------- urgent (049): the reason, how often, and marking / unmarking ---------------- */
+const nth = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+async function urgentBlock(q, reload) {
+  const waiting = ['stock_review', 'pending_approval', 'awaiting_disbursement'].includes(q.status);
+  if (!waiting && !(q.status === 'draft' && q.urgent)) return null;
+  const boss = has('approver') || has('managing_director');
+  if (!q.urgent) {
+    if (!boss) return null;
+    const b = h('button', { class: 'btn btn-sm', id: 'mark-urgent' }, 'Mark urgent');
+    b.onclick = busy(b, async () => {
+      const n = await confirmDialog('Mark this request urgent?', `${q.status === 'awaiting_disbursement' ? 'Finance gets' : 'Whoever acts next gets'} an alert now, and it goes to the top of their list.`, { ok: 'Mark urgent', note: { label: 'Why is it urgent?', required: true } });
+      if (!n) return;
+      await rpc('set_urgent', { p_request: q.id, p_urgent: true, p_reason: n }); toast('Marked urgent.'); reload();
+    });
+    return h('div', { class: 'form-actions', style: { justifyContent: 'flex-start', margin: '-6px 0 12px' } }, b);
+  }
+  // how often the requester has used it this month: shown to whoever acts on it, so overuse shows
+  let often = null;
+  if (q.requester_id !== state.me.id && (boss || has('finance') || has('stock_manager'))) {
+    const from = new Date(); from.setDate(1); from.setHours(0, 0, 0, 0);
+    const { count } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('urgent_marked_by', q.requester_id).gte('urgent_marked_at', from.toISOString());
+    if (count > 1) often = h('span', { class: 'urgent-often', id: 'urgent-often' }, `${nth(count)} urgent request from ${personName(q.requester_id).split(' ')[0]} this month.`);
+  }
+  let off = null;
+  if (waiting && (boss || has('finance'))) {
+    off = h('button', { class: 'btn btn-sm btn-quiet', id: 'not-urgent' }, 'Not urgent');
+    off.onclick = busy(off, async () => {
+      const n = await confirmDialog('Take the urgent label off?', `${personName(q.requester_id).split(' ')[0]} is told, with your reason.`, { ok: 'Not urgent', note: { label: 'Why is it not urgent?', required: true } });
+      if (!n) return;
+      await rpc('set_urgent', { p_request: q.id, p_urgent: false, p_reason: n }); toast('No longer marked urgent.'); reload();
+    });
+  }
+  const by = q.urgent_marked_by && q.urgent_marked_by !== q.requester_id ? ` Marked urgent by ${personName(q.urgent_marked_by)}.` : '';
+  return h('div', { class: 'banner banner-red urgent-banner', id: 'urgent-banner' },
+    h('strong', {}, 'Urgent'), ` ${q.urgent_reason}`, q.needed_by ? ` · needed by ${fmtDate(q.needed_by)}.` : '.', by,
+    q.status === 'draft' ? h('span', {}, ' When you send it, whoever acts next gets an alert straight away.') : null,
+    often, off ? h('div', { style: { marginTop: '8px' } }, off) : null);
+}
+
 async function stagePanel(q, lines, expense, reload, check = null, openOrders = []) {
   const me = state.me.id;
   const since = () => { const d = Math.floor((Date.now() - new Date(q.updated_at)) / 86400000); return d >= 1 ? h('span', { class: 'muted' }, ` Waiting since ${fmtDate(q.updated_at)} (${d} day${d === 1 ? '' : 's'}).`) : null; };

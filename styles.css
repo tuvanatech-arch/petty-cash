@@ -813,3 +813,10 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 /* the company's logo, as it will print */
 .logo-preview { background: #fff; border: 1px solid var(--rule); border-radius: 10px; padding: 14px; display: inline-block; max-width: 100%; }
 .logo-preview img { display: block; max-height: 64px; max-width: 100%; width: auto; }
+
+/* urgent requests (049) */
+.urgent-tag { margin-right: 6px; vertical-align: 1px; }
+.urgent-banner .urgent-often { display: block; margin-top: 4px; font-weight: 600; }
+.urgent-field { margin-bottom: 14px; }
+.urgent-card { border-color: var(--red); box-shadow: inset 4px 0 0 var(--red), var(--shadow); }
+.urgent-card h2 { color: var(--red); }

@@ -102,7 +102,7 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
 {
   const { ctx, page, errs } = await open('approver', `#/requests/${uid(122)}`, 390);
   check(await page.locator('#pay-panel').count() === 0 && await page.locator('#pay-how').count() === 0, 'the GM has no pay box');
-  check(/Approved – waiting for finance/.test(await page.locator('.banner').first().innerText().catch(() => '')), 'the GM sees it waiting for finance');
+  check(await page.locator('.banner', { hasText: 'Approved – waiting for finance' }).count() === 1, 'the GM sees it waiting for finance');
   check(await noSideScroll(page), 'phone: fits without sideways scrolling');
   await page.goto(base + '#/cash'); await page.waitForTimeout(1500);
   check(await page.locator('button', { hasText: 'Pay out now' }).count() === 0, 'Petty cash: no "Pay out now" for the GM');

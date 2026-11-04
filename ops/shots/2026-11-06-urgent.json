@@ -1,0 +1,5 @@
+[
+ { "name": "urgent-form", "role": "requester", "step": { "at": "#/requests/new/cash", "css": "#urgent-box", "text": "Urgent" } },
+ { "name": "urgent-home", "role": "finance", "step": { "at": "#/home", "css": "#urgent-card", "text": "Urgent" } },
+ { "name": "urgent-request", "role": "approver", "step": { "at": "#/requests/00000122-0000-4000-8000-000000000000", "css": "#urgent-banner", "text": "Urgent" } }
+]

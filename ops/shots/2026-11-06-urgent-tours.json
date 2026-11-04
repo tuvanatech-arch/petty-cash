@@ -1,0 +1,17 @@
+{
+ "requester": [
+  { "at": "#/requests/new/cash", "css": "#urgent-box", "text": "Urgent", "say": "When it cannot wait, tick “Urgent” and say why. Whoever acts next is alerted straight away. Approvals stay the same." }
+ ],
+ "stock_manager": [
+  { "at": "#/requests/new/cash", "css": "#urgent-box", "text": "Urgent", "say": "When it cannot wait, tick “Urgent” and say why. Whoever acts next is alerted straight away. Approvals stay the same." }
+ ],
+ "finance": [
+  { "at": "#/requests", "css": "h1", "text": "Requests", "say": "Urgent requests come first here and in a red “Urgent” card at the top of Home, each with the reason. Open one to see why, or tap “Not urgent” and say why." }
+ ],
+ "approver": [
+  { "at": "#/requests", "css": "h1", "text": "Requests", "say": "Urgent requests come first here and in a red “Urgent” card at the top of Home. Open a waiting request and tap “Mark urgent” to have finance pay it first." }
+ ],
+ "managing_director": [
+  { "at": "#/requests", "css": "h1", "text": "Requests", "say": "An urgent request above the GM limit comes first here and at the top of Home, with the reason." }
+ ]
+}
