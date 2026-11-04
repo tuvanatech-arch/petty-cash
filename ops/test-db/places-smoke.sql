@@ -98,11 +98,18 @@ select pg_temp.ok('the cash ledger shows the withdrawal, not the transfer, and a
 do $$ begin perform public.finance_review_expense('00000000-0000-0000-0000-00000000b001', 'confirm', 'ok'); raise notice 'FAIL finance closed a transfer as a receipt check';
   exception when others then raise notice 'ok   a transfer is not closed by the receipt check'; end $$;
 
--- the roof: a direct payment from the company account, outside petty cash. Only finance records one (045).
+-- the roof: a direct payment from the company account, outside petty cash. Only finance pays out (045, 046): the GM
+-- approves but pays nothing – not from the company account, not from the box, not by a quick pay-out.
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 do $$ begin perform public.pay_by_transfer('00000000-0000-0000-0000-00000000b002', 2400, current_date, 'Main 99812', 'company', pg_temp.pop('00000000-0000-0000-0000-00000000b002'), 'pop-roof.pdf', 'application/pdf');
   raise notice 'FAIL the GM paid from the company account';
-  exception when others then raise notice '%', case when sqlerrm = 'Only finance pays from the company account' then 'ok   only finance pays from the company account' else 'FAIL GM refused for another reason: ' || sqlerrm end; end $$;
+  exception when others then raise notice '%', case when sqlerrm = 'Only finance pays out. The GM approves; finance pays.' then 'ok   the GM cannot pay from the company account' else 'FAIL GM refused for another reason: ' || sqlerrm end; end $$;
+do $$ begin perform public.disburse_request('00000000-0000-0000-0000-00000000b002', 100, null, null);
+  raise notice 'FAIL the GM paid out cash';
+  exception when others then raise notice '%', case when sqlerrm = 'Only finance pays out. The GM approves; finance pays.' then 'ok   the GM cannot pay out cash' else 'FAIL GM refused for another reason: ' || sqlerrm end; end $$;
+do $$ begin perform public.quick_payout('00000000-0000-0000-0000-0000000000c1', 20, 'Taxi', null, null);
+  raise notice 'FAIL the GM made a quick pay-out';
+  exception when others then raise notice '%', case when sqlerrm = 'Only finance pays out. The GM approves; finance pays.' then 'ok   the GM cannot make a quick pay-out' else 'FAIL GM refused for another reason: ' || sqlerrm end; end $$;
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
 create temp table before2 as select pg_temp.box() as box, pg_temp.bank() as bank;
 select pg_temp.ok('from the company account',
@@ -178,4 +185,14 @@ select pg_temp.ok('the close recorded a box count and a bank check', (select cou
 select set_config('pcs.schedule', 'on', true); update public.settings set float_rollover = true where id = 1; select set_config('pcs.schedule', '', true);   -- what is left carries over (a schedule setting)
 select (public.open_float((date_trunc('month', current_date) + interval '1 month')::date, 0, 'next month', 'box')).id is not null as next_opened;
 select pg_temp.ok('next month starts with the box and the bank as they were at the close', (select pg_temp.box() = a.box and pg_temp.bank() = a.bank from atclose a));
+-- finance's own request: always the GM's approval first; then finance pays it (nobody else pays any more)
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select pg_temp.req('00000000-0000-0000-0000-00000000b0f1', 'Printer cable', 50);
+select public.submit_request('00000000-0000-0000-0000-00000000b0f1') is not null as sent;
+select pg_temp.ok('finance''s own N$50 request goes to the GM', (select status = 'pending_approval' and approval_level = 'gm' from public.requests where id = '00000000-0000-0000-0000-00000000b0f1'));
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select public.approve_request('00000000-0000-0000-0000-00000000b0f1', null) is not null as approved;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f1');
+select pg_temp.ok('once the GM approves, finance pays it out', (public.disburse_request('00000000-0000-0000-0000-00000000b0f1', 50, null, null)).status = 'disbursed');
+
 rollback;

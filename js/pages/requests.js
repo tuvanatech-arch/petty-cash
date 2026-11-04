@@ -697,11 +697,12 @@ async function stagePanel(q, lines, expense, reload, check = null, openOrders = 
 
     case 'awaiting_disbursement':
       if (isClaim) {
-        if (can('finance')) return claimPanel(q, expense, reload, check);
+        if (can('finance')) return claimPanel(q, expense, reload, check);   // the GM can still check the receipt; only finance reimburses
+        if (q.requester_id !== me) return banner('amber', 'Waiting for finance to reimburse', `Finance checks the receipt and pays ${personName(q.requester_id)} back from petty cash.`);
         return banner('amber', 'Waiting for finance to reimburse you', expense?.proof_status === 'physical_required' && !expense.physical_received_at ? `Finance needs the paper receipt first${expense.finance_note ? `: ${expense.finance_note}` : '.'}` : 'Finance checks the receipt and pays you from the float.');
       }
-      if (can('finance') && !(q.requester_id === me && (!q.approved_by || q.approved_by === me))) return disbursePanel(q, reload);
-      if (can('finance')) return banner('amber', 'Waiting for finance', 'Someone else pays out your own request.');
+      if (can('pay') && !(q.requester_id === me && (!q.approved_by || q.approved_by === me))) return disbursePanel(q, reload);
+      if (can('pay')) return banner('amber', 'Waiting for finance', 'Someone else pays out your own request.');
       return banner('amber', 'Approved – waiting for finance', q.type === 'cash' ? (q.docs?.length ? 'Finance pays it in cash from the petty cash box, or by bank transfer to the supplier.' : 'Finance pays it in cash from the petty cash box.') : 'Finance will pay the cash out from the float.',
         q.requester_id === me && !q.docs?.length ? h('div', { style: { marginTop: '8px' } }, h('a', { class: 'btn btn-sm', href: '#/snap' }, 'Have the supplier’s invoice? Attach it so finance pays the exact amount')) : null);
 
@@ -893,9 +894,8 @@ function disbursePanel(q, reload) {
   rej.onclick = busy(rej, async () => { const n = await confirmDialog('Decline this request?', 'The requester will see your reason.', { ok: 'Decline', danger: true, note: { label: 'Reason', required: true } }); if (!n) return; await rpc('reject_request', { p_request: q.id, p_reason: n }); toast('Declined.'); reload(); });
   const title = h('h2', {}, 'Pay out from petty cash');
   const body = h('div', {});
-  // a direct payment from the company account is finance's alone (045); the GM pays from petty cash
-  const ways = [['cash', 'Cash from the box'], bank ? ['petty', 'Petty cash account'] : null, has('finance') ? ['company', 'Company account'] : null].filter(Boolean);
-  const tabs = canTransfer && ways.length > 1 ? h('div', { class: 'tabs', id: 'pay-how', role: 'tablist', 'aria-label': 'How it is paid' }) : null;
+  const ways = [['cash', 'Cash from the box'], bank ? ['petty', 'Petty cash account'] : null, ['company', 'Company account']].filter(Boolean);
+  const tabs = canTransfer ? h('div', { class: 'tabs', id: 'pay-how', role: 'tablist', 'aria-label': 'How it is paid' }) : null;
   const doc = `${quoted?.kind === 'invoice' ? 'invoice' : 'quote'}${quoted?.extracted?.supplier ? ` from ${quoted.extracted.supplier}` : ''}`;
   const info = () => {
     tInfo.textContent = how === 'petty'
@@ -918,7 +918,6 @@ function disbursePanel(q, reload) {
         h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', toPick), field('Note', note)),
         proof,
         owing,
-        canTransfer && !has('finance') ? h('p', { class: 'hint', id: 'company-finance-only' }, 'A payment from the company account is recorded by finance.') : null,
         q.type === 'cash' && !canTransfer ? h('p', { class: 'hint', id: 'cash-only' }, `${q.no_quote ? 'Sent with no quote' : 'No quote or invoice attached'}, so it is paid in cash from the box.`) : null,
         h('p', { class: 'hint' }, 'Whoever receives the cash confirms it on their phone.'),
         h('div', { class: 'form-actions' }, rej, esc, pay)]);
@@ -1055,7 +1054,8 @@ async function claimPanel(q, expense, reload, check = null) {
     h('div', { class: 'field' }, note),
     h('div', { class: 'form-actions' }, act('Return for correction', 'return', 'btn-danger', true),
       physicalPending ? act('Paper receipt received', 'physical_received', '') : noReceipt ? null : act('Require paper receipt', 'require_physical', ''),
-      physicalPending || (noReceipt && q.proof_rule !== 'none') ? null : pay));
+      physicalPending || (noReceipt && q.proof_rule !== 'none') ? null
+        : can('pay') ? pay : h('span', { class: 'hint', id: 'finance-reimburses' }, 'Finance reimburses it.')));
 }
 
 /* ---- spender: record expense + proofs ---- */

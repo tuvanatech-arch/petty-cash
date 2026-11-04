@@ -39,6 +39,18 @@
    "css": "#quote-box",
    "text": "Quote or invoice",
    "say": "Attach the supplier’s quote or invoice here; Petti reads the amount. No quote? Tick “No quote”, and finance pays it in cash."
+  },
+  {
+   "at": "#/cash",
+   "css": "h1",
+   "text": "Petty cash",
+   "say": "Petty cash shows the cash box and the petty cash bank account separately, with the total. You sign off bank checks like cash counts."
+  },
+  {
+   "at": "#/requests?status=awaiting_disbursement",
+   "css": "h1",
+   "text": "",
+   "say": "Requests waiting to be paid are paid by finance: in cash, from the petty cash account, or from the company account (outside petty cash). You approve; finance pays."
   }
  ],
  "finance": [
@@ -90,7 +102,7 @@
    "at": "#/requests?status=awaiting_disbursement",
    "css": "h1",
    "text": "",
-   "say": "A request with a quote can be paid by transfer from the petty cash account (you can record one too) or, by finance only, from the company account (outside petty cash)."
+   "say": "Requests waiting to be paid are paid by finance: in cash, from the petty cash account, or from the company account (outside petty cash). You approve; finance pays."
   }
  ]
 }

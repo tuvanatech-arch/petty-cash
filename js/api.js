@@ -59,6 +59,7 @@ export function can(what) {
     case 'manage_stock': return has('stock_manager') || has('approver');
     case 'approve': return has('approver');
     case 'finance': return has('finance') || has('approver');
+    case 'pay': return has('finance');                     // finance pays out; the GM and the MD approve (046)
     case 'admin': return role() === 'approver';          // administration never passes to a stand-in
     case 'reports': return isStaff();
     case 'schedule': return isStaff();   // everyone with a position can read the authority schedule; only the administrator changes it

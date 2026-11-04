@@ -95,7 +95,7 @@ export async function cashPage() {
   if (!open) actions.push(h('button', { class: 'btn btn-primary', onclick: () => openFloatDialog(floats) }, 'Open this month\'s float'));
   else {
     actions.push(packButton(open));
-    actions.push(h('button', { class: 'btn', onclick: () => payoutNowDialog(open) }, 'Pay out now'));
+    if (custodian) actions.push(h('button', { class: 'btn', onclick: () => payoutNowDialog(open) }, 'Pay out now'));   // finance pays out (046)
     if (custodian) actions.push(h('button', { class: 'btn', onclick: () => countDialog(open) }, 'Count cash'));
     if (custodian && bank) actions.push(h('button', { class: 'btn', id: 'check-bank', onclick: () => bankCheckDialog(open, bank) }, 'Check the bank'));
     if (bank && (has('finance') || has('approver'))) actions.push(h('button', { class: 'btn', id: 'move-cash', onclick: () => moveCashDialog(open, bank) }, 'Move cash'));
