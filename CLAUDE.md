@@ -4,7 +4,8 @@ Petti is Tuvana Tech's petty cash and office-stock app (Tuvana Tech is part of t
 
 ## How to reply
 
-- Start every reply with the model and effort level in bold, e.g. **Model: Claude Opus 5.5 · effort: low.** Before making any change (code, database, settings, notes, files), send that line to the owner as a visible message first, with one sentence on what is about to change, and only then start. The final reply is not enough: work messages in between are not shown to the owner.
+- Start every reply with the model and effort level in bold, e.g. **Model: Claude Opus 5.5 · effort: low.**
+- **Every new instruction: reply first with only that line and one sentence on what you plan to do, then stop and wait for the owner to say "proceed".** Change nothing (code, database, settings, notes, files, website) before that "proceed". Answering a question needs no wait. Once the owner has said proceed, still send the line as a visible message before the changes start: work messages in between are not shown to the owner.
 - Plain language. The owner is not a developer: no jargon, short questions, and a recommendation rather than a menu.
 - Treat instructions as proposals: suggest a better way when there is one, and avoid over-engineering.
 
