@@ -53,7 +53,7 @@ h2 { font-size: clamp(1.8rem, 3.4vw, 2.6rem); line-height: 1.1; font-weight: 700
 h3 { font-size: 1.25rem; line-height: 1.25; font-weight: 700; }
 
 /* the wordmark: Petti and its sand full stop, as in the app icon */
-.mark { font-family: var(--display); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.02em; text-decoration: none; color: inherit; display: inline-flex; align-items: baseline; }
+.mark { font-family: var(--display); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.02em; text-decoration: none; color: inherit; display: inline-flex; align-items: center; min-height: 44px; }   /* a full-size tap target around the logo */
 .mark-logo { display: block; height: .82em; width: auto; }   /* the official Petti. wordmark (brand/), letters in the text colour */
 .mark-logo path { fill: currentColor; } .mark-logo path:last-child { fill: var(--sand); }
 .mark-small { font-size: 1.3rem; }
