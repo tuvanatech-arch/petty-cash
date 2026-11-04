@@ -1,0 +1,3 @@
+[
+ { "name": "bottom-bar", "role": "finance", "step": { "at": "#/home", "css": ".tabbar", "text": "" } }
+]

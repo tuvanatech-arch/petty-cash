@@ -1,0 +1,22 @@
+{
+ "requester": [
+  { "at": "#/home", "css": "#tab-new", "text": "", "say": "New: tap the round button to snap a receipt, request a payment, claim money back, report low stock or suggest an item." },
+  { "at": "#/home", "css": "#tab-more", "text": "", "say": "More: everything else slides up from here – Account, What’s new, How it works. A number shows something waiting for you inside." }
+ ],
+ "stock_manager": [
+  { "at": "#/home", "css": "#tab-new", "text": "", "say": "New: tap the round button to snap a receipt, request a payment, claim money back, buy stock items or suggest an item." },
+  { "at": "#/home", "css": "#tab-more", "text": "", "say": "More: everything else slides up from here – Petty cash, Reports, Account, What’s new. A number shows something waiting for you inside." }
+ ],
+ "finance": [
+  { "at": "#/home", "css": "#tab-new", "text": "", "say": "New: tap the round button to snap a receipt, request a payment, claim money back, report low stock or suggest an item." },
+  { "at": "#/home", "css": "#tab-more", "text": "", "say": "More: everything else slides up from here – Stock, Reports, Schedule, Account. A number shows something waiting for you inside." }
+ ],
+ "approver": [
+  { "at": "#/home", "css": "#tab-new", "text": "", "say": "New: tap the round button to snap a receipt, request a payment, claim money back or suggest an item." },
+  { "at": "#/home", "css": "#tab-more", "text": "", "say": "More: everything else slides up from here – Stock, Reports, Admin, Account. A number shows something waiting for you inside, for example item suggestions under Stock." }
+ ],
+ "managing_director": [
+  { "at": "#/home", "css": "#tab-new", "text": "", "say": "New: tap the round button to snap a receipt, request a payment, claim money back or suggest an item." },
+  { "at": "#/home", "css": "#tab-more", "text": "", "say": "More: everything else slides up from here – Stock, Petty cash, Schedule, Account. A number shows something waiting for you inside." }
+ ]
+}
