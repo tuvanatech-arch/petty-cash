@@ -327,7 +327,7 @@
           </details>
           <details>
             <summary>What happens after I request a trial?</summary>
-            <p>We contact you on the phone number or email address you give us. We agree your people, approval limits, branches and stock catalogue, set up your company’s own Petti, and send each person their sign-in details.</p>
+            <p>We call you on the phone number you give us. We agree your people, approval limits, branches and stock catalogue, set up your company’s own Petti, and send each person their sign-in details.</p>
           </details>
           <details>
             <summary>When does the trial start, and how long does it last?</summary>
@@ -395,11 +395,22 @@
             <input id="f-company" name="company" required autocomplete="organization" aria-describedby="f-company-err">
             <p class="err" id="f-company-err" hidden></p>
           </div>
+          <div class="field wide">
+            <label for="f-registration">Company registration number</label>
+            <input id="f-registration" name="registration" required autocomplete="off" aria-describedby="f-registration-hint f-registration-err">
+            <p class="hint" id="f-registration-hint">As on your BIPA certificate. Not registered? Write “Not registered”.</p>
+            <p class="err" id="f-registration-err" hidden></p>
+          </div>
           <div class="field">
-            <label for="f-contact">Phone number or email address</label>
-            <input id="f-contact" name="contact" required autocomplete="email" inputmode="email" aria-describedby="f-contact-hint f-contact-err">
-            <p class="hint" id="f-contact-hint">Whichever you would like us to use.</p>
-            <p class="err" id="f-contact-err" hidden></p>
+            <label for="f-phone">Phone number</label>
+            <input id="f-phone" name="phone" type="tel" required autocomplete="tel" inputmode="tel" aria-describedby="f-phone-err">
+            <p class="err" id="f-phone-err" hidden></p>
+          </div>
+          <div class="field">
+            <label for="f-email">Email address</label>
+            <input id="f-email" name="email" type="email" required autocomplete="email" inputmode="email" aria-describedby="f-email-hint f-email-err">
+            <p class="hint" id="f-email-hint">Your Petti sign-in will use this address.</p>
+            <p class="err" id="f-email-err" hidden></p>
           </div>
           <div class="field">
             <label for="f-size">People who would use Petti</label>

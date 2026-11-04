@@ -21,10 +21,14 @@
   const rules = {
     name: (v) => (v ? '' : 'Enter your name.'),
     company: (v) => (v ? '' : 'Enter your company’s name.'),
-    contact: (v) => {
-      if (!v) return 'Enter a phone number or an email address so we can reach you.';
-      if (v.includes('@')) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? '' : 'That email address looks incomplete. Check it, for example name@company.com.';
+    registration: (v) => (v ? '' : 'Enter the company’s registration number, or write “Not registered”.'),
+    phone: (v) => {
+      if (!v) return 'Enter a phone number so we can call you.';
       return v.replace(/\D/g, '').length >= 7 ? '' : 'That phone number looks too short. Include the area or country code.';
+    },
+    email: (v) => {
+      if (!v) return 'Enter your email address.';
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? '' : 'That email address looks incomplete. Check it, for example name@company.com.';
     },
   };
   const showError = (input, msg) => {
