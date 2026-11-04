@@ -98,6 +98,10 @@ Each item can have up to 3 photos (`items.photos`, private store `item-photos`, 
 
 web/js/tabbar.js: three screens per role (`ORDER`: requester Home·Requests·Stock, stock controller Home·Stock·Requests, finance and the GM Home·Requests·Petty cash, the MD Home·Requests·Reports), a round "New" in the middle (a sheet: Snap or upload, Request a payment, Claim back, Stock item or Report low stock, Suggest an item) and "More" (a sheet with every other screen; `#/more` shows the same list). Numbers sit on the screen where the work is (`actionCounts` → `setCounts`: requests, cash, stock incl. suggestions, schedule); More adds up what it hides plus unread What's new; Home has none. The side menu on computers has the same icons and numbers. Test: test/tabbar-ui.mjs.
 
+## Tapping an alert (Nov 2026)
+
+Every alert carries its page (`notifications.link`). sw.js `notificationclick`: an open Petti window is told the page (`postMessage {type:'open', hash}`, app.js `openFromAlert`) and focused, since many phones and laptop tabs ignore `navigate()`; with no window it opens the page, and always leaves a note in the `petti-open` cache that app.js reads on start-up (`pendingAlertLink`, within 2 minutes, once) for phones that open the start page instead. Test: test/alert-open-ui.mjs (the real worker on the preview).
+
 ## Open items (as of 1 Nov 2026)
 
 - MGP has no plan set yet: the owner decides (Business, or the founding price) before it is set and announced to the GM.
