@@ -80,6 +80,18 @@ const text = async (page, css) => (await page.locator(css).innerText().catch(() 
   check(!errs.length, `requester: no page errors ${errs.join(' | ')}`);
   await ctx.close();
 }
+/* 5. Home and the outlook count the box and the bank together (050) */
+{
+  const { ctx, page, errs } = await open('finance', '#/home');
+  const card = await text(page, '.float-card');
+  const m = card.match(/In the box N\$([\d,.]+) In the bank N\$([\d,.]+) Petty cash in total N\$([\d,.]+)/);
+  const n = (x) => Number(String(x).replace(/,/g, ''));
+  check(!!m && Math.abs(n(m[1]) + n(m[2]) - n(m[3])) < 0.01, `Home: box, bank and the total (${card.slice(0, 110)})`);
+  await page.goto(base + '#/cash'); await page.waitForTimeout(1300);
+  check(/Petty cash in total/.test(await page.locator('main').innerText()), 'the outlook on Petty cash shows the total too');
+  check(await noSideScroll(page) && !errs.length, `total: phone fits, no page errors ${errs.join(' | ')}`);
+  await ctx.close();
+}
 await b.close(); server.close();
 console.log(fails.length ? `URGENT UI: ${fails.length} FAILED` : 'URGENT UI: PASS');
 process.exit(fails.length ? 1 : 0);

@@ -1,7 +1,7 @@
 import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush, canApproveReq, canReviewReq, scoped, inView, multiBranch, branchName } from '../api.js';
 import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more, units } from '../ui.js';
 import { requestRow, expenseOf, urgentFirst } from './requests.js';
-import { floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
+import { boxShort, floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
 import { reportDialog, confirmReceiptDialog, decideAdjustmentActions } from './stock.js';
 import { setupCard, welcomeStrip } from '../learn.js';
 import { overviewSection, liveRoot } from './overview.js';
@@ -287,10 +287,13 @@ function floatSummary(f, o) {
     multiBranch() ? h('div', { class: 'sheet-head', style: { marginBottom: '6px' } }, h('h3', {}, o?.branch || branchName(f.branch_id))) : null,
     h('div', { class: 'float-card' },
       cell('In the box', money(f.balance), Number(f.balance) < 0 ? 'neg' : ''),
+      o?.bank_name ? cell('In the bank', money(o.bank_balance)) : null,
+      o?.bank_name ? cell('Petty cash in total', money(Number(f.balance) + Number(o.bank_balance)), 'total') : null,
       cell('Approved, not paid', money(o?.awaiting || 0)),
       cell('Left after that', money(after), after < 0 ? 'neg' : 'hero'),
       cell(`Minimum for day ${o ? o.days_in_month - o.days_left : ''}`, o ? money(o.reserve) : '—'),
       verdict ? h('div', { class: 'verdict' }, h('span', { class: `pill ${verdict[0]}` }, verdict[1])) : null),
+    boxShort(o),
     more('Details', floatStrip(f),
       o ? h('p', { class: 'hint', style: { marginTop: '10px' } }, `The minimum is what is usually still spent between today and month-end (${o.basis}) plus a ${o.buffer_pct}% buffer.${Number(o.pending_other) > 0 ? ` ${money(o.pending_other)} more is waiting for approval.` : ''}`) : null,
       h('a', { href: '#/cash' }, 'Open petty cash →')));

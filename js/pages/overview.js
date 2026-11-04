@@ -77,7 +77,7 @@ function model(d) {
   // one outlook across the branches being looked at: sums, and the worst verdict
   const rank = { no_float: 0, ok: 1, caution: 2, short: 3, overdrawn: 4 };
   const os = d.outlooks; const sum = (k) => os.reduce((t, x) => t + num(x[k]), 0);
-  d.o = os.length ? { has_float: os.some((x) => x.has_float), balance: sum('balance'), after_approval: sum('after_approval'), awaiting: sum('awaiting'), expected_remaining: sum('expected_remaining'), reserve: sum('reserve'), days_left: os[0].days_left,
+  d.o = os.length ? { has_float: os.some((x) => x.has_float), balance: sum('balance'), bank_balance: sum('bank_balance'), after_approval: sum('after_approval'), awaiting: sum('awaiting'), expected_remaining: sum('expected_remaining'), reserve: sum('reserve'), days_left: os[0].days_left,
     status: os.filter((x) => x.has_float).map((x) => x.status).sort((a, b) => rank[b] - rank[a])[0] || 'no_float' } : null;
   d.f = opens[0] || null;
 
@@ -171,7 +171,7 @@ function strip(m) {
   const diff = c ? (Math.abs(num(c.difference)) < 0.005 ? 'matched the book' : num(c.difference) < 0 ? `${money(-c.difference)} short` : `${money(c.difference)} over`) : null;
   const waiting = m.d.open.filter((r) => r.status === 'pending_approval');
   return h('div', { class: 'score' },
-    box('In the box', f ? money(o.balance) : '—', f && o?.has_float ? h('span', { class: 'd' }, m.d.outlooks.length > 1 ? m.d.outlooks.map((x) => `${x.branch} ${x.has_float ? money(x.balance) : 'no float'}`).join(' · ') : `${money(o.after_approval)} after approved payments`) : h('span', { class: 'd' }, f ? '' : 'no float open'), verdict ? h('span', { class: `pill ${verdict[0]}`, style: { marginTop: '4px', alignSelf: 'flex-start' } }, verdict[1]) : null),
+    box('Petty cash (box and bank)', f ? money(num(o.balance) + num(o.bank_balance)) : '—', f && o?.has_float ? h('span', { class: 'd' }, m.d.outlooks.length > 1 ? m.d.outlooks.map((x) => `${x.branch} ${x.has_float ? money(num(x.balance) + num(x.bank_balance)) : 'no float'}`).join(' · ') : `${money(o.after_approval)} after approved payments`) : h('span', { class: 'd' }, f ? '' : 'no float open'), verdict ? h('span', { class: `pill ${verdict[0]}`, style: { marginTop: '4px', alignSelf: 'flex-start' } }, verdict[1]) : null),
     box('Spent this month', money(m.spent), dtext(pct(m.spent, m.prev), 'on last month'), m.avg3 > 0 ? h('span', { class: 'd' }, `usual month ${money(m.avg3)}`) : null),
     box('Cash out with people', money(m.advTotal), h('span', { class: 'd', style: m.overdue.length ? { color: 'var(--amber)' } : {} }, m.advances.length ? `${plural(m.advances.length, 'receipt')} awaited${m.overdue.length ? ` · ${m.overdue.length} overdue` : ''}` : 'all receipts in')),
     box('Waiting for approval', plural(waiting.length, 'request'), h('span', { class: 'd' }, waiting.length ? `${money(waiting.reduce((t, r) => t + num(r.estimated_total), 0))} · ${m.waitingMD.length} with you` : 'nothing waiting')),

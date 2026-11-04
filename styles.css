@@ -373,11 +373,15 @@ details.more .more-body { padding-top: 8px; }
 .elsewhere a:hover { color: var(--green-ink); }
 .elsewhere strong { color: var(--ink); }
 .float-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 4px 18px; align-items: end; }
+.float-card:has(.v.total) { grid-template-columns: repeat(3, minmax(0, 1fr)); }   /* box, bank, total · approved, left, minimum (050) */
+.float-card:has(.v.total) .verdict { grid-column: 1 / -1; }
+.float-card .v.total { color: var(--green-ink); }
 .float-card .k { display: block; font-size: .8rem; color: var(--ink-3); }
 .float-card .v { font-size: 1.15rem; font-weight: 600; }
 .float-card .v.hero { color: var(--green-ink); font-size: 1.35rem; }
 .float-card .v.neg { color: var(--red); }
 @container (max-width: 640px) { .float-card { grid-template-columns: repeat(2, minmax(0, 1fr)); } .float-card .verdict { grid-column: 1 / -1; } }
+@container (max-width: 640px) { .float-card:has(.v.total) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .duty-empty { text-align: center; padding: 26px 10px; color: var(--ink-2); }
 .duty-empty strong { display: block; font-size: 1.05rem; color: var(--ink); margin-bottom: 2px; }
 .topbar { display: none; }

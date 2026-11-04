@@ -62,7 +62,8 @@ export function outlookBox(o, { request = null } = {}) {
     h('div', { class: 'grid-2' },
       h('table', { class: 'ledger', style: { fontSize: '.93rem' } }, h('tbody', {},
         row('In the box now', money(o.balance), '', 'Funds received less what has been spent and what is out with people'),
-        o.bank_name ? row(h('span', { class: 'muted' }, `Besides, in ${o.bank_name}`), h('span', { class: 'muted' }, money(o.bank_balance))) : null,
+        o.bank_name ? row(`In ${o.bank_name}`, money(o.bank_balance), '', 'The petty cash bank account, on the book') : null,
+        o.bank_name ? row(h('strong', {}, 'Petty cash in total'), h('strong', {}, money(Number(o.balance) + Number(o.bank_balance)))) : null,
         Number(o.outstanding) > 0 ? row(h('span', { class: 'muted' }, 'of which out with people, unaccounted'), h('span', { class: 'muted' }, money(o.outstanding))) : null,
         Number(o.awaiting) > 0 ? row('Approved, waiting for pay-out', neg(o.awaiting)) : null,
         request ? row('This request', neg(o.this_request)) : null,
@@ -71,7 +72,13 @@ export function outlookBox(o, { request = null } = {}) {
       h('div', {},
         h('div', { class: 'stat' }, h('span', { class: 'k' }, 'Recommended minimum today'), h('span', { class: 'v' }, money(reserve))),
         h('p', { class: 'hint' }, `About ${money(expected)} is usually spent between now and month-end (${o.basis}${o.typical_month != null ? `, typically ${money(o.typical_month)} a month` : ''}), plus a ${o.buffer_pct}% buffer.`))),
-    h('div', { class: `banner banner-${tone}`, style: { marginTop: '12px', marginBottom: 0 } }, h('strong', {}, verdict[0]), verdict[1]));
+    h('div', { class: `banner banner-${tone}`, style: { marginTop: '12px', marginBottom: 0 } }, h('strong', {}, verdict[0]), verdict[1]),
+    boxShort(o));
+}
+/** The total covers it, but the box alone does not: say how much to take out of the bank (050). */
+export function boxShort(o) {
+  if (!o?.bank_name || o.box_after == null || Number(o.box_after) >= 0 || Number(o.after_approval) < 0) return null;
+  return h('p', { class: 'hint box-short', style: { marginTop: '8px' } }, `The box alone cannot pay what is approved: take about ${money(-Number(o.box_after))} out of ${o.bank_name} first (Petty cash → Move cash → Bank → box), or pay by transfer.`);
 }
 
 export async function cashPage() {

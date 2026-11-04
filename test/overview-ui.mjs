@@ -17,7 +17,7 @@ async function open(role, w = 1280) {
 let { page, errs } = await open('managing_director');
 let t = await page.locator('main').innerText();
 check(/Overview/.test(t) && /Live/.test(t) && /updated \d\d:\d\d/.test(t), 'MD: the overview is on Home and says it is live');
-check(/In the box/.test(t) && /Spent this month/.test(t) && /Cash out with people/.test(t) && /Waiting for approval/.test(t) && /Cash box last counted/.test(t), 'MD: the five status boxes');
+check(/Petty cash \(box and bank\)/.test(t) && /Spent this month/.test(t) && /Cash out with people/.test(t) && /Waiting for approval/.test(t) && /Cash box last counted/.test(t), 'MD: the five status boxes');
 check(/What to look at/.test(t) && await page.locator('.rec').count() > 0, 'MD: recommendations');
 check(await page.locator('.overview svg').count() >= 2, 'MD: charts are drawn');
 check(/Where requests are/.test(t) && /Cash out with people/.test(t) && /The cash box/.test(t) && /How quickly it moves/.test(t), 'MD: tracking sections');
