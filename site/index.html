@@ -25,6 +25,7 @@
   <a class="skip" href="#main">Skip to the content</a>
 
   <header class="top" id="top">
+    <div class="top-fx" aria-hidden="true"><div class="sweep"></div></div>
     <nav class="nav wrap" aria-label="Main">
       <a class="mark" href="#top" aria-label="Petti, back to the top">Petti<span class="dot" aria-hidden="true"></span></a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
@@ -50,16 +51,49 @@
         <p class="hero-note">Get started with guided setup for your team.<br>Built in Namibia for finance and office teams.</p>
       </div>
 
-      <figure class="hero-shot">
-        <div class="browser">
-          <div class="browser-bar" aria-hidden="true"><span></span><span></span><span></span><em>app.usepetti.com</em></div>
-          <picture>
-            <source media="(max-width: 640px)" srcset="img/hero-phone.jpg" width="780" height="1370">
-            <img src="img/hero-desk.jpg" width="1920" height="588" alt="Petti's petty cash screen for finance, November, sample data. Allocated N$3,000.00, carried over N$612.50, topped up N$1,500.00, spent N$1,827.47, out with people N$1,400.00, balance in the box N$1,885.03. Last counted 25 November: N$20.00 short, waiting for the GM.">
-          </picture>
+      <figure class="slip-wrap" aria-labelledby="slip-cap">
+        <div class="slip" id="slip">
+          <div class="slip-head">
+            <strong>PETTI.</strong>
+            <span>Demo Company</span>
+            <span>Petty cash · November</span>
+          </div>
+          <ol class="slip-lines">
+            <li><span>#1012 Fuel, Okahandja</span><b>N$450.00</b></li>
+            <li class="ok"><span>Approved · Ada N.</span><b>7 Nov</b></li>
+            <li><span>Paid out · Fiona S.</span><b>7 Nov</b></li>
+            <li class="ok"><span>Receipt · Engen</span><b>N$450.00</b></li>
+            <li><span>Change returned</span><b>N$0.00</b></li>
+            <li class="ok"><span>Checked by finance</span><b>9 Nov</b></li>
+            <li class="rule" aria-hidden="true"></li>
+            <li><span>Cash counted 18 Nov</span><b>N$3,983.00</b></li>
+            <li><span>Recorded balance</span><b>N$3,983.00</b></li>
+            <li class="total"><span>Difference</span><b>N$0.00</b></li>
+          </ol>
+          <p class="slip-foot">Every cent accounted for.</p>
+          <div class="slip-tear" aria-hidden="true"></div>
+        </div>
+        <div class="alerts" aria-hidden="true">
+          <div class="alert"><span class="alert-icon">P<i></i></span><span class="alert-text"><strong>Needs your approval</strong><span>Plumber – kitchen tap · N$650.00</span></span><small>now</small></div>
+          <div class="alert"><span class="alert-icon">P<i></i></span><span class="alert-text"><strong>Approved – waiting for finance</strong><span>#1016 Plumber – kitchen tap</span></span><small>now</small></div>
+          <div class="alert"><span class="alert-icon">P<i></i></span><span class="alert-text"><strong>Did you receive this cash?</strong><span>N$120.00 from Fiona S. · Yes, I received it</span></span><small>now</small></div>
+          <div class="alert"><span class="alert-icon">P<i></i></span><span class="alert-text"><strong>Supplier confirmed</strong><span>Aircon service · paid by bank transfer</span></span><small>now</small></div>
+        </div>
+        <figcaption id="slip-cap" class="slip-cap">Sample: one request in the demonstration company, from asking to the cash count.</figcaption>
+      </figure>
+    </div>
+
+    <div class="wrap devices-wrap">
+      <figure class="devices">
+        <div class="devices-stage">
+          <div class="laptop">
+            <div class="laptop-screen"><img src="img/laptop.jpg" width="1920" height="1200" alt="Petti's petty cash screen for finance on a laptop, sample data. Allocated N$3,000.00, carried over N$612.50, topped up N$1,500.00, spent N$1,827.47, out with people N$1,400.00, balance in the box N$1,885.03. Last counted 25 November: N$20.00 short, waiting for the GM. Below, the top-ups and the cash counts."></div>
+            <div class="laptop-base" aria-hidden="true"></div>
+          </div>
+          <div class="phone phone-front"><img src="img/phone-home.jpg" width="780" height="1688" alt="Finance's Home screen on a phone, sample data: 7 things need you, N$1,885.03 in the box, a top-up to record and a delivery to confirm."></div>
         </div>
         <figcaption>
-          <p class="sample-tag">Sample data</p>
+          <p class="sample-tag">Sample data · the same records on a laptop and a phone</p>
           <dl class="readout">
             <div><dt>Out with people</dt><dd>Outstanding advances: cash paid out that has not yet been accounted for with a receipt.</dd></div>
             <div><dt>Balance in the box</dt><dd>Expected cash on hand, worked out from the records. It is not a count.</dd></div>
@@ -71,7 +105,7 @@
   </header>
 
   <main id="main">
-    <section class="problem" aria-labelledby="problem-h">
+    <section class="problem ruled" aria-labelledby="problem-h">
       <div class="wrap problem-inner">
         <h2 id="problem-h">Your cash records shouldn’t depend on who remembers&nbsp;what.</h2>
         <div>
@@ -114,9 +148,9 @@
               <p>Handle requests according to your company’s approval limits.</p>
               <p class="in-example"><span>In the example</span>The demonstration company lets finance pay up to N$200.00 alone. This request is above that, so it goes to the approver, Ada Nangolo, who approves it on 7 November.</p>
             </div>
-            <figure class="shot shot-phone">
-              <img src="img/wf-history.jpg" width="780" height="890" loading="lazy" alt="The history of request #1012 in Petti: created and submitted by Joe Katjivena on 6 November, approved by Ada Nangolo on 7 November, cash paid out by Fiona Shikongo on 7 November, expense recorded by Joe on 8 November with N$450 spent and no change, and the proof confirmed and the request closed by Fiona on 9 November.">
-              <figcaption>The request’s history: every step with a name and a time.</figcaption>
+            <figure class="shot">
+              <div class="phone"><img src="img/phone-history.jpg" width="780" height="1688" loading="lazy" alt="Request #1012 on a phone, sample data. What was asked for: fuel, 45 litres, N$450.00. Approved by Ada Nangolo on 7 November, cash paid out to Joe Katjivena by Fiona Shikongo on 7 November, closed by Fiona on 9 November, under the approval rules version 3. The history: created and submitted by Joe on 6 November, approved by Ada on 7 November, cash paid out on 7 November, expense recorded by Joe on 8 November with N$450 spent and no change, proof confirmed and closed by Fiona on 9 November."></div>
+              <figcaption>Who approved it, under which rules, and every step with a name and a time.</figcaption>
             </figure>
           </article>
 
@@ -128,8 +162,8 @@
               <p class="in-example"><span>In the example</span>Fiona Shikongo in finance pays out N$450.00. Joe adds the Engen receipt: N$450.00 spent, N$0.00 change returned. Finance checks the receipt and the request closes on 9 November.</p>
               <p class="note">Petti can read the shop, date and amounts from a receipt photo to save typing. The person submitting checks the lines, and finance confirms the receipt.</p>
             </div>
-            <figure class="shot shot-phone">
-              <img src="img/wf-spent.jpg" width="780" height="1114" loading="lazy" alt="What was spent on request #1012: fuel, 45 litres, from Engen Okahandja, N$450.00. Change returned against N$450.00 paid out: N$0.00. The receipt is attached and confirmed by Fiona Shikongo on 9 November.">
+            <figure class="shot shot-tilt">
+              <div class="phone"><img src="img/phone-1012.jpg" width="780" height="1688" loading="lazy" alt="Request #1012 on a phone, sample data: closed, N$450.00 spent and the proof confirmed by finance. What was spent: fuel, 45 litres from Engen Okahandja, N$450.00. Change returned against N$450.00 paid out: N$0.00. The receipt photo, confirmed by Fiona Shikongo on 9 November."></div>
               <figcaption>What was spent, the receipt and the change, confirmed by finance.</figcaption>
             </figure>
           </article>
@@ -142,6 +176,7 @@
               <p class="in-example"><span>In the example</span>On 18 November finance counts N$3,983.00, which matches the recorded balance after this payout, and the approver signs the count off. A later count is N$20.00 short: finance gives a reason and it waits for the approver’s review.</p>
             </div>
             <figure class="shot shot-wide">
+              <div class="browser-bar" aria-hidden="true"><span></span><span></span><span></span><em>app.usepetti.com · Petty cash</em></div>
               <img src="img/wf-count.jpg" width="1572" height="659" loading="lazy" alt="Cash counts for November: on 25 November N$1,865.03 counted against a book balance of N$1,885.03, N$20.00 short, waiting for the GM; on 23 November N$3,155.03 against N$3,155.03, matches the book, signed off by Ada Nangolo; on 18 November N$3,983.00 against N$3,983.00, matches the book, signed off by Ada Nangolo.">
               <figcaption>Each count is set against the recorded balance and reviewed.</figcaption>
             </figure>
@@ -172,8 +207,8 @@
               <li>A cash count that differs from the recorded balance needs a reason from finance and a decision from the approver, who can write the difference off.</li>
             </ul>
           </div>
-          <figure class="shot shot-phone vis-shot">
-            <img src="img/attention.jpg" width="780" height="1900" loading="lazy" alt="Finance's Home screen in Petti, sample data. To pay out: three requests awaiting cash, N$150.00, N$80.00 and N$86.97. Receipts to check: #1006 coffee and sugar, N$392.97, marked as a possible duplicate because the same receipt photo was used on #1003. Paper receipts awaited: #1007 courier, N$185.00, physical receipt needed.">
+          <figure class="shot vis-shot">
+            <div class="phone"><img src="img/phone-attention.jpg" width="780" height="1688" loading="lazy" alt="Finance's Home screen on a phone, sample data. To pay out: three requests awaiting cash, N$150.00, N$80.00 and N$86.97. Receipts to check: #1006 coffee and sugar, N$392.97, marked as a possible duplicate because the same receipt photo was used on #1003. Paper receipts awaited: #1007 courier."></div>
             <figcaption>Finance’s Home: what is waiting, and why.</figcaption>
           </figure>
         </div>
@@ -218,8 +253,8 @@
             <figcaption>A purchase above the limit waits for someone else to confirm what arrived.</figcaption>
           </figure>
         </div>
-        <figure class="shot shot-phone supplies-shot">
-          <img src="img/stock.jpg" width="780" height="2196" loading="lazy" alt="Petti's stock list for the Windhoek store, sample data. A4 paper: 3 reams on hand, 5.1 used per month, estimated to run out on 14 December. Dishwashing liquid: 0 bottles, out. Instant coffee: 2 tins, estimated run-out 5 December. Toilet paper: 5 packs, estimated run-out 8 December.">
+        <figure class="shot supplies-shot shot-tilt">
+          <div class="phone"><img src="img/phone-stock.jpg" width="780" height="1688" loading="lazy" alt="Petti's stock list for the Windhoek store on a phone, sample data. A4 paper: 3 reams on hand, 5.1 used per month, estimated to run out on 14 December. Ballpoint pens: 2 boxes. Dishwashing liquid: 0 bottles, out. Instant coffee: 2 tins, estimated run-out 5 December. Sugar: 1 bag, 7 December."></div>
           <figcaption>Stock estimates depend on recorded deliveries and usage.</figcaption>
         </figure>
       </div>
