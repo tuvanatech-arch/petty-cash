@@ -935,3 +935,17 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 /* a solid strip behind the phone's clock and battery, so nothing slides under them */
 body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: var(--paper); z-index: 25; pointer-events: none; }
 @media (max-width: 860px) { .main { padding-top: max(16px, calc(env(safe-area-inset-top, 0px) + 8px)); } }
+
+/* Home: "Waiting on others" – a tile per place work is waiting */
+.waiting-others .wo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.wo-tile { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 12px; border-radius: 12px;
+  background: var(--paper); border: 1px solid var(--rule); color: var(--ink); text-decoration: none; transition: border-color .15s ease, transform .12s ease, background-color .15s ease; min-height: 64px; }
+.wo-tile:hover { border-color: var(--green); background: var(--green-tint); }
+.wo-tile:active { transform: scale(.97); }
+.wo-ic { grid-row: 1 / span 2; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--green-tint); color: var(--green-ink); }
+.wo-n { font-size: 1.35rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wo-t { font-size: .82rem; color: var(--ink-2); line-height: 1.25; }
+.wo-stuck { border-color: color-mix(in srgb, var(--amber) 55%, transparent); background: color-mix(in srgb, var(--amber) 12%, var(--sheet)); }
+.wo-stuck .wo-ic { background: var(--amber); color: var(--on-amber); }
+.wo-stuck .wo-n { color: var(--amber); }
+@media (max-width: 420px) { .waiting-others .wo-grid { grid-template-columns: 1fr 1fr; gap: 8px; } .wo-tile { padding: 10px; column-gap: 8px; } .wo-ic { width: 34px; height: 34px; } }

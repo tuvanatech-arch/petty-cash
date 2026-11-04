@@ -1,6 +1,7 @@
 import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, enablePush, canApproveReq, canReviewReq, scoped, inView, multiBranch, branchName } from '../api.js';
 import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more, units } from '../ui.js';
 import { requestRow, expenseOf, urgentFirst } from './requests.js';
+import { icon } from '../tabbar.js';
 import { boxShort, floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
 import { reportDialog, confirmReceiptDialog, decideAdjustmentActions } from './stock.js';
 import { setupCard, welcomeStrip } from '../learn.js';
@@ -209,11 +210,18 @@ async function buildHome() {
     const label = { approver: 'with the GM', managing_director: 'with the MD', stock_manager: 'with the stock manager', finance: 'with finance', people: 'cash out with people' };
     const statuses = { approver: 'pending_approval', managing_director: 'pending_approval', stock_manager: 'stock_review', finance: 'awaiting_disbursement,proof_review,physical_required', people: 'disbursed' };
     const stuck = open.filter((q) => q.status !== 'disbursed' && Date.now() - new Date(q.updated_at) > 48 * 3600e3).length;
-    const parts = Object.entries(counts).map(([k, c]) => h('a', { href: `#/requests?status=${statuses[k]}` }, h('strong', {}, c), ` ${label[k]}`));
-    const othersReports = !duty('stock_manager') && reports.length ? h('a', { href: '#/stock/reports' }, h('strong', {}, new Set(reports.map((r) => r.item_id)).size), ' stock item' + (new Set(reports.map((r) => r.item_id)).size === 1 ? '' : 's') + ' reported') : null;
-    const schedWait = !duty('managing_director') && sched.some((v) => v.status === 'pending') ? h('a', { href: can('admin') ? '#/admin/schedule' : '#/schedule' }, h('strong', {}, 1), ' schedule change with the MD') : null;
-    if (schedWait) parts.push(schedWait);
-    if (parts.length || stuck || othersReports) elsewhere = h('div', { class: 'elsewhere' }, h('span', {}, 'Elsewhere:'), parts, othersReports, stuck ? h('a', { href: '#/requests?view=open', style: { color: 'var(--amber)' } }, h('strong', {}, stuck), ' stuck 2+ days') : null);
+    // one tile per place work is waiting: an icon, the number, who has it; stuck work in amber
+    const ICON = { approver: 'person', managing_director: 'person', stock_manager: 'stock', finance: 'cash', people: 'pay' };
+    const tile = (href, ic, n, text, cls = '') => h('a', { href, class: `wo-tile${cls ? ` ${cls}` : ''}` },
+      h('span', { class: 'wo-ic' }, icon(ic, { size: 20 })), h('span', { class: 'wo-n' }, n), h('span', { class: 'wo-t' }, text));
+    const tiles = Object.entries(counts).map(([k, c]) => tile(`#/requests?status=${statuses[k]}`, ICON[k] || 'requests', c, label[k]));
+    const nItems = new Set(reports.map((r) => r.item_id)).size;
+    if (!duty('stock_manager') && nItems) tiles.push(tile('#/stock/reports', 'low', nItems, `stock item${nItems === 1 ? '' : 's'} reported`));
+    if (!duty('managing_director') && sched.some((v) => v.status === 'pending')) tiles.push(tile(can('admin') ? '#/admin/schedule' : '#/schedule', 'schedule', 1, 'schedule change with the MD'));
+    if (stuck) tiles.unshift(tile('#/requests?view=open', 'clock', stuck, 'stuck 2+ days', 'wo-stuck'));
+    if (tiles.length) elsewhere = h('div', { class: 'sheet waiting-others', id: 'waiting-others' },
+      h('div', { class: 'sheet-head' }, h('h2', {}, 'Waiting on others'), h('a', { href: '#/requests?view=open' }, 'All open')),
+      h('div', { class: 'wo-grid' }, tiles));
   }
 
   /* ---------------- the float, once ---------------- */

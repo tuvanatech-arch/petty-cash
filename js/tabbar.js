@@ -26,6 +26,8 @@ const PATHS = {
   how: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.3M12 16.8v.01"/>',
   reload: '<path d="M20 11.5A8 8 0 1 1 17.7 6"/><path d="M20 4v5h-5"/>',
   chevron: '<path d="M9.5 6l6 6-6 6"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  person: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>',
   alerts: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
 };
 export function icon(name, { size = 24 } = {}) {
