@@ -43,6 +43,43 @@ const checkbox = (page, label) => page.locator('label.check', { hasText: label }
   await ctx.close();
 }
 
+/* 1b. the picture: one row per amount band, who acts, the people in each position; the ready-made setups */
+{
+  const { ctx, page, errs } = await open('approver', '#/admin/schedule', 390);
+  const rows = page.locator('#approval-steps .flow-row');
+  const rowText = async (i) => (await rows.nth(i).innerText()).replace(/\s+/g, ' ');
+  check(await rows.count() === 3 && /Up to N\$200\.00 Finance pays Fiona Shikongo/.test(await rowText(0)) && /N\$200\.00 – N\$5,000\.00 The GM approves Ada Nangolo → Finance pays/.test(await rowText(1)) && /Above N\$5,000\.00 The MD approves Paulus Nghipondoka → Finance pays/.test(await rowText(2)), `the picture: three bands, each with who acts and their names ("${await rowText(1)}")`);
+  check(await page.locator('#approval-steps .flow').getAttribute('aria-hidden') === 'true' && /N\$200\.00 – N\$5,000\.00: the GM approves/.test(await page.locator('#approval-steps .sr-only').innerText()), 'screen readers get the same steps in words');
+  check(await page.locator('#approval-setups button[aria-pressed=true]').innerText() === 'The GM, then the MD', 'the setup in force is marked');
+  await page.locator('#approval-setups button', { hasText: 'The GM approves' }).click(); await page.waitForTimeout(200);
+  check(await rows.count() === 2 && /Above N\$200\.00 The GM approves Ada Nangolo → Finance pays/.test(await rowText(1)) && !(await checkbox(page, 'The MD approves above the GM limit').isChecked()) && await checkbox(page, 'The GM approves above that').isChecked(), '"The GM approves": the MD step is switched off and the picture redraws');
+  check(!(await page.locator('.field', { hasText: 'General Manager approves up to' }).isVisible()) && await page.inputValue('.field:has-text("Finance pays alone up to") input') === '200.00', '…the GM limit is hidden and the amounts are untouched');
+  await page.locator('#approval-setups button', { hasText: 'The MD approves' }).click(); await page.waitForTimeout(200);
+  check(/Above N\$200\.00 The MD approves Paulus Nghipondoka/.test(await rowText(1)) && !(await checkbox(page, 'The GM approves above that').isChecked()) && await checkbox(page, 'The MD approves above the GM limit').isChecked(), '"The MD approves": the GM step is switched off');
+  await page.locator('#approval-setups button', { hasText: 'The GM, then the MD' }).click(); await page.waitForTimeout(200);
+  check(await rows.count() === 3 && await page.locator('.field', { hasText: 'General Manager approves up to' }).isVisible(), '"The GM, then the MD": back to three bands');
+  await page.locator('button', { hasText: 'Review and save…' }).click(); await page.waitForTimeout(500);
+  check(/Nothing has changed/.test(await toastText(page)), 'a setup only changes the form: nothing is saved until reviewed');
+  check(await noSideScroll(page), 'phone: no sideways scrolling');
+  check(!errs.length, `setups: no page errors ${errs.join(' | ')}`);
+  await ctx.close();
+}
+
+/* 1c. the organisation's own titles appear in the picture and on the setups */
+{
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }); const page = await ctx.newPage(); const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.goto(base + '#/home');
+  await page.evaluate(() => { localStorage.setItem('demo_role', 'approver'); localStorage.setItem('pcs_push_asked', 'later'); localStorage.setItem('demo_updates_unseen', '0'); sessionStorage.setItem('pcs_update_shown', '1'); localStorage.setItem('demo_two_step', 'on');
+    localStorage.setItem('demo_settings', JSON.stringify({ titles: { gm: 'Office manager', gm_long: 'Office manager', md: 'Owner', md_long: 'Owner' } })); });
+  await page.goto(base + '#/admin/schedule'); await page.reload(); await page.waitForTimeout(1600);
+  const t = (await page.locator('#approval-steps').innerText()).replace(/\s+/g, ' ');
+  const s = await page.locator('#approval-setups').innerText();
+  check(/The Office manager approves Ada Nangolo/.test(t) && /The Owner approves Paulus/.test(t) && !/\b(GM|MD)\b/.test(t) && /The Office manager, then the Owner/.test(s), 'titles: the picture and the setups use the organisation\'s words');
+  check(!errs.length, `titles: no page errors ${errs.join(' | ')}`);
+  await ctx.close();
+}
+
 /* 2. the MD and finance read the same steps */
 for (const role of ['managing_director', 'finance']) {
   const { ctx, page, errs } = await open(role, '#/schedule', 390);

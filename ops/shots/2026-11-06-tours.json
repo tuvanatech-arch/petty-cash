@@ -2,15 +2,15 @@
  "approver": [
   {
    "at": "#/admin/schedule",
-   "css": "#approval-steps",
-   "text": "The approval steps",
-   "say": "Who approves what, in plain words. It follows what you set below, so you see the effect before saving."
+   "css": "#approval-setups",
+   "text": "Ready-made setups",
+   "say": "Tap a ready-made setup to switch the approval steps: the GM alone, the GM then the MD, or the MD alone. The amounts below stay as they are."
   },
   {
    "at": "#/admin/schedule",
-   "css": "label.check",
-   "text": "The GM approves above that",
-   "say": "Untick to send amounts above what finance pays alone straight to the MD. “The MD approves above the GM limit” works the same way. Then “Review and save…”: the MD approves the change first."
+   "css": "#approval-steps",
+   "text": "The approval steps",
+   "say": "Each amount band, who approves it and who pays, with their names. It redraws as you change things, so you see the effect before saving."
   }
  ],
  "managing_director": [
@@ -18,7 +18,7 @@
    "at": "#/schedule",
    "css": "#approval-steps",
    "text": "The approval steps",
-   "say": "Who approves what, in plain words. When the GM changes these steps, the change waits here for your approval before it applies."
+   "say": "Each amount band, who approves it and who pays. When the GM changes these steps, the change waits here for your approval before it applies."
   }
  ]
 }

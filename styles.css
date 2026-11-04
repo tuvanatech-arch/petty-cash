@@ -593,6 +593,32 @@ tr.inactive td, tr.inactive td strong { color: var(--ink-3); }
 .head-title { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
 .sched-grid { display: grid; gap: 4px 20px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .sched-grid .field { margin-bottom: 10px; }
+/* the approval steps as a picture (Schedule → Who approves what): one row per amount band, who acts in order */
+.flow-box { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); padding: 14px 16px; margin-bottom: 14px; display: grid; gap: 12px; }
+.flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.flow-row { display: grid; grid-template-columns: minmax(150px, 200px) 1fr; gap: 6px 14px; align-items: center; }
+.flow-band { font-variant-numeric: tabular-nums; font-weight: 600; font-size: .9rem; border-left: 3px solid var(--rule-strong); padding: 2px 0 2px 10px; }
+.flow-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.flow-step { display: grid; gap: 1px; padding: 7px 12px 7px 14px; border-radius: var(--radius); min-width: 0; }
+.flow-step b { font-size: .92rem; }
+.flow-step small { font-size: .82rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.flow-step.is-approve { background: var(--purple-tint); box-shadow: inset 3px 0 0 var(--purple); }
+.flow-step.is-pay { background: var(--green-tint); box-shadow: inset 3px 0 0 var(--green); }
+.flow-step.is-empty small { color: var(--amber); font-weight: 600; }
+.flow-arrow { color: var(--ink-3); font-weight: 600; }
+.flow-notes { margin: 0; padding-left: 18px; font-size: .88rem; color: var(--ink-2); display: grid; gap: 4px; }
+.flow-setups { display: grid; gap: 6px; margin-bottom: 12px; }
+.flow-setups-label { font-weight: 600; font-size: .9rem; }
+.flow-setups-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.flow-setups .hint { color: var(--ink-3); font-size: .8rem; }
+@media (max-width: 560px) {
+  .flow { gap: 0; }
+  .flow-row { grid-template-columns: 1fr; padding: 10px 0; }
+  .flow-row + .flow-row { border-top: 1px solid var(--rule); }
+  .flow-band { border-left: 0; padding-left: 0; }
+  .flow-steps { flex-direction: column; align-items: stretch; gap: 2px; }
+  .flow-arrow { transform: rotate(90deg); align-self: flex-start; margin-left: 14px; line-height: 1.2; }
+}
 .sched-kv { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
 .sched-kv dd { font-weight: 500; overflow-wrap: anywhere; }
 .pending-val { display: inline-block; margin-top: 2px; font-size: .8rem; font-weight: 600; color: var(--purple); }

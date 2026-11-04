@@ -1,8 +1,8 @@
 // The authority schedule : limits, the float, reminder periods, budgets and who holds each position,
 // in one versioned place. The administrator changes it; the Managing Director approves what needs approving.
 import { sb, state, unwrap, rpc, role, has, personName, ROLE_LABEL, mdInPlace, multiBranch, branchName } from '../api.js';
-import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today, showIf } from '../ui.js';
-import { ITEMS, SECTIONS, WEEKDAYS, EVERY, BUDGET_MODES, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText, approvalSteps } from '../schedule-meta.js';
+import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today, showIf, titled } from '../ui.js';
+import { ITEMS, SECTIONS, WEEKDAYS, EVERY, BUDGET_MODES, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText, approvalSteps, approvalFlow, SETUPS, setupOf } from '../schedule-meta.js';
 import { downloadSchedulePdf } from '../schedule-pdf.js';
 
 async function load() {
@@ -173,15 +173,30 @@ function valuesBlock(d, admin) {
   const waiting = (k) => (k in pend && !same(k, pend[k], s[k]) ? h('span', { class: 'pending-val' }, `Waiting for the MD: ${fmtValue(k, pend[k])}`) : null);
   // the approval steps in plain words, at the top of "Who approves what"; while editing they follow the inputs (047)
   const STEP_KEYS = ['approval_threshold', 'gm_step', 'gm_limit', 'md_step', 'quick_payout_limit'];
-  const stepsBox = h('div', { class: 'banner banner-blue', id: 'approval-steps', style: { marginBottom: '14px' } });
+  const stepsBox = h('div', { class: 'flow-box', id: 'approval-steps' });
+  // ready-made setups (the GM, while editing): they switch the two steps; the amounts stay as they are
+  const setupBtns = SETUPS.map((x) => h('button', { type: 'button', class: 'btn btn-sm setup-btn', 'data-setup': x.id, title: titled(x.hint), onclick: () => {
+    inputs.gm_step.checked = x.gm_step; inputs.md_step.checked = x.md_step; drawSteps();
+  } }, x.label));
+  const setups = admin ? h('div', { class: 'flow-setups', id: 'approval-setups' }, h('span', { class: 'flow-setups-label' }, 'Ready-made setups'),
+    h('div', { class: 'flow-setups-row', role: 'group', 'aria-label': 'Ready-made setups' }, setupBtns),
+    h('span', { class: 'hint' }, 'They switch the approval steps below. The amounts stay as they are.')) : null;
   const drawSteps = () => {
     const v = admin ? { ...s, ...Object.fromEntries(STEP_KEYS.filter((k) => inputs[k]).map((k) => [k, readInput(k, inputs[k])])) } : s;
-    mount(stepsBox, h('strong', {}, admin ? 'The approval steps, as set here' : 'The approval steps'), h('ul', {}, approvalSteps(v).map((l) => h('li', {}, l))));
+    const lines = approvalSteps(v); const always = lines.pop(); const quick = lines.pop();
+    mount(stepsBox, h('strong', { class: 'flow-title' }, admin ? 'The approval steps, as set here' : 'The approval steps'),
+      // the picture is for the eye; the same steps in words are read out to screen readers
+      h('ol', { class: 'flow', 'aria-hidden': 'true' }, approvalFlow(v).map((r) => h('li', { class: 'flow-row' },
+        h('span', { class: 'flow-band' }, r.band),
+        h('span', { class: 'flow-steps' }, r.steps.map((who, i) => [i ? h('span', { class: 'flow-arrow' }, '→') : null, flowStep(who)]))))),
+      h('ul', { class: 'sr-only' }, lines.map((l) => h('li', {}, l))),
+      h('ul', { class: 'flow-notes' }, h('li', {}, quick), h('li', {}, always)));
+    const on = setupOf(v); setupBtns.forEach((b) => { const yes = on && b.dataset.setup === on.id; b.setAttribute('aria-pressed', String(!!yes)); b.classList.toggle('btn-primary', !!yes); });
     if (wraps.gm_limit) wraps.gm_limit.style.display = v.gm_step !== false && v.md_step !== false ? '' : 'none';   // only used when both steps are on
   };
   const sections = SECTIONS.map((sec) => h('div', { class: 'sheet' },
     head(sec.title, sec.md),
-    sec.keys.includes('approval_threshold') ? stepsBox : null,
+    sec.keys.includes('approval_threshold') ? [setups, stepsBox] : null,
     admin
       ? h('div', { class: 'sched-grid' }, sec.keys.map((k) => {
         const it = ITEMS[k]; const el = inputFor(k, s[k]); inputs[k] = el;
@@ -195,6 +210,15 @@ function valuesBlock(d, admin) {
   const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Review and save…');
   return h('form', { onsubmit: (e) => { e.preventDefault(); reviewChanges(inputs); } }, sections,
     h('div', { class: 'form-actions sched-save' }, h('span', { class: 'hint' }, 'Nothing changes until you review and give a reason.'), b));
+}
+
+/** One step of the picture: what happens and who does it today (the people holding that position). */
+function flowStep(who) {
+  const holders = state.people.filter((p) => p.active && p.role === who).map((p) => personName(p.id));
+  const what = { finance: 'Finance pays', approver: 'The GM approves', managing_director: 'The MD approves' }[who];
+  let names = holders.length > 2 ? `${holders.slice(0, 2).join(', ')} +${holders.length - 2}` : holders.join(', ');
+  if (!holders.length) names = who === 'managing_director' ? 'Nobody yet: the GM approves meanwhile' : 'Nobody yet';
+  return h('span', { class: `flow-step ${who === 'finance' ? 'is-pay' : 'is-approve'}${holders.length ? '' : ' is-empty'}` }, h('b', {}, what), h('small', {}, names));
 }
 
 function reviewChanges(inputs) {

@@ -20,7 +20,7 @@ let t = await text();
 check(/MGP-SCH-PC-001 · version 3/.test(t), 'GM: the version in force is shown');
 check(/MGP-POL-PC-001 – the petty cash policy/.test(t), 'GM: the policy link is shown');
 check(/Waiting for the Managing Director/.test(t) && /Finance pays alone up to/.test(t) && /Taxi fares went up/.test(t), 'GM: the change waiting for the MD, with its reason');
-check(await page.locator('button:has-text("Withdraw")').count() === 1 && await page.locator('button:has-text("Approve")').count() === 0, 'GM: can withdraw, cannot approve');
+check(await page.locator('button:has-text("Withdraw")').count() === 1 && await page.locator('button:text-is("Approve")').count() === 0, 'GM: can withdraw, cannot approve');
 check(/Waiting for the MD: N\$300\.00/.test(t), 'GM: the waiting value shows under the finance limit');
 check(/MD approves changes/.test(t) && /MD is told/.test(t), 'GM: each section says whether the MD approves or is told');
 const vals = await page.evaluate(() => [...document.querySelectorAll('.schedule input.num')].map((i) => i.value));

@@ -14,6 +14,7 @@ Copy `clients/example-lobito.json` to `clients/<slug>.json` and fill it in:
 | `currency`, `currency_code` | the symbol on screen (`N$`, `Kz `, `R`) and the ISO code (`NAD`, `AOA`, `ZAR`) |
 | `time_zone`, `number_locale` | e.g. `Africa/Windhoek` + `en-NA`, or `Africa/Luanda` + `pt-AO` |
 | `titles` | what they call the two approvers; leave out for GM / MD |
+| `approval` | the approval steps agreed on the setup call, e.g. `{"steps": "gm_md", "finance_alone": 500, "gm_limit": 5000, "pay_out_now": 200}`. `steps`: `gm` (the GM approves), `gm_md` (the GM, then the MD above `gm_limit`) or `md` (the MD approves). Leave out for Petti's starting values (N$200 / N$5,000, both steps); the GM can change them later under Schedule → Who approves what |
 | `schedule_ref`, `policy_ref` | their document numbers for the authority schedule and policy (optional) |
 | `supabase_url`, `publishable_key` | from the client's new Supabase project (Settings → API) |
 | `app_url` | where the app will live, e.g. `https://app.usepetti.com/oshana/` |

@@ -34,6 +34,22 @@ if (!/^[A-Z]{3}$/.test(c.currency_code)) { console.error('currency_code: three c
 try { new Intl.DateTimeFormat('en', { timeZone: c.time_zone }); } catch { console.error(`time_zone "${c.time_zone}" is not a real time zone`); process.exit(1); }
 try { (1).toLocaleString(c.number_locale); } catch { console.error(`number_locale "${c.number_locale}" is not valid`); process.exit(1); }
 const titles = { gm: 'GM', gm_long: 'General Manager', md: 'MD', md_long: 'Managing Director', ...(c.titles || {}) };
+// the approval steps agreed on the setup call (Schedule → Who approves what); leave out for Petti's starting values
+const SETUPS = { gm: [true, false], gm_md: [true, true], md: [false, true] };
+const ap = c.approval || null;
+if (ap) {
+  const n = (k) => ap[k] === undefined ? null : Number(ap[k]);
+  const bad = (m) => { console.error(`approval: ${m}`); process.exit(1); };
+  if (!SETUPS[ap.steps]) bad('steps is gm (the GM approves), gm_md (the GM, then the MD) or md (the MD approves)');
+  if (!(n('finance_alone') >= 0)) bad('finance_alone: what finance pays alone, 0 or more');
+  if (ap.steps === 'gm_md' && !(n('gm_limit') >= n('finance_alone'))) bad('gm_limit: needed for gm_md, and not below finance_alone');
+  if (n('pay_out_now') !== null && !(n('pay_out_now') >= 0 && n('pay_out_now') <= n('finance_alone'))) bad('pay_out_now: 0 up to finance_alone');
+}
+const approvalSql = !ap ? '' : `-- the approval steps agreed at setup
+update public.settings set approval_threshold = ${Number(ap.finance_alone)}, gm_step = ${SETUPS[ap.steps][0]}, md_step = ${SETUPS[ap.steps][1]},
+  gm_limit = ${ap.gm_limit === undefined ? 'gm_limit' : Number(ap.gm_limit)}, quick_payout_limit = ${ap.pay_out_now === undefined ? `least(quick_payout_limit, ${Number(ap.finance_alone)})` : Number(ap.pay_out_now)}
+where id = 1;
+`;
 const url = c.supabase_url.replace(/\/+$/, '');
 if (!/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(url)) { console.error('supabase_url should look like https://<project>.supabase.co'); process.exit(1); }
 
@@ -65,7 +81,7 @@ update public.settings set org_name = ${q(c.org_name)}, currency = ${q(c.currenc
   time_zone = ${q(c.time_zone)}, titles = ${q(JSON.stringify(titles))}::jsonb, schedule_ref = ${q(c.schedule_ref || '')}, policy_ref = ${q(c.policy_ref || '')},
   app_url = ${q(c.app_url)}, email_from = ${q(c.email_from || `${c.org_name} <onboarding@resend.dev>`)}, headcount = ${Number(c.headcount) || 0}, updated_at = now()
 where id = 1;
-update public.subscription set plan = ${q(c.plan)}, people_limit = ${c.people_limit ?? PLANS[c.plan][0] ?? 'null'}, branch_limit = ${c.branch_limit ?? PLANS[c.plan][1] ?? 'null'}, status = 'trial', trial_ends = ${c.trial_ends ? q(c.trial_ends) : 'null'} where id = 1;
+${approvalSql}update public.subscription set plan = ${q(c.plan)}, people_limit = ${c.people_limit ?? PLANS[c.plan][0] ?? 'null'}, branch_limit = ${c.branch_limit ?? PLANS[c.plan][1] ?? 'null'}, status = 'trial', trial_ends = ${c.trial_ends ? q(c.trial_ends) : 'null'} where id = 1;
 update public.companies set name = ${q(c.org_name)}, code = ${q(c.company_code)}, currency = ${q(c.currency)}, currency_code = ${q(c.currency_code)} where is_base;
 update public.branches set name = ${q(c.branch_name)}, code = ${q(c.branch_code)} where company_id = (select id from public.companies where is_base);
 
@@ -75,8 +91,9 @@ declare v_last uuid := (select id from public.schedule_versions order by version
 begin
   delete from public.schedule_versions where id <> v_last;
   update public.schedule_versions set version_no = 1, area = 'start', reason = 'Starting schedule for ${c.org_name.replace(/'/g, "''")}', changes = '[]'::jsonb,
-    snapshot = jsonb_set(jsonb_set(snapshot, '{values,schedule_ref}', to_jsonb(${q(c.schedule_ref || '')}::text)), '{values,policy_ref}', to_jsonb(${q(c.policy_ref || '')}::text))
+    snapshot = jsonb_set(snapshot, '{values}', public.schedule_snapshot() -> 'values')   -- the values as set above (references, approval steps)
   where id = v_last;
+  perform public.schedule_check(public.schedule_snapshot() -> 'values');
 end $$;
 
 insert into public.app_config (key, value) values

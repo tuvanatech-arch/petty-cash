@@ -74,6 +74,22 @@ export function approvalSteps(s) {
   return lines;
 }
 
+/** The approval steps as a picture: one row per amount band, with who acts in order (the roles), as approvalSteps. */
+export function approvalFlow(s) {
+  const thr = Number(s.approval_threshold); const gm = s.gm_step !== false; const md = s.md_step !== false;
+  const rows = thr > 0 ? [{ band: `Up to ${money(thr)}`, steps: ['finance'] }] : [];
+  if (gm && md) rows.push({ band: thr > 0 ? `${money(thr)} – ${money(s.gm_limit)}` : `Up to ${money(s.gm_limit)}`, steps: ['approver', 'finance'] }, { band: `Above ${money(s.gm_limit)}`, steps: ['managing_director', 'finance'] });
+  else rows.push({ band: thr > 0 ? `Above ${money(thr)}` : 'Every amount', steps: [gm ? 'approver' : 'managing_director', 'finance'] });
+  return rows;
+}
+/** Ready-made approval setups: which steps are on. The amounts stay as they are. */
+export const SETUPS = [
+  { id: 'gm', label: 'The GM approves', hint: 'One approver for everything above what finance pays alone.', gm_step: true, md_step: false },
+  { id: 'gm_md', label: 'The GM, then the MD', hint: 'The GM approves up to the GM limit, the MD above it.', gm_step: true, md_step: true },
+  { id: 'md', label: 'The MD approves', hint: 'The MD approves everything above what finance pays alone.', gm_step: false, md_step: true },
+];
+export const setupOf = (s) => SETUPS.find((x) => x.gm_step === (s.gm_step !== false) && x.md_step === (s.md_step !== false)) || null;
+
 /** A schedule value in words, the same way the database writes it in the history. */
 export function fmtValue(key, v) {
   const it = ITEMS[key];
