@@ -1,6 +1,6 @@
 # Petti – working rules
 
-Petti is Tuvana Tech's petty cash and office-stock app (Tuvana Tech is part of the Desmic Group). MGP (Namibia) is the first client: Supabase project `ytfgzfaogfrzanrpcpkg`. The app lives at **https://app.usepetti.com** (Netlify project `petti-app`, built from GitHub `tuvanatech-arch/petty-cash` on every push by `netlify-build.sh`; domain usepetti.com at GoDaddy, `app` CNAME to petti-app.netlify.app). The old GitHub Pages address still deploys and shows a "Petti has moved" bar: some Namibian mobile networks cannot reach github.io.
+Petti is Tuvana Tech's petty cash and office-stock app (Tuvana Tech is part of the Desmic Group). MGP (Namibia) is the first client: Supabase project `ytfgzfaogfrzanrpcpkg`. The app lives at **https://app.usepetti.com** (Netlify project `petti-app`, built from GitHub `tuvanatech-arch/petty-cash` on every push by `netlify-build.sh`; domain usepetti.com at GoDaddy, `app` CNAME to petti-app.netlify.app). The old GitHub Pages address still deploys but forwards to app.usepetti.com on the same page (some Namibian mobile networks cannot reach github.io), after switching off that browser's alerts from the old address; an alert from the old address opens app.usepetti.com (sw.js).
 
 ## How to reply
 

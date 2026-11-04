@@ -277,15 +277,25 @@ window.addEventListener('online', syncQueue);
 startAdapting();
 captureInstallPrompt();
 startVersionCheck();   // a phone resuming Petti picks up a new version without being closed
-// Petti's home is app.usepetti.com. The old GitHub Pages address keeps working, but says so, with a way across
-// (the new address has its own sign-in and Home Screen icon, so this cannot be done silently).
+// Petti's home is app.usepetti.com. The old GitHub Pages address forwards there, on the same page. First it switches
+// off this browser's alerts from the old address: those alerts opened the old address again when tapped, and a
+// browser with alerts on at both addresses got everything twice. (Sign-in and the Home Screen icon are per address,
+// so people sign in once at the new one.)
 const HOME = 'https://app.usepetti.com/';
 if (/\.github\.io$/.test(location.hostname)) {
   const go = HOME + (location.hash || '');
   const bar = h('div', { class: 'moved-bar', id: 'moved-bar', role: 'status' },
-    h('span', {}, h('strong', {}, 'Petti has moved to app.usepetti.com. '), 'Open it there, sign in once and add it to your Home Screen – this old address will stop working.'),
+    h('span', {}, h('strong', {}, 'Petti has moved to app.usepetti.com. '), 'Taking you there now. Sign in once, and switch alerts on there.'),
     h('a', { class: 'btn btn-sm btn-primary', href: go }, 'Open app.usepetti.com'));
   document.body.prepend(bar);
+  const oldAlertsOff = (async () => {
+    const reg = await navigator.serviceWorker?.getRegistration?.();
+    const sub = await reg?.pushManager?.getSubscription?.();
+    if (!sub) return;
+    try { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); } catch { /* the server drops it once the browser has let it go */ }
+    await sub.unsubscribe();
+  })().catch(() => {});
+  Promise.race([oldAlertsOff, new Promise((r) => setTimeout(r, 4000))]).then(() => { window.__movedTo = go; if (!window.__stayOnOldAddress) location.replace(go); });
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });

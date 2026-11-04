@@ -84,9 +84,12 @@ self.addEventListener('push', (e) => {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const link = (e.notification.data && e.notification.data.link) || '#/notifications';
-  const target = new URL('./' + (link.startsWith('#') ? link : '#' + link), self.registration.scope).href;
+  const hash = link.startsWith('#') ? link : '#' + link;
+  // an alert from the old GitHub Pages address opens Petti's home, app.usepetti.com, not the old address
+  const old = /\.github\.io$/.test(self.location.hostname);
+  const target = old ? 'https://app.usepetti.com/' + hash : new URL('./' + hash, self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-    for (const c of list) { if (c.url.startsWith(self.registration.scope)) { c.navigate(target); return c.focus(); } }
+    if (!old) for (const c of list) { if (c.url.startsWith(self.registration.scope)) { c.navigate(target); return c.focus(); } }
     return self.clients.openWindow(target);
   }));
 });
