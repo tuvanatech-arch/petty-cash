@@ -133,14 +133,10 @@ export async function loadSessionContext() {
   state.session = session;
   state.needCode = false;
   if (!session) { state.me = null; state.twoStep = null; syncAppBadge(0); return null; }
-  // two-step sign-in: the code comes first, and for the positions that require it, setting it up comes first
-  // (the database opens nothing until then; offline, the server decides once the signal is back)
-  try {
-    const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') { state.me = null; state.needCode = true; syncAppBadge(0); return null; }
-  } catch { /* the server still decides */ }
+  // two-step sign-in (051): when required, the emailed code comes first (the database opens nothing until then;
+  // offline, the server decides once the signal is back)
   try { const { data: ts, error } = await sb.rpc('my_two_step'); state.twoStep = error ? null : ts; } catch { state.twoStep = null; }
-  if (state.twoStep?.blocked) { state.me = null; syncAppBadge(0); return null; }
+  if (state.twoStep?.blocked) { state.me = null; state.needCode = true; syncAppBadge(0); return null; }
   const { data: me } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
   state.me = me;
   // the company's plan and whether Petti has been cancelled (a banner for everyone, limits under Admin)

@@ -64,7 +64,7 @@ check(/Sign in/.test(text()) && !/You were signed out on this device/.test(text(
 
 // sign in again, then this device is signed out from elsewhere
 w.document.querySelector('input[type=email]').value = 'admin@example.com';
-w.document.querySelector('input[type=password]').value = 'secret12';
+w.document.querySelector('input[type=password]').value = 'Oryx-meadow-Lantern#57';
 $('form').querySelector('button[type=submit]').click(); await sleep(300);
 check(!!$('.tabbar'), 'signed in again');
 fnReply = { status: 401, body: { error: 'Sign in first', revoked: true } };
@@ -75,7 +75,7 @@ fnReply = { status: 200, body: { ok: true } };
 
 // admin: People shows device counts; another person's devices can be signed out everywhere
 w.document.querySelector('input[type=email]').value = 'admin@example.com';
-w.document.querySelector('input[type=password]').value = 'secret12';
+w.document.querySelector('input[type=password]').value = 'Oryx-meadow-Lantern#57';
 $('form').querySelector('button[type=submit]').click(); await sleep(300);
 w.location.hash = '#/admin/users'; await sleep(400);
 const cnt = $$('button.dev-count'); if (!cnt.length) console.log('PAGE:', w.location.hash, text().slice(0, 400));

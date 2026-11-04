@@ -4,6 +4,7 @@ import { standinDialog, endDelegation } from './admin.js';
 import { BUILD, log } from '../diag.js';
 import { devicesBlock } from '../devices.js';
 import { twoStepSheet } from '../twostep.js';
+import { rate, revealable, newPasswordField } from '../password.js';
 import { installLabel, deviceWord } from './install.js';
 
 export async function accountPage() {
@@ -16,13 +17,14 @@ export async function accountPage() {
     unwrap(await sb.from('profiles').update({ full_name: name.value.trim() }).eq('id', me.id));
     state.me.full_name = name.value.trim(); toast('Name saved.');
   });
-  const p1 = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', minlength: 8, required: true });
-  const p2 = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', minlength: 8, required: true });
+  const p1 = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', minlength: 10, required: true, id: 'new-pass' });
+  const p2 = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', minlength: 10, required: true, id: 'new-pass-2' });
+  const who = { email: me.email, name: me.full_name, org: state.settings?.org_name };
   const err = h('div', { class: 'error' });
   const savePass = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Change password');
   savePass.onclick = busy(savePass, async (e) => {
     e.preventDefault(); err.textContent = '';
-    if (p1.value.length < 8) { err.textContent = 'Use at least 8 characters.'; return; }
+    if (!rate(p1.value, who).ok) { err.textContent = 'Not strong enough yet: see the tips under the password.'; return; }
     if (p1.value !== p2.value) { err.textContent = 'The two passwords do not match.'; return; }
     const { error } = await sb.auth.updateUser({ password: p1.value });
     if (error) { err.textContent = cleanError(error); return; }
@@ -74,7 +76,7 @@ export async function accountPage() {
   }
   drawPush(ps);
 
-  const passForm = h('form', {}, field('New password', p1), field('Repeat it', p2), err, h('div', { class: 'form-actions' }, savePass));
+  const passForm = h('form', {}, field('New password', newPasswordField(p1, who, { confirm: p2 })), field('Repeat it', revealable(p2)), err, h('div', { class: 'form-actions' }, savePass));
 
   // every device signed in to this account, with sign-out
   const devCount = h('span', { class: 'sub' });

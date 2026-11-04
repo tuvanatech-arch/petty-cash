@@ -27,7 +27,7 @@ check(/Sign in/.test(text()) && !!w.document.querySelector('input[type=password]
 
 const form = w.document.querySelector('form');
 w.document.querySelector('input[type=email]').value = 'admin@example.com';
-w.document.querySelector('input[type=password]').value = 'secret12';
+w.document.querySelector('input[type=password]').value = 'Oryx-meadow-Lantern#57';
 form.querySelector('button[type=submit]').click();
 await sleep(250);
 check(mock.auth.session && !!w.document.querySelector('.tabbar') && !w.document.querySelector('input[type=password]'), 'signing in renders the app');

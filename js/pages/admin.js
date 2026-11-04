@@ -4,6 +4,7 @@ import { devicesDialog } from '../devices.js';
 import { logoUrl, prepareLogo, saveLogo, removeLogo } from '../brand.js';
 import { schedulePage } from './schedule.js';
 import { exportEverything } from '../export.js';
+import { suggest } from '../password.js';
 import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, today, isoDate, emptyState, showIf, retext } from '../ui.js';
 
 export async function adminPage(tab = 'users') {
@@ -113,12 +114,8 @@ async function signInsTab() {
 
 /* =============================================================== people */
 async function usersTab() {
-  const [, counts, twoStep, plan] = await Promise.all([refreshPeople(), rpc('device_counts').catch(() => []), rpc('two_step_people').catch(() => []), rpc('plan_status').catch(() => state.plan)]);
+  const [, counts, plan] = await Promise.all([refreshPeople(), rpc('device_counts').catch(() => []), rpc('plan_status').catch(() => state.plan)]);
   state.plan = plan;
-  const ts = Object.fromEntries((Array.isArray(twoStep) ? twoStep : []).map((t) => [t.user_id, t]));
-  const tsCell = (p) => ts[p.id]?.enabled
-    ? h('span', { class: 'two-step-cell' }, h('span', { class: 'pill pill-green' }, 'On'), p.id !== state.me.id ? [' ', h('button', { class: 'btn btn-sm btn-quiet', onclick: () => resetTwoStep(p) }, 'Reset')] : null)
-    : h('span', { class: 'muted' }, (state.settings?.two_step_roles || []).includes(p.role) && p.active ? 'Not yet' : 'Off');
   const people = state.people;
   const devs = Object.fromEntries((counts || []).map((c) => [c.user_id, c]));
   const devCell = (p) => {
@@ -140,10 +137,10 @@ async function usersTab() {
     planLine(),
     h('div', { class: 'sheet' },
       h('div', { class: 'table-wrap' }, h('table', { class: 'ledger' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), multiBranch() ? h('th', {}, 'Branch') : null, h('th', {}, 'Devices'), h('th', {}, 'Two-step'), h('th'))),
+        h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Role'), multiBranch() ? h('th', {}, 'Branch') : null, h('th', {}, 'Devices'), h('th'))),
         h('tbody', {}, people.map((p) => h('tr', { class: p.active ? '' : 'inactive' },
           h('td', {}, h('strong', {}, p.full_name || '—'), !p.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null, p.id === state.me.id ? h('span', { class: 'muted' }, ' (you)') : null),
-          h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]), multiBranch() ? h('td', {}, ['approver', 'managing_director'].includes(p.role) ? h('span', { class: 'muted' }, 'All branches') : [branchName(p.branch_id), (p.extra_branches || []).length ? h('span', { class: 'muted' }, ` + ${(p.extra_branches || []).map(branchName).join(', ')}`) : null]) : null, h('td', {}, devCell(p)), h('td', {}, tsCell(p)),
+          h('td', { class: 'muted' }, p.email), h('td', {}, ROLE_LABEL[p.role]), multiBranch() ? h('td', {}, ['approver', 'managing_director'].includes(p.role) ? h('span', { class: 'muted' }, 'All branches') : [branchName(p.branch_id), (p.extra_branches || []).length ? h('span', { class: 'muted' }, ` + ${(p.extra_branches || []).map(branchName).join(', ')}`) : null]) : null, h('td', {}, devCell(p)),
           h('td', { class: 'num', style: { whiteSpace: 'nowrap' } },
             h('button', { class: 'btn btn-sm btn-quiet', onclick: () => userDialog(p) }, 'Edit'), ' ',
             p.active ? h('button', { class: 'btn btn-sm btn-quiet', onclick: () => inviteDialog(p) }, 'Invite') : null, ' ',
@@ -224,29 +221,18 @@ function inviteDialog(p, tempPassword = null) {
   });
 }
 
-/** A lost phone: clear someone's two-step sign-in so they can sign in with the password and set it up again. */
-async function resetTwoStep(p) {
-  const ok = await confirmDialog(`Reset two-step sign-in for ${p.full_name}?`, 'Do this only when they have lost their phone or the app. They sign in with their password next time and set it up again (it is required again from the date set under Settings if their position needs it). They get an alert saying you reset it.', { ok: 'Reset', danger: true });
-  if (!ok) return;
-  try { await adminUsers({ action: 'reset_two_step', user_id: p.id }); toast(`Reset. ${p.full_name.split(' ')[0]} sets it up again at the next sign-in.`, { ms: 6000 }); refresh(); }
-  catch (e) { toast(e.message, { error: true, ms: 7000 }); }
-}
-
 function passwordDialog(p) {
   modal(`New password for ${p.full_name || p.email}`, (close) => {
     const pass = h('input', { class: 'input', type: 'text', value: tempPassword(), autocomplete: 'off' });
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Set password');
     const go = busy(b, async () => { await adminUsers({ action: 'reset_password', user_id: p.id, password: pass.value }); toast('Password set. Share it with them.'); close(); });
-    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, field('Temporary password', pass, 'At least 8 characters. They can change it afterwards.'),
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, field('Temporary password', pass, 'Strong by default: at least 10 characters, mixed, not a common word. They change it after signing in.'),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
 
-function tempPassword() {
-  const words = ['river', 'desert', 'acacia', 'dune', 'ocean', 'baobab', 'sunset', 'granite', 'harbour', 'oryx', 'welwitschia', 'kudu'];
-  const w = () => words[Math.floor(Math.random() * words.length)];
-  return `${w()}-${w()}-${Math.floor(100 + Math.random() * 900)}`;
-}
+/** A strong temporary password (three words, a symbol and a number); the person changes it after signing in. */
+function tempPassword() { return suggest(); }
 
 /* =============================================================== stand-ins */
 export async function endDelegation(d) {
@@ -392,8 +378,8 @@ function settingsTab() {
     block('Organisation', h('div', { class: 'row' }, field('Organisation name', org), field('Currency symbol', currency)),
       field('People in the office', headcount, 'Used for cost per head in reports.')),
     logoBlock(block),
-    block('Two-step sign-in', h('p', { class: 'muted' }, 'Finance, the GM and the MD release money, so after their password Petti asks for a code from their phone. From this date it is required: until they set it up, Petti opens nothing for them.'),
-      field('Required from', twoStepFrom, 'Leave empty to keep it optional. Anyone can turn it on for themselves under Account.')),
+    block('Two-step sign-in', h('p', { class: 'muted' }, 'Finance, the GM and the MD release money, so from this date Petti emails them a 6-digit code after their password and opens nothing until it is typed. Nothing to set up.'),
+      field('Required from', twoStepFrom, 'Leave empty to keep it off. Set a date only once Petti can send email, or the codes cannot reach anyone.')),
     block('Region', h('div', { class: 'row' }, field('Time zone', tz, 'Sets when a day and a month start, and when reminders go out.'), field('How numbers are written', loc)), regionNow),
     block('Position titles', h('p', { class: 'muted' }, 'What your organisation calls the two approving positions. Every screen, alert, email and document uses these words.'),
       h('div', { class: 'row' }, field('Approver, short', tGm, raw('Default: GM')), field('Approver, in full', tGmLong, raw('Default: General Manager'))),

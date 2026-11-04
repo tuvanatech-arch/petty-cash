@@ -5,6 +5,7 @@
 //   welcome    { user_id }   approver only  -> { sent, link, email, message }
 //   reset      { email }     public         -> { sent, reason }   (one per address every 2 minutes; never says whether the address exists)
 //   magiclink  { email }     public         -> { sent, reason }
+//   login_code {}            signed in      -> { sent, reason, to }  (two-step: a 6-digit code for this sign-in only; db/051)
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -93,6 +94,34 @@ Deno.serve(async (req) => {
   try {
     const s = await settings();
     if (!s.app) throw new Error("Set the link to the app under Admin → Settings first");
+
+    if (action === "login_code") {
+      // two-step sign-in by email: a 6-digit code for this sign-in (the session in the token), stored only as a hash,
+      // valid 10 minutes; verify_login_code() in the database checks it. At most 5 codes in 15 minutes per person.
+      const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      const me = await caller(req);
+      if (!me || !me.active) return json({ error: "Sign in again" }, 401);
+      let session = "";
+      try { const p = token.split(".")[1]; session = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((p.length + 3) % 4))).session_id || ""; } catch { /* none */ }
+      if (!session) return json({ error: "Sign in again" }, 401);
+      const { count } = await admin.from("two_step_codes").select("id", { count: "exact", head: true }).eq("user_id", me.id).gte("created_at", new Date(Date.now() - 15 * 60 * 1000).toISOString());
+      if ((count || 0) >= 5) return json({ sent: false, reason: "too_many" });
+      const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+      const code = String(n).padStart(6, "0");
+      const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${code}:${session}`)))).map((b) => b.toString(16).padStart(2, "0")).join("");
+      await admin.from("two_step_codes").update({ used_at: new Date().toISOString() }).eq("user_id", me.id).eq("session_id", session).is("used_at", null);   // only the newest code works
+      const { error: ie } = await admin.from("two_step_codes").insert({ user_id: me.id, session_id: session, code_hash: hash });
+      if (ie) throw ie;
+      const first = (me.full_name || "").split(" ")[0] || "there";
+      const pretty = `${code.slice(0, 3)} ${code.slice(3)}`;
+      const subject = `${pretty} is your Petti sign-in code`;
+      const text = `Hi ${first},\n\nYour Petti sign-in code is ${pretty}. It works for 10 minutes, for this sign-in only.\n\nIf you did not just sign in to Petti, someone has your password: change it under Account and tell your GM.`;
+      const html = shell(s.org, "Your sign-in code", `<p>Hi ${esc(first)}, type this code in Petti to finish signing in:</p><p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:16px 0;color:#0f4a3a">${pretty}</p><p style="color:#4a5550;font-size:14px">It works for 10 minutes, for this sign-in only. If you did not just sign in to Petti, someone has your password: change it under Account and tell your GM.</p>`);
+      const r = await send(me.email, subject, text, html, s.from);
+      await admin.from("mail_log").insert({ email: me.email, kind: "login_code", sent: r.sent, detail: r.reason });
+      const to = String(me.email).replace(/^(.)[^@]*(@.*)$/, "$1•••$2");
+      return json({ sent: r.sent, reason: r.reason, to });
+    }
 
     if (action === "welcome") {
       const me = await caller(req);

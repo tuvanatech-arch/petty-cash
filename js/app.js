@@ -1,7 +1,8 @@
 import { sb, state, loadSessionContext, refreshUnread, can, has, role, ROLE_LABEL, personName, flushOfflineQueue, offlineQueueLength, checkIn, signOutHere, whenSignedOutElsewhere, multiBranch, setView, scoped } from './api.js';
 import { h, mount, toast, fmtDate, loader, progress } from './ui.js';
 import { authPage } from './pages/auth.js';
-import { codePage, setupRequiredPage } from './twostep.js';
+import { codePage } from './twostep.js';
+import { weakPasswordPage } from './pages/auth.js';
 import { homePage } from './pages/home.js';
 import { requestsPage, newRequestPage, requestDetailPage } from './pages/requests.js';
 import { stockPage } from './pages/stock.js';
@@ -133,8 +134,9 @@ export async function render() {
   if (hash.split('?')[0] === '/verify') { mount(app, h('div', { class: 'auth' }, h('div', { class: 'card' }, await verifyPage()))); return; }
   if (hash.split('?')[0] === '/install') { mount(app, h('div', { class: 'auth' }, h('div', { class: 'card', style: { maxWidth: '560px' } }, await installPage(), me ? null : h('p', { class: 'links', style: { marginTop: '14px' } }, h('a', { href: '#/home' }, 'Back to sign in'))))); return; }
   if (!me && state.needCode) { mount(app, await codePage(render)); return; }
-  if (!me && state.twoStep?.blocked) { mount(app, await setupRequiredPage(render)); return; }
   if (!me) { mount(app, await authPage()); return; }
+  // signed in with a password that is easy to guess: a stronger one first (the password is only known at sign-in)
+  if (me.active && (() => { try { return sessionStorage.getItem('pcs_pw_weak') === '1'; } catch { return false; } })()) { mount(app, weakPasswordPage(render)); return; }
   if (!me.active) {
     mount(app, h('div', { class: 'auth' }, h('div', { class: 'card' }, h('h1', {}, 'Account deactivated'),
       h('p', { class: 'lead' }, 'Your account has been deactivated. Ask the administrator if you think this is a mistake.'),

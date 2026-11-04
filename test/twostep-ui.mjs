@@ -1,5 +1,5 @@
-// Two-step sign-in and the company logo: the reminder before the date, setting it up (wrong code, right code), the code
-// asked at sign-in, the hard stop after the date, the GM's view and reset, and the logo printed on documents.
+// Two-step sign-in by email (051) and the company logo: off by default, the emailed code asked at sign-in (wrong,
+// right), never for a requester, nothing left of the authenticator app, and the logo printed on documents.
 import { chromium } from '/opt/npm-tools/node_modules/playwright/index.mjs';
 import http from 'node:http'; import { readFileSync, existsSync } from 'node:fs'; import path from 'node:path';
 const root = path.resolve('demo');
@@ -18,81 +18,43 @@ async function open(role, hash, { twoStep = 'off', from = null, w = 390 } = {}) 
 }
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
-/* 1. before the date: a reminder on Home, and setting it up from Account */
+/* 1. off (no date): finance signs in with the password alone; Home has no reminder; Account says nothing to set up */
 {
   const { ctx, page, errs } = await open('finance', '#/home');
-  check(/Set up two-step sign-in by/.test(await page.locator('#two-step-banner').innerText().catch(() => '')), 'finance, before the date: Home reminds them, with the date');
-  await page.locator('#two-step-banner a').click(); await page.waitForTimeout(1200);
-  const sheet = page.locator('#two-step');
-  check(/Required for finance, the GM and the MD from/.test(await sheet.innerText()), 'Account explains it is required for their position, from the date');
-  await page.locator('#two-step-start').click(); await page.waitForTimeout(300);
-  check(/Google Authenticator or Microsoft Authenticator/.test(await sheet.innerText()), 'step 1: install a free authenticator app');
-  await sheet.locator('button', { hasText: 'Start' }).click(); await page.waitForTimeout(600);
-  check(await page.locator('#two-step-add').count() === 1 && /otpauth:/.test(await page.locator('#two-step-add').getAttribute('href')), 'on a phone: one tap adds Petti to the authenticator app');
-  check(/JBSW Y3DP/.test(await sheet.locator('.two-step-key').innerText()), 'the key is shown in groups of four, for typing in by hand');
-  const code = sheet.locator('input.code-input');
-  await code.fill('000000'); await sheet.locator('button', { hasText: 'Turn on two-step sign-in' }).click(); await page.waitForTimeout(500);
-  check(/That code is not right/.test(await sheet.innerText()), 'a wrong code is refused, in plain words');
-  await code.fill('123456'); await sheet.locator('button', { hasText: 'Turn on two-step sign-in' }).click(); await page.waitForTimeout(900);
-  check(/On since/.test(await page.locator('#two-step').innerText()) && /stays on/.test(await page.locator('#two-step').innerText()), 'the right code turns it on; required, so it stays on (no Turn off)');
-  check(await noSideScroll(page), 'nothing runs off the side of a phone');
-  check(!errs.length, `setup: no page errors ${errs.join('|')}`);
-  await ctx.close();
-}
-
-/* 2. the next sign-in asks for the code first */
-{
-  const { ctx, page, errs } = await open('finance', '#/home', { twoStep: 'code' });
-  check(/Two-step sign-in/.test(await page.locator('.auth h1').innerText().catch(() => '')) && await page.locator('.auth input.code-input').count() === 1, 'set up: the code is asked for before anything opens');
-  check(/ask your GM to reset/i.test(await page.locator('.auth').innerText()), 'and it says what to do about a lost phone');
-  await page.locator('.auth input.code-input').fill('111111'); await page.waitForTimeout(700);
-  check(/That code is not right/.test(await page.locator('.auth .error').innerText()), 'a wrong code: try again');
-  await page.locator('.auth input.code-input').fill('123456'); await page.waitForTimeout(1500);
-  check(await page.locator('.auth').count() === 0 && /Good (morning|afternoon|evening)/.test(await page.locator('main h1').first().innerText().catch(() => '')), 'the right code (typed, no button) opens Home');
-  check(!errs.length, `code: no page errors ${errs.join('|')}`);
-  await ctx.close();
-}
-
-/* 3. after the date, without it: nothing opens until it is set up */
-{
-  const { ctx, page, errs } = await open('finance', '#/cash', { from: isoDay(-1) });
-  check(/Set up two-step sign-in to continue/.test(await page.locator('.auth h1').innerText().catch(() => '')), 'after the date: a hard stop, with the reason');
-  check(await page.locator('main').count() === 0, 'no screen of the app is shown');
-  await page.locator('.auth button', { hasText: 'Start' }).click(); await page.waitForTimeout(600);
-  await page.locator('.auth input.code-input').fill('123456'); await page.locator('.auth button', { hasText: 'Turn on two-step sign-in' }).click(); await page.waitForTimeout(1600);
-  check(await page.locator('.auth').count() === 0 && await page.locator('main').count() === 1, 'once set up, Petti opens');
-  check(!errs.length, `hard stop: no page errors ${errs.join('|')}`);
-  await ctx.close();
-}
-
-/* 4. a requester: optional, no reminder, can turn it off again */
-{
-  const { ctx, page, errs } = await open('requester', '#/home');
-  check(await page.locator('#two-step-banner').count() === 0, 'requester: no reminder on Home');
+  check(await page.locator('#two-step-banner').count() === 0 && /Good (morning|afternoon|evening)/.test(await page.locator('main').innerText()), 'off: Home opens, no reminder to set anything up');
   await page.goto(base + '#/account'); await page.waitForTimeout(1200);
-  check(/Recommended for anyone who handles money/.test(await page.locator('#two-step').innerText()), 'requester: Account offers it as optional');
+  const t = await page.locator('#two-step').innerText().catch(() => '');
+  check(/Off/.test(t) && /email you a 6-digit code/.test(t) && /Nothing to set up/.test(t) && await page.locator('#two-step button').count() === 0, 'Account: off, by email when switched on, nothing to set up');
+  check(!errs.length, `finance: no page errors ${errs.join('|')}`);
+  await ctx.close();
+}
+
+/* 2. on, and this sign-in owes the code: the emailed code first (wrong, then right) */
+{
+  const { ctx, page, errs } = await open('finance', '#/home', { twoStep: 'code', from: isoDay(-1) });
+  check(/Check your email/.test(await page.locator('h1').innerText()) && /emailed a 6-digit code to f•••@example\.test/.test(await page.locator('#code-status').innerText()), 'the code page: where the code went');
+  await page.locator('.code-input').fill('111 111'); await page.waitForTimeout(600);
+  check(/not right/.test(await page.locator('.error').innerText()), 'a wrong code: says so');
+  await page.locator('.code-input').fill('123 456'); await page.waitForTimeout(1500);
+  check(/Good (morning|afternoon|evening)/.test(await page.locator('main').innerText().catch(() => '')), 'the right code (typed with a space): Petti opens');
+  check(await noSideScroll(page) && !errs.length, `code: phone fits, no page errors ${errs.join('|')}`);
+  await ctx.close();
+}
+
+/* 3. a requester is never asked */
+{
+  const { ctx, page, errs } = await open('requester', '#/home', { twoStep: 'code', from: isoDay(-1) });
+  check(await page.locator('.code-input').count() === 0, 'a requester is not asked for a code');
   check(!errs.length, `requester: no page errors ${errs.join('|')}`);
   await ctx.close();
-  const on = await open('requester', '#/account', { twoStep: 'on' });
-  const off = on.page.locator('#two-step button', { hasText: 'Turn off' });
-  check(await off.count() === 1, 'optional and on: it can be turned off');
-  await off.click(); await on.page.locator('.modal button', { hasText: 'Turn off' }).click(); await on.page.waitForTimeout(800);
-  check(/Off/.test(await on.page.locator('#two-step .sheet-head').innerText()), 'turned off');
-  await on.ctx.close();
 }
 
-/* 5. the GM: who has it, a reset for a lost phone, the date, and the logo */
+/* 4. the GM: no authenticator left in People, the date explained, and the logo */
 {
   const { ctx, page, errs } = await open('approver', '#/admin/users', { twoStep: 'on', w: 1280 });
-  const fiona = page.locator('tr', { hasText: 'Fiona Shikongo' });
-  check(/On/.test(await fiona.locator('.two-step-cell').innerText().catch(() => '')), 'People: shows who has two-step sign-in');
-  check(/Not yet/.test(await page.locator('tr', { hasText: 'Paulus Nghipondoka' }).innerText()) && /Off/.test(await page.locator('tr', { hasText: 'Rita Amadhila' }).locator('td').nth(-2).innerText()), 'People: a required position without it says "Not yet"; others "Off"');
-  await fiona.locator('button', { hasText: 'Reset' }).click(); await page.waitForTimeout(300);
-  check(/lost their phone/.test(await page.locator('.modal').innerText()), 'Reset asks first, and says when to use it');
-  await page.locator('.modal button', { hasText: 'Reset' }).click(); await page.waitForTimeout(500);
-
+  check(!/Two-step/.test(await page.locator('main thead').innerText()) && await page.locator('main button', { hasText: 'Reset' }).count() === 0, 'People: no authenticator column or reset any more');
   await page.goto(base + '#/admin/settings'); await page.waitForTimeout(1200);
-  check(await page.locator('#set-two-step-from').inputValue() !== '', 'Settings: the required-from date can be moved');
+  check(/emails them a 6-digit code/.test(await page.locator('main').innerText()) && /only once Petti can send email/.test(await page.locator('main').innerText()), 'Settings: the date, explained for email codes');
   check(/No logo yet/.test(await page.locator('#logo-block').innerText()), 'Settings: no logo yet');
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAMgAAABQCAYAAABcbTqwAAABuUlEQVR42u3dsVHDQBBAUdtdMAQElEMPFEcPlENAwFCGKQADQnd7ut17Lyaw5f23UqDhdAIAAACmcJ7pw9w/P123/u3Hy+vZz0fZQP4Tg2hYJpCIMIRC6kBGRCEW0gVyZBhCoYfLCnHM+HlYdINkGETbhEM2SJZT2jZheCDZhk4kDAsk67CJhPBAsg+ZSAgLpMpwiYTugVQbKpHQLZCqwyQSmgOpPkQiYXcgqwyPSOjykA4CWfRUtUXYHMiqwyIS3GJBSyCrn6K2iEAAgUDnQNxeuA4CAX50dmpu1/Kq7t3jg+s5mc+39z9/TxsEBAICAYHA4YF4QL/NdREIIBAQCAgEBAICAYGAQEAgIBAQyDf+RdltrotAAIGAQEAgEOnXh07vP3hAt0GAfYE4NV0HgQACgZBAVr+9cHslEKAlkFVPUduDi2HxfXGLBfGBrHKq2h7s3iDVh0ccNN9iVR0icdDtGaTaMImD7g/pVYZKHIQEUmG4xEFoIJmHTBwMCSTjsImDoYFkGjpxsFXYoMz4uq4wOHSDzDyM4mCqDTLLNhEG0wcyOhZRkDaQyFCEQZlAWqMRAwAAANV8AaAesII7uQHFAAAAAElFTkSuQmCC', 'base64');
   await page.locator('#logo-file').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: png }); await page.waitForTimeout(1200);

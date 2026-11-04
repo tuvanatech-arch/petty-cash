@@ -1,5 +1,6 @@
-import { sb, adminUsers, accountMail, cleanError } from '../api.js';
+import { sb, adminUsers, accountMail, cleanError, state, loadSessionContext, signOutHere } from '../api.js';
 import { h, field, busy, toast } from '../ui.js';
+import { rate, revealable, newPasswordField } from '../password.js';
 import { installLabel } from './install.js';
 
 const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, h('span', {}, 'P', h('span', { class: 'dot' }, '.'))),
@@ -23,7 +24,7 @@ function loginForm() {
   const form = h('form', { onsubmit: (e) => { e.preventDefault(); submit(); } },
     h('h1', {}, 'Sign in'),
     h('p', { class: 'lead' }, 'Requests, approvals and receipts for the petty cash float.'),
-    field('Email', email), field('Password', pass), err, btn,
+    field('Email', email), field('Password', revealable(pass)), err, btn,
     linkBtn,
     h('div', { class: 'links' },
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); forgot(email.value); } }, 'Forgot password?'),
@@ -31,8 +32,10 @@ function loginForm() {
     h('p', { class: 'hint', style: { marginTop: '10px' } }, 'No account? Ask your administrator.'));
   const submit = busy(btn, async () => {
     err.textContent = '';
+    // a weak password is noticed here, the only moment Petti sees it: a stronger one is asked for straight after
+    try { if (!rate(pass.value, { email: email.value }).ok) sessionStorage.setItem('pcs_pw_weak', '1'); else sessionStorage.removeItem('pcs_pw_weak'); } catch {}
     const { error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value });
-    if (error) err.textContent = /invalid/i.test(error.message) ? 'Email or password is wrong.' : cleanError(error);
+    if (error) { try { sessionStorage.removeItem('pcs_pw_weak'); } catch {} err.textContent = /invalid/i.test(error.message) ? 'Email or password is wrong.' : cleanError(error); }
   });
   return form;
 }
@@ -63,11 +66,12 @@ async function forgot(email) {
 function bootstrapForm() {
   const name = h('input', { class: 'input', required: true, autocomplete: 'name' });
   const email = h('input', { class: 'input', type: 'email', required: true, autocomplete: 'username' });
-  const pass = h('input', { class: 'input', type: 'password', required: true, autocomplete: 'new-password', minlength: 8 });
+  const pass = h('input', { class: 'input', type: 'password', required: true, autocomplete: 'new-password', minlength: 10 });
   const err = h('div', { class: 'error' });
   const btn = h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, 'Create administrator account');
   const submit = busy(btn, async () => {
     err.textContent = '';
+    if (!rate(pass.value, { email: email.value, name: name.value }).ok) { err.textContent = 'Choose a stronger password: see the tips under it.'; return; }
     try {
       await adminUsers({ action: 'bootstrap', email: email.value, password: pass.value, full_name: name.value });
       const { error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value });
@@ -78,5 +82,34 @@ function bootstrapForm() {
   return h('form', { onsubmit: (e) => { e.preventDefault(); submit(); } },
     h('h1', {}, 'Set up the first account'),
     h('p', { class: 'lead' }, 'This becomes the approver and administrator. You will add finance, the stock manager and requesters afterwards.'),
-    field('Your name', name), field('Email', email), field('Password', pass, 'At least 8 characters'), err, btn);
+    field('Your name', name), field('Email', email), field('Password', newPasswordField(pass, { email: email.value, name: name.value })), err, btn);
+}
+
+/** Signed in with a weak password: choose a stronger one before carrying on. */
+export function weakPasswordPage(render) {
+  const me = state.me || {};
+  const who = { email: me.email, name: me.full_name, org: state.settings?.org_name };
+  const p1 = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', id: 'new-pass' });
+  const p2 = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', id: 'new-pass-2' });
+  const err = h('div', { class: 'error' });
+  const btn = h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, 'Save and continue');
+  const go = busy(btn, async () => {
+    err.textContent = '';
+    if (!rate(p1.value, who).ok) { err.textContent = 'Not strong enough yet: see the tips under the password.'; return; }
+    if (p1.value !== p2.value) { err.textContent = 'The two passwords do not match.'; return; }
+    const { error } = await sb.auth.updateUser({ password: p1.value });
+    if (error) { err.textContent = /same|different/i.test(error.message) ? 'Choose a password you have not used before.' : cleanError(error); return; }
+    try { sessionStorage.removeItem('pcs_pw_weak'); } catch {}
+    toast('Password changed. Thank you.', { ms: 5000 });
+    await loadSessionContext(); render();
+  });
+  const out = h('button', { class: 'btn btn-quiet btn-block', type: 'button' }, 'Sign out');
+  out.onclick = busy(out, async () => { try { sessionStorage.removeItem('pcs_pw_weak'); } catch {} await signOutHere(); });
+  return h('div', { class: 'auth' }, h('div', { class: 'card' }, brand(),
+    h('form', { onsubmit: (e) => { e.preventDefault(); go(); }, id: 'weak-password' },
+      h('h1', {}, 'Choose a stronger password'),
+      h('p', { class: 'lead' }, 'The password you signed in with is easy to guess, and Petti holds money records. Choose a new one to carry on: it takes a minute.'),
+      field('New password', newPasswordField(p1, who, { confirm: p2 })),
+      field('Type it again', revealable(p2)), err, btn),
+    out));
 }

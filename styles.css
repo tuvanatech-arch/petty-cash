@@ -824,3 +824,21 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .urgent-field { margin-bottom: 14px; }
 .urgent-card { border-color: var(--red); box-shadow: inset 4px 0 0 var(--red), var(--shadow); }
 .urgent-card h2 { color: var(--red); }
+
+/* passwords: the eye button and the strength meter */
+.pw-wrap { position: relative; display: flex; }
+.pw-wrap .input { padding-right: 48px; }
+.pw-eye { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: var(--ink-3); cursor: pointer; border-radius: var(--radius); }
+.pw-eye:hover, .pw-eye[aria-pressed="true"] { color: var(--green); }
+.pw-eye:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.pw-meter { display: grid; gap: 6px; }
+.pw-rate { display: flex; align-items: center; gap: 10px; font-size: .85rem; }
+.pw-bar { flex: 0 0 120px; height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+.pw-bar span { display: block; height: 100%; width: 0; background: var(--red); transition: width .2s, background .2s; }
+.pw-rate[data-score="2"] .pw-bar span { background: var(--amber); }
+.pw-rate[data-score="3"] .pw-bar span, .pw-rate[data-score="4"] .pw-bar span { background: var(--green); }
+.pw-rate[data-score="0"] .pw-label, .pw-rate[data-score="1"] .pw-label { color: var(--red); font-weight: 600; }
+.pw-rate[data-score="2"] .pw-label { color: var(--amber); font-weight: 600; }
+.pw-rate[data-score="3"] .pw-label, .pw-rate[data-score="4"] .pw-label { color: var(--green-ink); font-weight: 600; }
+.pw-tips { margin: 0; padding-left: 18px; font-size: .82rem; color: var(--ink-3); }
+.pw-suggest { justify-self: start; }

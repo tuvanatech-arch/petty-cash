@@ -43,9 +43,9 @@ async function caller(req: Request) {
   const { data: profile } = await admin.from("profiles").select("*").eq("id", data.user.id).single();
   if (!profile) return null;
   // the sign-in level is in the token: aal2 once the two-step code was given
-  let aal = "aal1";
-  try { const p = token.split(".")[1]; aal = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((p.length + 3) % 4))).aal || "aal1"; } catch { /* aal1 */ }
-  return { ...profile, aal };
+  let aal = "aal1", session: string | null = null;
+  try { const p = token.split(".")[1]; const c = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((p.length + 3) % 4))); aal = c.aal || "aal1"; session = c.session_id || null; } catch { /* aal1 */ }
+  return { ...profile, aal, session };
 }
 
 // who holds each position is part of the authority schedule: record a new version when it changes (no-op otherwise)
@@ -61,8 +61,14 @@ async function checkPlace() {
   }
 }
 
+// the same rule as the app's strength meter (web/js/password.js): at least 10 characters and not easy to guess
+const COMMON = /^(password|passw0rd|petti|pettycash|welcome|qwerty|qwertyuiop|asdfgh|letmein|admin|iloveyou|monkey|dragon|sunshine|princess|football|windhoek|namibia|abc123|changeme)/i;
 function checkPassword(p: unknown) {
-  if (typeof p !== "string" || p.length < 8) throw new Error("Password must be at least 8 characters");
+  if (typeof p !== "string" || p.length < 10) throw new Error("Use at least 10 characters for the password");
+  const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((r) => r.test(p)).length;
+  if (COMMON.test(p.replace(/[^A-Za-z]/g, "")) && p.length < 16) throw new Error("That password is too easy to guess: avoid common words");
+  if (/^(.)\1+$/.test(p) || /^(0123456789|1234567890|abcdefghij)/i.test(p)) throw new Error("That password is too easy to guess");
+  if (kinds < 3 && p.length < 16) throw new Error("Mix capital and small letters, numbers and a symbol, or use a longer password (16+ characters)");
 }
 
 Deno.serve(async (req) => {
@@ -102,7 +108,7 @@ Deno.serve(async (req) => {
 
     const me = await caller(req);
     if (me) {
-      const { data: blocked, error: be } = await admin.rpc("two_step_blocked_for", { p_user: me.id, p_aal: me.aal });
+      const { data: blocked, error: be } = await admin.rpc("two_step_blocked_session", { p_user: me.id, p_aal: me.aal, p_session: me.session });
       if (be || blocked) return json({ error: "Sign in again and give your two-step code first." }, 403);
     }
 
