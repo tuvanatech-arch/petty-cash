@@ -4,7 +4,7 @@ Petti is Tuvana Tech's petty cash and office-stock app (Tuvana Tech is part of t
 
 ## How to reply
 
-- Start every reply with the model and effort level in bold, e.g. **Model: Claude Opus 5.5 · effort: low.**
+- Start every reply with the model and effort level in bold, e.g. **Model: Claude Opus 5.5 · effort: low.** Before making any change (code, database, settings, notes, files), send that line to the owner as a visible message first, with one sentence on what is about to change, and only then start. The final reply is not enough: work messages in between are not shown to the owner.
 - Plain language. The owner is not a developer: no jargon, short questions, and a recommendation rather than a menu.
 - Treat instructions as proposals: suggest a better way when there is one, and avoid over-engineering.
 
