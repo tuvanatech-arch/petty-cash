@@ -52,7 +52,8 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
   await page.waitForTimeout(3000);
   check(await page.locator('#quote-list li').count() === 1, 'the quote is attached and listed on the form');
   check(await page.locator('#no-quote').count() === 0, 'with a quote attached, "No quote" is no longer offered');
-  check(/Quote attached/.test(await toastText(page)), `it says so: "${(await toastText(page)).slice(0, 60)}"`);
+  const said = `${await toastText(page)} ${await page.locator('#doc-filled').innerText().catch(() => '')}`;
+  check(/Quote attached|Document attached|Filled in from the document/.test(said) && await page.locator('input[placeholder^="e.g."]').first().inputValue() === 'Plumber for the kitchen tap', `it says so, and what was typed stays: "${said.replace(/\s+/g, ' ').slice(0, 80)}"`);
   check(!errs.length, `quote attach: no page errors ${errs.join(' | ')}`);
   await ctx.close();
 }

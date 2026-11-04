@@ -86,6 +86,10 @@ Who approves what by amount is set by the GM under Schedule → "Who approves wh
 
 The requester ticks "Urgent" on the form and must say why (`set_urgent` on the draft); the GM or the MD can mark a waiting request urgent ("Mark urgent", for example so finance pays it first), and the GM, the MD or finance takes the label off ("Not urgent", with a reason; the requester is told). Whoever acts next hears it: each stage's alert (`notify_stage`) starts "Urgent – " with the reason; Home shows a red "Urgent" card at the top for the person who acts, and lists put urgent requests first (`urgentFirst` in requests.js). The request shows how often that person marked one urgent this month. `urgent_chase` (every 10 minutes, Mon–Fri 07:00–18:00 local): one reminder 2 hours after it reached the people who act on it, and 2 hours later the GM is told (not when it waits for the GM); each new stage starts the clock again. Urgent never skips an approval or a limit.
 
+## Start from the document (052)
+
+A receipt, quote or invoice can come first. read-receipt returns `doc_type` (receipt / invoice / quote / proof_of_payment), `summary`, `due_date`, `reference` and the supplier's `bank` details. "Request a payment" has "Have the quote or invoice? Start from it" (`#start-from-doc`): the file is read first and fills the empty parts (what it is for, amount, category, needed by), then the draft is saved and the document filed as the quote/invoice; a banner says what was filled in. A claim can start with the receipt (no purpose typed: a placeholder until it is read). Snap or upload recognises a quote or invoice still to be paid and offers "Request this payment" (a filled-in draft, opened to check). When finance pays by transfer, the bank details read from the invoice are shown (`payeeBank`, with Copy) and a warning to check them against known details. Nothing is sent without the person checking it.
+
 ## Open items (as of 1 Nov 2026)
 
 - MGP has no plan set yet: the owner decides (Business, or the founding price) before it is set and announced to the GM.

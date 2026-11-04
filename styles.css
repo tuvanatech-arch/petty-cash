@@ -842,3 +842,10 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .pw-rate[data-score="3"] .pw-label, .pw-rate[data-score="4"] .pw-label { color: var(--green-ink); font-weight: 600; }
 .pw-tips { margin: 0; padding-left: 18px; font-size: .82rem; color: var(--ink-3); }
 .pw-suggest { justify-self: start; }
+
+/* start from the document (052) */
+.start-doc { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; padding: 14px 16px; border: 1.5px dashed var(--green); border-radius: var(--radius); background: var(--green-tint); color: var(--green-ink); cursor: pointer; }
+.start-doc input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.start-doc .hint { color: var(--ink-2); font-weight: 400; margin-top: 2px; }
+.payee-bank .kv { margin: 6px 0; }
+.payee-bank dd { overflow-wrap: anywhere; }

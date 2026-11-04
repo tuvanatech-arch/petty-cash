@@ -1,7 +1,9 @@
-// Snap or upload a receipt or invoice: the file comes first, then the app proposes where it belongs –
-// cash you are holding, a purchase that is approved but not yet paid, or a new claim.
+// Snap or upload a receipt, quote or invoice: the file comes first, then the app proposes where it belongs –
+// cash you are holding, a purchase that is approved but not yet paid, a new claim, or (a quote or invoice still to be
+// paid) a new payment request filled in from it (052).
 import { scanReceipt, unreadable } from '../scan.js';
-import { sb, state, unwrap, rpc, readReceipt, uploadToInbox, fileInboxReceipt, fileInboxDocument, discardInboxReceipt, proofUrl, personName } from '../api.js';
+import { sb, state, unwrap, rpc, readReceipt, uploadToInbox, fileInboxReceipt, fileInboxDocument, discardInboxReceipt, proofUrl, personName, myBranch } from '../api.js';
+import { guessCategory } from './requests.js';
 import { h, mount, money, fmtDate, toast, busy, emptyState, today, isoDate, num, confirmDialog } from '../ui.js';
 import { takeSharedFile } from '../share.js';
 
@@ -55,7 +57,7 @@ export async function snapPage() {
   const input = h('input', { type: 'file', accept: 'image/*,application/pdf' });
   if (hasCamera) input.setAttribute('capture', 'environment');
   const chooser = h('label', { class: 'snap-btn' }, input, h('span', { class: 'big' }, hasCamera ? '📷' : '📄'),
-    h('span', {}, hasCamera ? 'Snap or upload a receipt or invoice' : 'Upload a receipt or invoice'),
+    h('span', {}, hasCamera ? 'Snap or upload a receipt, quote or invoice' : 'Upload a receipt, quote or invoice'),
     h('span', { class: 'hint' }, hasCamera ? 'camera, photos or a PDF from Files / email' : 'choose a PDF or image, or drop it here'));
   input.onchange = () => { const f = input.files?.[0]; if (f) start(f); };
   chooser.ondragover = (e) => { e.preventDefault(); chooser.classList.add('over'); };
@@ -130,7 +132,11 @@ export async function snapPage() {
     const options = h('div', { class: 'snap-options' });
 
     const attachBtn = (r, label) => { const b = h('button', { class: 'btn btn-primary' }, label); b.onclick = busy(b, () => attach(ib, r, reading)); return b; };
-    const claimBtn = (label = 'It’s a claim – I paid this myself') => { const b = h('button', { class: 'btn' }, label); b.onclick = busy(b, () => claim(ib, reading)); return b; };
+    const claimBtn = (label = 'It’s a claim – I paid this myself', cls = 'btn') => { const b = h('button', { class: cls }, label); b.onclick = busy(b, () => claim(ib, reading)); return b; };
+    // a quote or an invoice still to be paid: start a payment request from it (052)
+    const bill = ['quote', 'invoice'].includes(reading?.doc_type);
+    const payBtn = (cls = 'btn') => { const b = h('button', { class: cls, id: 'request-from-doc' }, 'Request this payment'); b.onclick = busy(b, () => requestPayment(ib, reading)); return b; };
+    const what = reading?.doc_type === 'invoice' ? 'an invoice' : 'a quote';
     const laterBtn = h('button', { class: 'btn btn-quiet', onclick: () => { toast('Kept under Unfiled receipts.'); location.hash = '#/home'; } }, 'Decide later');
     const discardBtn = h('button', { class: 'btn btn-quiet btn-danger' }, 'Discard');
     discardBtn.onclick = busy(discardBtn, async () => { if (!(await confirmDialog('Discard this file?', 'It will be deleted.', { ok: 'Discard', danger: true }))) return; await discardInboxReceipt(ib); toast('Discarded.'); location.hash = '#/snap'; });
@@ -142,16 +148,27 @@ export async function snapPage() {
       attachBtn(r, primary ? 'Yes, attach to this' : 'Attach here'));
 
     const claimNote = h('p', { class: 'hint', style: { margin: '10px 0 0' } }, 'A claim is money spent before anyone approved it – the approver signs it off before finance pays you back.');
-    if (!candidates.length) {
+    if (!candidates.length && bill) {
+      mount(options, h('div', { class: 'banner banner-green', style: { marginBottom: '12px' } }, h('strong', {}, `This is ${what} still to be paid`),
+        `Start a payment request from it: Petti fills in ${reading?.total != null ? `${money(reading.total)}, ` : ''}what it is for and the category, and attaches it. You check it and submit.`),
+        h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, payBtn('btn btn-primary'), claimBtn('I already paid it – claim it back'), laterBtn, discardBtn));
+    } else if (!candidates.length) {
       mount(options, h('div', { class: 'banner banner-green', style: { marginBottom: '12px' } }, h('strong', {}, 'Nothing of yours is waiting for a receipt or invoice'), reading?.total != null ? `So this looks like money you paid yourself: claim ${money(reading.total)}${reading.supplier ? ` from ${reading.supplier}` : ''} back from the float.` : 'So this would be a claim for money you paid yourself.'),
         h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, claimBtn('Create the claim'), laterBtn, discardBtn), claimNote);
     } else if (confident) {
       mount(options, h('p', { style: { fontWeight: 600, margin: '10px 0 6px' } }, 'Looks like this one:'), card(best.r, best.reasons, true),
         scored.length > 1 ? h('details', { style: { marginTop: '8px' } }, h('summary', { class: 'hint', style: { cursor: 'pointer' } }, 'Not that one? Choose another'), scored.slice(1).map((s) => card(s.r, s.reasons, false))) : null,
-        h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, claimBtn(), laterBtn, discardBtn));
+        h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, bill ? payBtn() : null, claimBtn(), laterBtn, discardBtn));
+    } else if (bill) {
+      // a quote or invoice that matches nothing waiting for certain: most likely a new payment
+      mount(options, h('div', { class: 'banner banner-green', style: { marginBottom: '12px' } }, h('strong', {}, `This is ${what} still to be paid`),
+        `Start a payment request from it: Petti fills in ${reading?.total != null ? `${money(reading.total)}, ` : ''}what it is for and the category, and attaches it.`),
+        h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, payBtn('btn btn-primary')),
+        h('details', { style: { marginTop: '8px' } }, h('summary', { class: 'hint', style: { cursor: 'pointer' } }, 'Or is it for something already requested?'), scored.map((x) => card(x.r, x.reasons, false))),
+        h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, claimBtn('I already paid it – claim it back'), laterBtn, discardBtn));
     } else {
       mount(options, h('p', { style: { fontWeight: 600, margin: '10px 0 6px' } }, 'Which of these is it for?'), scored.map((s, i) => card(s.r, s.reasons, i === 0 && s.score >= 1.5)),
-        h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, claimBtn(), laterBtn, discardBtn));
+        h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, bill ? payBtn() : null, claimBtn(), laterBtn, discardBtn));
     }
     mount(stage, h('div', { class: 'snap-row' }, thumb, h('div', { style: { flex: 1 } }, h('strong', {}, ib.file_name), summary)), options);
   }
@@ -188,8 +205,23 @@ export async function snapPage() {
     }
   }
 
+  /** A payment request filled in from a quote or invoice, with the document attached; opened for checking. */
+  async function requestPayment(ib, reading) {
+    const what = reading?.summary || (reading?.lines?.[0]?.description ? `${reading.lines[0].description}${reading.lines.length > 1 ? ' and more' : ''}` : '');
+    const purpose = ([reading?.supplier, what].filter(Boolean).join(' – ') || 'Payment from a quote').slice(0, 140);
+    const { data: cats } = await sb.from('categories').select('*').eq('active', true);
+    const cat = guessCategory(purpose, (cats || []).filter((c) => c.kind !== 'stock'));
+    const due = reading?.due_date && /^\d{4}-\d{2}-\d{2}$/.test(reading.due_date) && reading.due_date >= today() ? reading.due_date : null;
+    const req = unwrap(await sb.from('requests').insert({ type: 'cash', purpose, needed_by: due, category_id: cat?.id || null, not_stock: true, requester_id: state.me.id, for_store: false, branch_id: myBranch() }).select().single());
+    const total = Number(reading?.total);
+    if (total > 0) unwrap(await sb.from('request_lines').insert({ request_id: req.id, line_no: 1, item_id: null, description: purpose, qty: 1, est_unit_price: total }));
+    await fileInboxDocument(ib, req.id, reading?.doc_type === 'invoice' ? 'invoice' : 'quote');
+    toast('Payment request filled in from the document – check it, then submit.', { ms: 6000 });
+    location.hash = `#/requests/${req.id}/edit?from=doc`;
+  }
+
   async function claim(ib, reading) {
-    const purpose = reading?.supplier ? `${reading.supplier}${reading.lines?.[0]?.description ? ` – ${reading.lines[0].description}` : ''}`.slice(0, 140) : 'Receipt I paid myself';
+    const purpose = reading?.supplier ? `${reading.supplier}${reading.summary ? ` – ${reading.summary}` : reading.lines?.[0]?.description ? ` – ${reading.lines[0].description}` : ''}`.slice(0, 140) : 'Receipt I paid myself';
     const spentAt = reading?.date && /^\d{4}-\d{2}-\d{2}$/.test(reading.date) && reading.date <= today() ? reading.date : today();
     const req = await rpc('save_claim', { p_request: null, p_purpose: purpose, p_category: null, p_spent_at: spentAt, p_supplier: reading?.supplier || null, p_notes: null });
     const lines = (reading?.lines || []).filter((l) => l && l.description).map((l, i) => ({ request_id: req.id, line_no: i + 1, item_id: null, description: String(l.description), qty: num(l.qty) || 1, est_unit_price: num(l.unit_price) }));
@@ -205,6 +237,6 @@ export async function snapPage() {
   if (shared) start(shared);
   else if (resumeId) { const ib = inboxList.find((x) => x.id === resumeId); if (ib) resume(ib); else drawStart(); } else drawStart();
   return h('div', {},
-    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, hasCamera ? 'Snap or upload' : 'Upload a receipt or invoice'), h('p', {}, 'The file first. The app reads it and proposes where it belongs; you confirm.'))),
+    h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, hasCamera ? 'Snap or upload' : 'Upload a receipt, quote or invoice'), h('p', {}, 'The file first. Petti reads it and proposes where it belongs, or fills in a claim or a payment request from it; you confirm.'))),
     h('div', { class: 'sheet' }, stage));
 }

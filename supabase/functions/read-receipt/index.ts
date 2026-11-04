@@ -1,4 +1,5 @@
-// read-receipt: reads a scanned receipt with the Claude API and returns supplier, date, total and lines.
+// read-receipt: reads a scanned receipt, quote or invoice with the Claude API and returns what kind of document it is,
+// supplier, what it is for, dates, total, lines and (on an invoice or quote) the supplier's bank details.
 // Caller must be signed in and able to see the proof (row-level security decides).
 // Secrets: ANTHROPIC_API_KEY (required), RECEIPT_MODEL (optional, default claude-haiku-5-5).
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -8,11 +9,15 @@ const admin = createClient(URL_, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { a
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const PROMPT = `This image or document is a till slip, receipt or invoice, probably from Namibia (currency N$, Namibian dollars, sometimes shown as NAD or just $). Extract what it says and reply with ONLY a JSON object, no prose, no code fences:
-{"supplier": "shop or company name", "date": "YYYY-MM-DD or null", "currency": "N$", "total": number or null,
+const PROMPT = `This image or document is a till slip, receipt, quote, invoice or proof of payment, probably from Namibia (currency N$, Namibian dollars, sometimes shown as NAD or just $). Extract what it says and reply with ONLY a JSON object, no prose, no code fences:
+{"doc_type": "receipt" | "invoice" | "quote" | "proof_of_payment" | "other",
+ "supplier": "shop or company name", "summary": "what it is for in a few plain words, e.g. 'Plumbing repair, kitchen tap' (max 60 characters)",
+ "date": "YYYY-MM-DD or null", "due_date": "YYYY-MM-DD or null", "reference": "invoice or quote number, or null",
+ "currency": "N$", "total": number or null,
  "lines": [{"description": "item as printed, tidied up", "qty": number, "unit_price": number}],
+ "bank": {"account_name": "...", "bank": "...", "account_number": "...", "branch_code": "...", "reference": "what to quote when paying"} or null,
  "vat_included": true or false or null, "confidence": number between 0 and 1, "notes": "anything unclear, e.g. blurry total"}
-Rules: unit_price is the price per unit; if a line shows only a line total, divide by qty. Skip subtotal, VAT, change, card and loyalty lines – they are not purchased items. If you cannot read a value, use null rather than guessing.`;
+Rules: doc_type "receipt" means it was already paid (till slip, cash sale, "paid"); "invoice" asks for payment (tax invoice, amount due); "quote" is a quotation or estimate; "proof_of_payment" is a bank transfer confirmation. unit_price is the price per unit; if a line shows only a line total, divide by qty. Skip subtotal, VAT, change, card and loyalty lines – they are not purchased items. bank is only the supplier's banking details printed for paying them (null if none). If you cannot read a value, use null rather than guessing.`;
 
 function toB64(bytes: Uint8Array) {
   let s = ""; const chunk = 0x8000;
@@ -69,7 +74,7 @@ Deno.serve(async (req) => {
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model: Deno.env.get("RECEIPT_MODEL") || "claude-haiku-5-5",
-      max_tokens: 1200,
+      max_tokens: 1600,
       messages: [{ role: "user", content: [
         isPdf ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }
               : { type: "image", source: { type: "base64", media_type: mime, data: b64 } },

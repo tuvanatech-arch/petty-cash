@@ -122,7 +122,7 @@ export async function newRequestPage(editId, presetType) {
   const amountBox = h('div', {});
   const guessed = h('span', { class: 'hint' });
   let userPickedCategory = !!existing?.category_id;
-  purpose.addEventListener('input', () => { if (type === 'cash' && !userPickedCategory) { const g = guessCategory(purpose.value, cats); if (g && category.value !== g.id) { category.value = g.id; guessed.textContent = `Category guessed: ${g.name} – change it if wrong.`; budget(); } else if (!g) guessed.textContent = ''; } });
+  purpose.addEventListener('input', () => { if ((type === 'cash' || type === 'claim') && !userPickedCategory) { const g = guessCategory(purpose.value, cats); if (g && category.value !== g.id) { category.value = g.id; guessed.textContent = `Category guessed: ${g.name} – change it if wrong.`; budget(); } else if (!g) guessed.textContent = ''; } });
   const needed = h('input', { class: 'input', type: 'date', value: existing?.needed_by || '' });
   // urgent (049): the person who acts next is alerted at once; the reason is required
   const urgentTick = h('input', { type: 'checkbox', id: 'urgent', checked: !!existing?.urgent });
@@ -149,7 +149,7 @@ export async function newRequestPage(editId, presetType) {
   const typeBtns = h('div', { class: 'tabs' });
   function drawType() {
     mount(typeBtns, [stockAllowed ? ['stock', 'Stock item'] : null, ['cash', 'Payment'], ['claim', 'I already paid – claim back']].filter(Boolean).map(([k, l]) =>
-      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); drawReceipts(); drawQuote(); dropFill(); drawAgain(); drawSuggest(); } }, l)));
+      h('button', { type: 'button', class: k === type ? 'active' : '', disabled: !!existing || forStore, onclick: () => { type = k; lines = [blankLine()]; purpose.placeholder = placeholders[k]; drawType(); drawLines(); drawStore(); drawReceipts(); drawQuote(); drawStart(); dropFill(); drawAgain(); drawSuggest(); } }, l)));
     showIf(category.closest('.field'), type !== 'stock');
     showIf(needed.closest('.field'), type !== 'claim');
     for (const el of [spentAt, supplier, notes]) showIf(el.closest('.field'), type === 'claim');
@@ -277,6 +277,8 @@ export async function newRequestPage(editId, presetType) {
       mount(receiptBox, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Receipt'),
         h('label', { class: 'upload' }, h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, onchange: async (e) => {
           const files = Array.from(e.target.files || []); if (!files.length) return;
+          // the receipt can come first: a placeholder purpose until the receipt has been read (052)
+          if (!purpose.value.trim()) { purpose.value = 'Receipt I paid myself'; autoPurpose = true; }
           try { await saveHead(false); const kept = await addProofFiles(files, { requestId: existing.id, expenseId: expense.id, onExtract: applyExtract }); expense.proofs = [...(expense.proofs || []), ...kept]; }
           catch (ex) { toast(ex.message, { error: true }); }
           drawReceipts();
@@ -291,40 +293,75 @@ export async function newRequestPage(editId, presetType) {
       hasProof ? paperSlipQuestion(existing.id, expense.paper_slip ?? null, (v) => { expense.paper_slip = v; })
         : noReceiptBox(existing.id, expense.no_receipt_note || null, (v) => { expense.no_receipt_note = v; }, { open: noReceiptOpen }));
   }
+  let autoPurpose = false;
   function applyExtract(x) {
-    if (x.supplier && !supplier.value) supplier.value = x.supplier;
+    const filled = [];
+    if (autoPurpose || !purpose.value.trim()) {
+      const what = x.summary || (x.lines?.[0]?.description ? `${x.lines[0].description}${x.lines.length > 1 ? ' and more' : ''}` : '');
+      const text = [x.supplier, what].filter(Boolean).join(' – ').slice(0, 140);
+      if (text) { purpose.value = text; autoPurpose = false; purpose.dispatchEvent(new Event('input', { bubbles: true })); adapted(purpose); filled.push('what it is for'); }
+    }
+    if (x.supplier && !supplier.value) { supplier.value = x.supplier; filled.push('the shop'); }
     if (x.date && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.date <= today()) spentAt.value = x.date;
     if (Array.isArray(x.lines) && x.lines.length && lines.every((l) => !l.description.trim())) {
       lines = x.lines.filter((l) => l && l.description).map((l) => ({ item_id: '', description: String(l.description), qty: num(l.qty) || 1, est_unit_price: num(l.unit_price) }));
-      drawLines();
+      drawLines(); filled.push('the lines');
     }
+    if (category.value && filled.includes('what it is for')) filled.push('the category');
+    mount(docNote, filled.length ? h('div', { class: 'banner banner-green', id: 'doc-filled' }, h('strong', {}, 'Filled in from the receipt'),
+      `${filled.join(', ').replace(/, ([^,]*)$/, ' and $1')}${x.total != null ? ` (total ${money(x.total)})` : ''}. Check each one before you submit.`) : null);
     toast(`Receipt read${x.total != null ? `: total ${money(x.total)}` : ''}. Check the lines before submitting.`, { ms: 6000 });
   }
 
   // a payment request: the supplier's quote or invoice is attached on the form (the draft is saved first), or "No quote"
+  // Start from the document (052): the file is read first, the empty parts of the form are filled from it (what it is
+  // for, the amount, the category, needed by), then the draft is saved and the document filed with it as the quote.
+  async function attachQuote(files, status) {
+    if (!files.length) return;
+    const filled = [];
+    try {
+      for (const file of files) {
+        if (status) status.textContent = 'Reading the document…';
+        const ib = await uploadToInbox(file);
+        let x = null;
+        try { x = await readReceipt({ inbox_id: ib.id }); } catch { /* finance can still open it */ }
+        if (x && !quoteDocs.length) {
+          if (!purpose.value.trim()) {
+            const what = x.summary || (x.lines?.[0]?.description ? `${x.lines[0].description}${x.lines.length > 1 ? ' and more' : ''}` : '');
+            const text = [x.supplier, what].filter(Boolean).join(' – ').slice(0, 140);
+            if (text) { purpose.value = text; purpose.dispatchEvent(new Event('input', { bubbles: true })); adapted(purpose); filled.push('what it is for'); }
+          }
+          const t = Number(x.total);
+          if (t > 0 && simpleCash && !(num(amountIn.value) > 0)) { amountIn.value = t.toFixed(2); adapted(amountIn); total(); filled.push('the amount'); }
+          if (category.value && purpose.value) filled.push('the category');
+          if (x.due_date && /^\d{4}-\d{2}-\d{2}$/.test(x.due_date) && x.due_date >= today() && !needed.value) { needed.value = x.due_date; adapted(needed); filled.push('needed by'); }
+        }
+        if (!purpose.value.trim()) purpose.value = `Payment – ${(x?.supplier || file.name || 'document').slice(0, 100)}`;
+        const id = await saveHead(false);
+        const kind = x?.doc_type === 'invoice' ? 'invoice' : 'quote';
+        const d = await fileInboxDocument(ib, id, kind);
+        quoteDocs.push({ ...d, extracted: x || d.extracted });
+      }
+      noQuote = false;
+      mount(docNote, filled.length ? h('div', { class: 'banner banner-green', id: 'doc-filled' }, h('strong', {}, 'Filled in from the document'),
+        `${filled.join(', ').replace(/, ([^,]*)$/, ' and $1')}. Check each one before you submit.`) : null);
+      if (!filled.length) toast(quoteDocs.length ? 'Document attached. Check the amount before sending.' : 'Attached.', { ms: 5000 });
+    } catch (ex) { toast(ex.message, { error: true }); }
+    drawQuote(); drawStart();
+  }
+  // the quick start at the top of a new payment request
+  const docNote = h('div', {});
+  const startBox = h('div', {});
+  function drawStart() {
+    const show = type === 'cash' && !forStore && !quoteDocs.length && !existing?.submitted_at;
+    mount(startBox, show ? h('label', { class: 'upload start-doc', id: 'start-from-doc' },
+      h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, onchange: (e) => attachQuote(Array.from(e.target.files || []), null) }),
+      h('span', {}, h('strong', {}, '📄 Have the quote or invoice? Start from it'), h('span', { class: 'hint', style: { display: 'block' } }, 'Petti reads it and fills this in for you: what it is for, the amount, the category and when it is needed.'))) : null);
+  }
   async function drawQuote() {
     if (type !== 'cash' || forStore) return;
     const status = h('span', { class: 'hint', id: 'quote-status' });
-    const input = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, onchange: async (e) => {
-      const files = Array.from(e.target.files || []); if (!files.length) return;
-      try {
-        const id = await saveHead(false);
-        for (const file of files) {
-          status.textContent = 'Attaching…';
-          const ib = await uploadToInbox(file);
-          let x = null;
-          status.textContent = 'Reading the quote…';
-          try { x = await readReceipt({ inbox_id: ib.id }); } catch { /* finance can still open it */ }
-          const d = await fileInboxDocument(ib, id, 'quote');
-          quoteDocs.push({ ...d, extracted: x || d.extracted });
-          const t = Number(x?.total);
-          if (t > 0 && type === 'cash' && simpleCash && !(num(amountIn.value) > 0)) { amountIn.value = t.toFixed(2); adapted(amountIn); total(); }
-          toast(t > 0 ? `Quote attached${x.supplier ? ` from ${x.supplier}` : ''}: ${money(t)}. Check the amount before sending.` : 'Quote attached.', { ms: 6000 });
-        }
-        noQuote = false;
-      } catch (ex) { toast(ex.message, { error: true }); }
-      drawQuote();
-    } });
+    const input = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, onchange: (e) => attachQuote(Array.from(e.target.files || []), status) });
     const list = quoteDocs.length ? h('ul', { class: 'ledger-list', id: 'quote-list' }, await Promise.all(quoteDocs.map(async (d) => {
       const url = await proofUrl(d.storage_path).catch(() => null); const t = Number(d.extracted?.total);
       return h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${d.extracted?.supplier || d.file_name || 'Quote'}${t > 0 ? ` · ${money(t)}` : ''}`), h('span', {}, `Attached ${fmtDate(d.created_at)}`)),
@@ -357,7 +394,7 @@ export async function newRequestPage(editId, presetType) {
     const found = routes() ? storeMatches(askText(), items) : [];
     const route = found.length && !notStock;
     routeShown = !!route;
-    showIf(saveBtn, !route); showIf(submitBtn, !route);
+    showIf(saveBtn, !route); showIf(submitBtn, !route); showIf(startBox, !route);
     if (cashPart) showIf(cashPart, !route);   // amount, category and lines do not apply to a store item
     if (!route) {
       storeKey = null;
@@ -459,6 +496,7 @@ export async function newRequestPage(editId, presetType) {
     h('div', { class: 'sheet' },
       typeBtns,
       againBox,
+      startBox, docNote,
       field('What is it for?', h('div', {}, purpose, suggestBox, filledNote)),
       storeBox,
       cashPart = h('div', {},
@@ -475,7 +513,9 @@ export async function newRequestPage(editId, presetType) {
   mount(amountBox, h('div', { class: 'row' }, field('Amount', amountIn, 'The amount to be paid.')),
     h('p', { class: 'hint', style: { marginTop: '-6px' } }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); simpleCash = false; if (num(amountIn.value) > 0 && lines.every((l) => !l.description.trim())) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }]; drawType(); drawLines(); } }, 'Several things? Add them as separate lines')));
   category.closest('.field').append(guessed);
-  drawType(); drawLines(); drawStore(); await drawReceipts(); await drawQuote(); drawAgain();
+  drawType(); drawLines(); drawStore(); await drawReceipts(); await drawQuote(); drawStart(); drawAgain();
+  if (/[?&]from=doc\b/.test(location.hash)) mount(docNote, h('div', { class: 'banner banner-green', id: 'doc-filled' }, h('strong', {}, 'Filled in from the document'),
+    'What it is for, the amount and the category were read from it, and it is attached. Check each one before you submit.'));
   if (againId) {   // "Request this again": fill the form from that request
     let src = history.find((r) => r.id === againId);
     if (!src) src = (await sb.from('requests').select('id, request_no, type, purpose, category_id, estimated_total, created_at, lines:request_lines(item_id, description, qty, est_unit_price)').eq('id', againId).maybeSingle()).data;
@@ -690,6 +730,19 @@ export async function requestDetailPage(id) {
 }
 
 /* =============================================================== stage panels */
+/* ---------------- the supplier's bank details, read from the invoice or quote (052) ---------------- */
+function payeeBank(docs) {
+  const d = [...(docs || [])].reverse().find((x) => x.extracted?.bank && (x.extracted.bank.account_number || x.extracted.bank.account_name));
+  if (!d) return null;
+  const b = d.extracted.bank;
+  const rows = [['Account name', b.account_name], ['Bank', b.bank], ['Account number', b.account_number], ['Branch code', b.branch_code], ['Their reference', b.reference || d.extracted.reference]].filter(([, v]) => v);
+  const copy = (v) => h('button', { type: 'button', class: 'btn btn-sm btn-quiet', onclick: async () => { try { await navigator.clipboard.writeText(String(v)); toast('Copied.'); } catch { toast('Select it and copy.'); } } }, 'Copy');
+  return h('div', { class: 'banner banner-blue payee-bank', id: 'payee-bank' },
+    h('strong', {}, `Pay to – read from the ${d.kind === 'invoice' ? 'invoice' : 'quote'}${d.extracted.supplier ? ` from ${d.extracted.supplier}` : ''}`),
+    h('dl', { class: 'kv' }, rows.map(([k, v]) => [h('dt', {}, k), h('dd', {}, String(v), ' ', copy(v))])),
+    h('span', { class: 'hint' }, 'Check these against the supplier’s details you already have before paying: fraudsters change bank details on invoices.'));
+}
+
 /* ---------------- urgent (049): the reason, how often, and marking / unmarking ---------------- */
 const nth = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 async function urgentBlock(q, reload) {
@@ -973,7 +1026,7 @@ function disbursePanel(q, reload) {
       h('button', { type: 'button', class: k === how ? 'active' : '', role: 'tab', 'aria-selected': String(k === how), onclick: () => { how = k; draw(); } }, l)));
     info();
     mount(body, how !== 'cash'
-      ? [tInfo,
+      ? [tInfo, payeeBank(docs),
         h('div', { class: 'row' }, field('Amount paid', tAmount, tWarn), field('Date of the transfer', tDate), field('Bank reference', tRef)),
         field('Proof of payment', h('label', { class: 'upload', id: 'transfer-pop-box' }, tPop, tPopName)),
         field('Note', tNote),

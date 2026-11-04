@@ -1,0 +1,9 @@
+{
+ "requester": [ { "at": "#/requests/new/cash", "css": "#start-from-doc", "text": "Start from it", "say": "Have the quote or invoice? Tap here and pick it: Petti reads it and fills in what it is for, the amount, the category and when it is needed. You check and submit." } ],
+ "stock_manager": [ { "at": "#/requests/new/cash", "css": "#start-from-doc", "text": "Start from it", "say": "Have the quote or invoice? Tap here and pick it: Petti reads it and fills in what it is for, the amount, the category and when it is needed. You check and submit." } ],
+ "approver": [ { "at": "#/requests/new/cash", "css": "#start-from-doc", "text": "Start from it", "say": "Have the quote or invoice? Tap here and pick it: Petti reads it and fills in what it is for, the amount, the category and when it is needed. You check and submit." } ],
+ "finance": [
+  { "at": "#/requests/new/cash", "css": "#start-from-doc", "text": "Start from it", "say": "Your own requests can start from the quote or invoice too: Petti fills them in from it." },
+  { "at": "#/requests?status=awaiting_disbursement", "css": "h1", "text": "", "say": "When you pay one by transfer, the supplier's bank details read from the invoice are shown, ready to copy. Check them against the details you already have." }
+ ]
+}
