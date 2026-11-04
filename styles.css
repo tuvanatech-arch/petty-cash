@@ -109,16 +109,78 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 @media (max-width: 860px) {
   .shell { grid-template-columns: 1fr; }
   .side { display: none; }
-  .main { padding: 16px 16px 92px; }
+  .main { padding: 16px 16px calc(104px + env(safe-area-inset-bottom)); }
   .tabbar {
-    display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--sheet); border-top: 1px solid var(--rule);
-    z-index: 20; padding-bottom: env(safe-area-inset-bottom);
+    display: flex; align-items: stretch; position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+    background: color-mix(in srgb, var(--sheet) 92%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(14px); backdrop-filter: saturate(1.4) blur(14px);
+    border-top: 1px solid var(--rule); box-shadow: 0 -6px 24px -18px rgba(0,0,0,.45);
+    padding: 6px max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
   }
-  .tabbar a { flex: 1; text-align: center; padding: 10px 4px 8px; font-size: 12px; color: var(--ink-2); text-decoration: none; font-weight: 500; position: relative; }
-  .tabbar a.active { color: var(--green-ink); }
-  .tabbar a.active::before { content: ''; position: absolute; top: 0; left: 20%; right: 20%; height: 2px; background: var(--green); }
-  .tabbar .count { position: absolute; top: 4px; right: calc(50% - 22px); font-size: 12px; background: var(--amber); color: var(--on-amber); border-radius: 10px; padding: 0 5px; font-weight: 600; }
 }
+/* the bar's buttons: an icon over a name; the screen you are on sits in a soft green pill */
+.tabbar .tab {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; padding: 2px 0 0;
+  color: var(--ink-2); text-decoration: none; font: inherit; background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.tabbar .tab-ic { position: relative; display: grid; place-items: center; width: 58px; height: 32px; border-radius: 16px; transition: background-color .25s ease, color .25s ease, transform .15s ease; }
+.tabbar .tab-ic::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--green-tint); transform: scaleX(.4); opacity: 0; transition: transform .3s cubic-bezier(.2,.9,.3,1.2), opacity .2s ease; }
+.tabbar .tab-ic .ic { position: relative; transition: transform .3s cubic-bezier(.2,.9,.3,1.3); }
+.tabbar .tab-label { font-size: 11.5px; font-weight: 500; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; letter-spacing: .01em; }
+.tabbar .tab.active { color: var(--green-ink); }
+.tabbar .tab.active .tab-ic::before { transform: scaleX(1); opacity: 1; }
+.tabbar .tab.active .tab-ic .ic { stroke-width: 2.2; transform: translateY(-1px); }
+.tabbar .tab.active .tab-label { font-weight: 700; }
+.tabbar .tab:active .tab-ic { transform: scale(.9); }
+.tabbar .count {
+  position: absolute; top: -3px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; line-height: 1; background: var(--amber); color: var(--on-amber); box-shadow: 0 0 0 2px var(--sheet); animation: pop-in .35s cubic-bezier(.2,.9,.3,1.4);
+}
+/* "New": the round green button in the middle, raised above the bar */
+.tabbar .tab-new { color: var(--ink-2); }
+.tabbar .tab-fab {
+  display: grid; place-items: center; width: 56px; height: 56px; margin-top: -26px; border-radius: 50%; background: var(--green); color: var(--on-green);
+  box-shadow: 0 0 0 5px var(--paper), 0 10px 22px -8px rgba(27,94,75,.75); transition: transform .3s cubic-bezier(.2,.9,.3,1.3), background-color .2s ease;
+}
+.tabbar .tab-fab .ic { transition: transform .3s cubic-bezier(.2,.9,.3,1.3); }
+.tabbar .tab-new:active .tab-fab { transform: scale(.92); }
+.tabbar .tab-new.open .tab-fab { background: var(--green-ink); }
+.tabbar .tab-new.open .tab-fab .ic { transform: rotate(45deg); }
+.tabbar .tab-new .tab-label { margin-top: 1px; }
+@keyframes pop-in { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* the sheets that slide up from the bottom: New and More */
+.bs-back { position: fixed; inset: 0; z-index: 30; background: rgba(15,22,19,0); display: flex; align-items: flex-end; justify-content: center; transition: background-color .22s ease; }
+.bs-back.in { background: rgba(15,22,19,.45); }
+.bs-panel {
+  width: 100%; max-width: 560px; max-height: 82vh; max-height: 82dvh; overflow: auto; overscroll-behavior: contain; background: var(--sheet); color: var(--ink);
+  border-radius: 20px 20px 0 0; box-shadow: 0 -12px 40px -12px rgba(0,0,0,.4); padding: 4px 16px calc(16px + env(safe-area-inset-bottom));
+  transform: translateY(100%); transition: transform .28s cubic-bezier(.2,.8,.2,1);
+}
+.bs-back.in .bs-panel { transform: translateY(0); }
+.bs-handle { display: grid; place-items: center; padding: 8px 0 4px; }
+.bs-handle i { width: 40px; height: 4px; border-radius: 2px; background: var(--rule-strong); }
+.bs-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 8px; }
+.bs-head h2 { margin: 0; font-size: 1.15rem; }
+.bs-close { width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--paper); color: var(--ink-2); font-size: 22px; line-height: 1; cursor: pointer; }
+.bs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.bs-row {
+  width: 100%; display: flex; align-items: center; gap: 14px; padding: 10px 8px; min-height: 60px; border-radius: 14px; border: 0; background: none;
+  color: var(--ink); text-decoration: none; font: inherit; text-align: left; cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease;
+}
+.bs-row:hover, .bs-row:focus-visible { background: var(--paper); }
+.bs-row:active { background: var(--green-tint); }
+.bs-ic { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--green-tint); color: var(--green-ink); }
+.bs-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bs-text strong { font-weight: 600; }
+.bs-text span { color: var(--ink-3); font-size: .85rem; line-height: 1.3; }
+.bs-go { color: var(--ink-3); flex: 0 0 auto; display: grid; }
+.bs-row .count { position: static; font-size: 12px; background: var(--amber); color: var(--on-amber); border-radius: 10px; padding: 1px 7px; font-weight: 700; min-width: 22px; text-align: center; }
+#new-sheet .bs-list > li:first-child .bs-ic { background: var(--green); color: var(--on-green); }
+.more-page { padding: 8px; }
+/* the side menu on computers: the same icons */
+.nav .nav-l { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.nav .nav-l .ic { flex: 0 0 auto; opacity: .8; }
+.nav a.active .nav-l .ic { opacity: 1; stroke-width: 2.2; }
 
 /* ---------- buttons & forms ---------- */
 .btn {
@@ -289,7 +351,7 @@ textarea.input[rows="3"] { min-height: calc(3lh + 1.1em + 2px); }
 /* ---------- toast ---------- */
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--on-ink); padding: 10px 16px; border-radius: 8px; z-index: 60; font-size: .93rem; max-width: 90vw; box-shadow: var(--shadow); }
 .toast.err { background: var(--red); color: var(--on-red); }
-@media (max-width: 860px) { .toast { bottom: 76px; } }
+@media (max-width: 860px) { .toast { bottom: calc(96px + env(safe-area-inset-bottom)); } }
 
 /* ---------- auth ---------- */
 .auth { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 20px; }
@@ -410,7 +472,7 @@ html[data-pointer="coarse"] .ledger-list li { min-height: 52px; padding: 12px 0;
 html[data-pointer="coarse"] .ledger td { padding: 12px 8px; }
 html[data-pointer="coarse"] tr.click td, html[data-pointer="coarse"] tr.item-row td { padding-top: 14px; padding-bottom: 14px; }
 html[data-pointer="coarse"] .tabs button { min-height: 44px; padding: 10px 14px; }
-html[data-pointer="coarse"] .nav a, html[data-pointer="coarse"] .tabbar a { min-height: 48px; }
+html[data-pointer="coarse"] .nav a, html[data-pointer="coarse"] .tabbar .tab { min-height: 48px; }
 html[data-pointer="coarse"] details.more > summary { min-height: 40px; display: flex; align-items: center; }
 html[data-pointer="coarse"] .linkish { padding: 8px 4px; }
 html[data-pointer="coarse"] .check input { width: 22px; height: 22px; }
@@ -440,9 +502,10 @@ html[data-input="keyboard"] .ledger-list li:focus-visible, html[data-input="keyb
 
 /* ---- short landscape screens (a phone on its side): the tab bar becomes a rail ---- */
 @media (max-width: 1023px) and (orientation: landscape) and (max-height: 520px) {
-  .tabbar { top: 0; right: auto; bottom: 0; width: 76px; flex-direction: column; justify-content: flex-start; border-top: 0; border-right: 1px solid var(--rule); padding: 6px 0 0; padding-left: env(safe-area-inset-left); }
-  .tabbar a { flex: 0 0 auto; padding: 12px 4px; }
-  .tabbar a.active::before { top: 10%; bottom: 10%; left: 0; right: auto; width: 3px; height: auto; }
+  .tabbar { top: 0; right: auto; bottom: 0; width: 76px; flex-direction: column; justify-content: flex-start; gap: 10px; border-top: 0; border-right: 1px solid var(--rule); padding: 10px 0 0; padding-left: env(safe-area-inset-left); box-shadow: none; }
+  .tabbar .tab { flex: 0 0 auto; }
+  .tabbar .tab-fab { margin-top: 0; width: 48px; height: 48px; box-shadow: 0 8px 18px -8px rgba(27,94,75,.75); }
+  .bs-panel { max-height: 100dvh; }
   .main { padding: 10px 14px 24px calc(76px + 14px + env(safe-area-inset-left)); }
   .topbar { margin: 0 0 6px; }
   .topbar .brand-name { display: none; }

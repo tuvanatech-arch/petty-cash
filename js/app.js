@@ -20,6 +20,7 @@ import { startAdapting } from './adapt.js';
 import { startDiagnostics, bootFinished, startPullToRefresh, log, BUILD } from './diag.js';
 import { howPage } from './learn.js';
 import { startVersionCheck } from './version.js';
+import { tabBar, tabItems, setCounts, moreRows, icon, iconFor, sideBadge } from './tabbar.js';
 
 startDiagnostics();
 
@@ -44,10 +45,9 @@ const ROUTES = [
   { path: /^\/snap$/, page: () => snapPage() },
   { path: /^\/install$/, page: () => installPage() },
   { path: /^\/how$/, page: () => howPage() },
+  // the same list as the phone's More sheet: every screen not on the bottom bar
   { path: /^\/more$/, page: async () => h('div', {}, h('div', { class: 'page-head' }, h('h1', {}, 'More')),
-    h('div', { class: 'sheet' }, h('ul', { class: 'ledger-list' }, navItems().slice(4).map((it) => h('li', { class: 'click', onclick: () => { location.hash = it.href; } }, h('div', { class: 'what' }, h('strong', {}, it.label)))),
-      h('li', { class: 'click', onclick: () => { location.hash = '#/how'; } }, h('div', { class: 'what' }, h('strong', {}, 'How it works'), h('span', {}, 'One screen per role, and “show tips again”'))),
-      h('li', { class: 'click', onclick: () => { location.reload(); } }, h('div', { class: 'what' }, h('strong', {}, 'Reload the app'), h('span', {}, `Build ${BUILD} · or pull down on any page`)))))) },
+    h('div', { class: 'sheet more-page' }, h('ul', { class: 'bs-list' }, moreRows(tabItems(navItems()).rest)))) },
 ];
 
 function navItems() {
@@ -66,16 +66,6 @@ function navItems() {
   return items;
 }
 
-/** Phone tab bar: the four things this role does most, in that order; the rest under More. Alerts live in the top bell. */
-function tabItems() {
-  const all = Object.fromEntries(navItems().map((i) => [i.key, i]));
-  const snap = { href: '#/snap', label: 'Snap', key: 'snap' };
-  const order = { approver: ['home', 'requests', 'reports', 'cash'], managing_director: ['home', 'requests', 'reports', 'cash'], finance: ['home', 'requests', 'cash', 'stock'], stock_manager: ['home', 'stock', 'requests', 'snap'], requester: ['home', 'snap', 'requests', 'stock'] }[role()] || ['home', 'requests', 'stock', 'snap'];
-  const main = order.map((k) => (k === 'snap' ? snap : all[k])).filter(Boolean);
-  const rest = navItems().filter((i) => i.key !== 'notifications' && !main.some((m) => m.key === i.key));
-  return { main, rest };
-}
-
 async function actionCounts() {
   // Items waiting on the current user, for the Home badge
   const me = state.me.id;
@@ -87,19 +77,23 @@ async function actionCounts() {
   if (duty('managing_director')) { or.push('and(status.eq.pending_approval,approval_level.eq.md)'); or.push('and(reviewed_at.is.null,review_role.eq.managing_director)'); }
   if (duty('finance')) { or.push('status.eq.awaiting_disbursement'); or.push('status.eq.proof_review'); or.push('status.eq.physical_required'); }
   or.push(`and(status.eq.disbursed,disbursed_to.eq.${me})`);
-  const [{ count }, sched, cash, stock] = await Promise.all([
+  const [{ count }, sched, cash, stock, sug] = await Promise.all([
     scoped(sb.from('requests').select('id', { count: 'exact', head: true })).or(or.join(',')),
     // a schedule change waiting for the MD counts as one of the MD's things to do
     duty('managing_director') ? sb.from('schedule_versions').select('id', { count: 'exact', head: true }).eq('status', 'pending').neq('proposed_by', me) : { count: 0 },
     // cash counts to sign off or answer, top-ups to authorise or record
     duty('finance') || duty('approver') || duty('managing_director') ? sb.rpc('cash_actions') : { data: null },
     duty('stock_manager') || duty('approver') ? sb.rpc('stock_actions') : { data: null },
+    // item suggestions to check (stock controller) or approve (GM), 053
+    duty('stock_manager') || duty('approver') ? sb.from('item_suggestions').select('status, suggested_by').in('status', ['with_stock', 'with_gm']) : { data: [] },
   ]);
   const c = cash.data || {};
   const cashN = (duty('approver') ? Number(c.counts_to_review || 0) : 0) + (duty('finance') ? Number(c.counts_queried || 0) + Number(c.top_ups_to_receive || 0) : 0) + Number(c.top_ups_to_decide || 0);
   const st = stock.data || {};
-  const stockN = (duty('stock_manager') ? Number(st.receipts_to_check || 0) : 0) + (duty('approver') ? Number(st.adjustments_to_approve || 0) : 0);
-  return (count || 0) + (sched.count || 0) + cashN + stockN;
+  const stockN = (duty('stock_manager') ? Number(st.receipts_to_check || 0) : 0) + (duty('approver') ? Number(st.adjustments_to_approve || 0) : 0)
+    + (sug.data || []).filter((x) => x.suggested_by !== me && ((x.status === 'with_stock' && duty('stock_manager')) || (x.status === 'with_gm' && duty('approver')))).length;
+  // each number sits on the screen where that work is done
+  return { requests: count || 0, schedule: sched.count || 0, cash: cashN, stock: stockN };
 }
 
 /** For people with more than one branch: which branch the screens show. "All branches" for the overview; one branch to act in it. */
@@ -149,14 +143,11 @@ export async function render() {
   const page = loader();
   const activeKey = (path.split('/')[1] || 'home');
   const items = navItems();
-  const homeBadges = [];
   const navLink = (it) => {
-    let badge = null;
-    if (it.key === 'home') { badge = h('span', { class: 'count', style: { display: 'none' } }); homeBadges.push(badge); }
+    let badge = sideBadge(it.key);
     if (it.badge === 'updates') badge = h('span', { class: 'count', 'data-updates': '1', style: { display: 'none' } });
     if (it.badge === 'unread') badge = h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread);
-    const active = it.key === activeKey || (it.key === 'more' && tabItems().rest.some((x) => x.key === activeKey));
-    return h('a', { href: it.href, class: active ? 'active' : '' }, it.label, badge);
+    return h('a', { href: it.href, class: it.key === activeKey ? 'active' : '', 'aria-current': it.key === activeKey ? 'page' : null }, h('span', { class: 'nav-l' }, icon(iconFor(it.key), { size: 20 }), it.label), badge);
   };
   const token = ++renderToken;
   // at most one banner, most important first: Petti cancelled, unsent counts, standing in, then install
@@ -167,7 +158,6 @@ export async function render() {
     : queued ? h('div', { class: 'banner banner-amber' }, h('strong', {}, `${queued} count${queued === 1 ? '' : 's'} saved on this device`), 'Sent as soon as there is a connection.')
     : state.standingIn.length ? h('div', { class: 'banner banner-purple' }, h('strong', {}, `Standing in as ${state.standingIn.map((d) => `${ROLE_LABEL[d.role].replace(' (admin)', '').toLowerCase()} for ${personName(d.from_user)}`).join(' and ')} until ${fmtDate(state.standingIn[0].ends_on)}`), 'Their queue is on your Home; what you do is recorded under your name. Day-to-day only: the catalogue and settings stay with them.')
     : installBanner();
-  const tabs = tabItems();
   const bell = h('a', { href: '#/notifications', class: `bell${activeKey === 'notifications' ? ' active' : ''}`, 'aria-label': 'Alerts' }, '🔔', h('span', { class: 'count', 'data-unread': '1', style: { display: state.unread ? '' : 'none' } }, state.unread));
   const topbar = h('div', { class: 'topbar' }, h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, h('span', {}, 'P', h('span', { class: 'dot' }, '.'))), h('div', { class: 'brand-name' }, state.settings?.org_name || 'Petti')), branchSwitcher('top-branch'), bell);
   mount(app,
@@ -180,10 +170,10 @@ export async function render() {
         h('nav', { class: 'nav' }, items.map(navLink)),
         h('div', { class: 'me' }, h('strong', {}, me.full_name || me.email), h('span', {}, ROLE_LABEL[me.role]))),
       h('main', { class: 'main' }, topbar, banner, page)),
-    h('nav', { class: 'tabbar' }, tabs.main.map(navLink), tabs.rest.length ? navLink({ href: '#/more', label: 'More', key: 'more', badge: 'updates' }) : null));
+    tabBar(items, activeKey));
   window.scrollTo(0, 0);
 
-  actionCounts().then((count) => { for (const b of homeBadges) { b.textContent = count; b.style.display = count ? '' : 'none'; } }).catch(() => {});
+  actionCounts().then(setCounts).catch(() => {});
 
   if (!route || (route.guard && !can(route.guard))) {
     page.replaceWith(h('div', {}, h('h1', {}, 'Page not found'), h('p', {}, h('a', { href: '#/home' }, 'Back to home'))));

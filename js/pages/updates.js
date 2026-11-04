@@ -3,6 +3,7 @@
 import { state, rpc, ROLE_LABEL } from '../api.js';
 import { h, mount, fmtDate, emptyState, modal, toast, busy, confirmDialog, field, retext } from '../ui.js';
 import { runTour } from '../tour.js';
+import { setUpdatesCount } from '../tabbar.js';
 
 let cache = null;
 /** My notes (newest first), fetched once and kept for the session. */
@@ -19,7 +20,8 @@ async function markSeen(ids) {
 /** The number beside "What's new" in the menu. */
 export function syncUpdateBadge() {
   const n = (cache || []).filter((u) => !u.seen_at).length;
-  document.querySelectorAll('[data-updates]').forEach((el) => { el.textContent = n; el.style.display = n ? '' : 'none'; });
+  document.querySelectorAll('[data-updates]').forEach((el) => { if (el.dataset.section) return; el.textContent = n; el.style.display = n ? '' : 'none'; });
+  setUpdatesCount(n);   // the bar's More and its What's new row add it to their own numbers
 }
 
 /** "Show me": the walk-through on this screen when the note has one, otherwise the screen itself. */

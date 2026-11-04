@@ -60,7 +60,7 @@ export function startPullToRefresh(onRefresh) {
     const scroller = () => document.scrollingElement || document.documentElement;
     const reset = () => { startY = null; bar.classList.remove('armed'); bar.style.transform = ''; bar.style.opacity = ''; };
     window.addEventListener('touchstart', (e) => {
-      if (scroller().scrollTop <= 0 && e.touches.length === 1 && !document.querySelector('.modal-back') && !e.target.closest?.('.tabbar, textarea, select, .table-wrap')) { startY = e.touches[0].clientY; pulled = 0; armed = false; } else startY = null;
+      if (scroller().scrollTop <= 0 && e.touches.length === 1 && !document.querySelector('.modal-back, .bs-back') && !e.target.closest?.('.tabbar, .bs-back, textarea, select, .table-wrap')) { startY = e.touches[0].clientY; pulled = 0; armed = false; } else startY = null;
     }, { passive: true });
     window.addEventListener('touchmove', (e) => {
       if (startY == null) return;

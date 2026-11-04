@@ -38,19 +38,20 @@ for (const w of [1280, 390]) {
   check(await page.locator('.modal').count() === 1, `${w}: the next unread note pops up`);
   await page.locator('.modal').getByRole('button', { name: 'Got it' }).click(); await page.waitForTimeout(500);
   check(await page.locator('.modal').count() === 0, `${w}: Got it closes it`);
-  check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].every((e) => e.style.display === 'none')), `${w}: the count is gone`);
+  // (the phone's More also adds up work hidden under it, e.g. Stock, so only the menu's own What's new count must go)
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]:not([data-section])')].every((e) => e.style.display === 'none')), `${w}: the count is gone`);
   await page.reload(); await page.waitForTimeout(1300);
   check(await page.locator('.modal').count() === 0, `${w}: it does not pop up again in the same session`);
   // arriving from an alert with a job to do: no pop-up
   await page.evaluate(() => { sessionStorage.removeItem('pcs_update_shown'); localStorage.setItem('demo_role', 'finance'); }); await page.goto(base + '#/cash'); await page.reload(); await page.waitForTimeout(1500);
   check(await page.locator('.modal').count() === 0, `${w}: no pop-up when landing on Petty cash from an alert`);
-  if (w === 390) check(await page.evaluate(() => { const b = document.querySelector('.tabbar [data-updates]'); return b && b.style.display !== 'none' && b.textContent === '1'; }), `${w}: the phone's More tab shows the unread count`);
+  if (w === 390) check(await page.evaluate(() => { const b = document.querySelector('.tabbar [data-updates]'); return b && b.style.display !== 'none' && Number(b.textContent) >= 1; }), `${w}: the phone's More tab counts the unread note`);
   await page.evaluate(() => localStorage.setItem('demo_role', 'approver'));
   await page.goto(base + '#/updates'); await page.reload(); await page.waitForTimeout(1100);
   let t = await page.locator('main').innerText();
   check(/A place for updates/.test(t) && /Petti’s new look/.test(t) && !/Deliveries to confirm/.test(t), `${w}: the GM sees the two notes for everyone, not finance's`);
   check(await page.locator('main .update-steps li').count() >= 4 && await page.locator('main button.btn', { hasText: /Show me|Open/ }).count() >= 2, `${w}: steps and a Show-me button on each`);
-  check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]')].every((e) => e.style.display === 'none')), `${w}: opening What's new reads them all`);
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-updates]:not([data-section])')].every((e) => e.style.display === 'none')), `${w}: opening What's new reads them all`);
   // was this clear?
   await page.locator('main .clear-ask button', { hasText: 'Not really' }).first().click(); await page.locator('main .clear-ask textarea').fill('Which tab?');
   await page.locator('main .clear-ask button', { hasText: 'Send' }).click(); await page.waitForTimeout(400);

@@ -94,6 +94,10 @@ A receipt, quote or invoice can come first. read-receipt returns `doc_type` (rec
 
 Each item can have up to 3 photos (`items.photos`, private store `item-photos`, shrunk to 1280 px JPEG in web/js/itemphotos.js); the stock controller and the GM add them in the item sheet ("Add a photo"); they show on the items list, the item, and when reporting low stock; the catalogue shows how many items have none. "Suggest an item" (Stock, everyone): name (items already stocked or already suggested are shown first), a reason (required, 20+ characters), optional monthly quantity, price, where to buy, category and photo (`suggest_item`). The stock controller checks it, then the GM approves (`review_item_suggestion`); the GM's own needs only the stock controller, the stock controller's own goes to the GM; nobody decides their own; declining needs a reason. Approved: the item is added to the catalogue (or an inactive one of that name switched back on) and the stock controller is told to set unit, reorder level and supplier. Stock → Suggestions lists them all with their outcome; Home cards "Item suggestions to check" (stock controller) / "to approve" (GM). Photos go to the off-site copy; `item_suggestions` is in the nightly backup.
 
+## Phone bottom bar (Nov 2026)
+
+web/js/tabbar.js: three screens per role (`ORDER`: requester Home·Requests·Stock, stock controller Home·Stock·Requests, finance and the GM Home·Requests·Petty cash, the MD Home·Requests·Reports), a round "New" in the middle (a sheet: Snap or upload, Request a payment, Claim back, Stock item or Report low stock, Suggest an item) and "More" (a sheet with every other screen; `#/more` shows the same list). Numbers sit on the screen where the work is (`actionCounts` → `setCounts`: requests, cash, stock incl. suggestions, schedule); More adds up what it hides plus unread What's new; Home has none. The side menu on computers has the same icons and numbers. Test: test/tabbar-ui.mjs.
+
 ## Open items (as of 1 Nov 2026)
 
 - MGP has no plan set yet: the owner decides (Business, or the founding price) before it is set and announced to the GM.
