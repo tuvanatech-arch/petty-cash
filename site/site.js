@@ -13,6 +13,17 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && links.classList.contains('open')) { set(false); toggle.focus(); } });
   }
 
+  /* ---------- text boxes grow as you type (where the browser does not do it from the stylesheet) ---------- */
+  if (!(window.CSS && CSS.supports && CSS.supports('field-sizing', 'content'))) {
+    document.addEventListener('input', (e) => {
+      const t = e.target; if (!(t instanceof HTMLTextAreaElement)) return;
+      const y = window.scrollY; t.style.height = '';
+      const want = Math.min(t.scrollHeight + t.offsetHeight - t.clientHeight, Math.round(window.innerHeight * 0.6));
+      if (want > t.offsetHeight) t.style.height = `${want}px`;
+      window.scrollTo(window.scrollX, y);
+    });
+  }
+
   /* ---------- trial form ---------- */
   const form = document.getElementById('trial-form');
   if (!form || !window.fetch || !window.FormData) return;

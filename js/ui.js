@@ -25,6 +25,23 @@ function append(el, children) {
 export function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 export function mount(el, ...children) { clear(el); append(el, children); return el; }
 
+/* ---------- text boxes grow as you type ----------
+   The stylesheet does it with field-sizing where the browser knows it (Chrome, Edge, newer Safari); elsewhere the box is
+   made as tall as its text on every change, up to 60% of the screen (then it scrolls inside), keeping the page where it was. */
+if (typeof window !== 'undefined' && !window.CSS?.supports?.('field-sizing', 'content')) {
+  const scroller = (el) => { for (let p = el.parentElement; p; p = p.parentElement) { const o = getComputedStyle(p).overflowY; if ((o === 'auto' || o === 'scroll') && p.scrollHeight > p.clientHeight) return p; } return document.scrollingElement || document.documentElement; };
+  const grow = (t) => {
+    if (!t.classList.contains('input')) return;
+    const sc = scroller(t); const top = sc.scrollTop;
+    t.style.height = '';                                   // back to its own minimum, to measure the text
+    const edge = t.offsetHeight - t.clientHeight;          // the borders
+    const want = Math.min(t.scrollHeight + edge, Math.round(window.innerHeight * 0.6));
+    if (want > t.offsetHeight) t.style.height = `${want}px`;
+    sc.scrollTop = top;
+  };
+  for (const ev of ['input', 'focusin']) document.addEventListener(ev, (e) => { if (e.target?.tagName === 'TEXTAREA') grow(e.target); });
+}
+
 /* ---------- the client's own words for positions ----------
    The app and the database say "GM" / "MD"; each client sets what those positions are called (Admin → Settings),
    and every piece of text on screen and in documents goes through titled(). For MGP the words are unchanged. */

@@ -148,7 +148,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .input:focus { border-color: var(--green); outline: none; box-shadow: 0 0 0 3px rgba(27,94,75,.15); }
 .input-sm { padding: 6px 8px; }
 .input.num { text-align: right; }
-textarea.input { min-height: 72px; resize: vertical; }
+/* text boxes grow with what is typed, up to most of the screen, then scroll inside (ui.js does the same where
+   the browser does not know field-sizing) */
+textarea.input { min-height: 72px; max-height: 60vh; overflow-y: auto; resize: vertical; field-sizing: content; }
+textarea.input[rows="3"] { min-height: calc(3lh + 1.1em + 2px); }
 .row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .check { display: flex; align-items: center; gap: 8px; font-weight: 500; }
 .check input { width: 18px; height: 18px; accent-color: var(--green); }

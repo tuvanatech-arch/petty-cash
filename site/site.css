@@ -242,7 +242,7 @@ main > section { padding: 96px 0; }
 .field label { font-weight: 600; font-size: .95rem; }
 .opt { font-weight: 400; color: var(--muted); }
 .form input, .form select, .form textarea { font: 400 1rem/1.4 var(--text); color: var(--ink); background: var(--sage); border: 1.5px solid #b9c3bb; border-radius: 10px; padding: 12px 14px; min-height: 48px; width: 100%; }
-.form textarea { resize: vertical; }
+.form textarea { resize: vertical; min-height: calc(4.2em + 27px); max-height: 60vh; overflow-y: auto; field-sizing: content; }   /* grows as you type (site.js where field-sizing is unknown) */
 .form input:focus, .form select:focus, .form textarea:focus { outline: none; border-color: var(--green); background: #fff; box-shadow: 0 0 0 3px rgba(27, 94, 75, .2); }
 .form [aria-invalid="true"] { border-color: var(--alert); background: #fff6f4; }
 .hint { font-size: .88rem; color: var(--muted); }
