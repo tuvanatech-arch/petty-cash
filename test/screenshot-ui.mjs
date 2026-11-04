@@ -16,10 +16,15 @@ const r = await page.evaluate(async () => {
   const blob = (t) => new Promise((res) => c.toBlob(res, t, 0.9));
   const png = new File([await blob('image/png')], 'Screenshot_20261104.png', { type: 'image/png' });
   const jpg = new File([await blob('image/jpeg')], 'IMG_1234.jpg', { type: 'image/jpeg' });
-  const a = await scanReceipt(png); const j = await scanReceipt(jpg);
+  const iphone = new File([await blob('image/jpeg')], 'image.jpg', { type: 'image/jpeg' });   // an iPhone hands screenshots over like this
+  const c2 = document.createElement('canvas'); c2.width = 3000; c2.height = 4000; const y = c2.getContext('2d'); y.fillStyle = '#222'; y.fillRect(0, 0, 3000, 4000);
+  const photo = new File([await new Promise((res) => c2.toBlob(res, 'image/jpeg', 0.8))], 'image.jpg', { type: 'image/jpeg' });
+  const a = await scanReceipt(png); const i = await scanReceipt(iphone); const ph = await scanReceipt(photo);
+  return { png: a.ok && a.digital && a.file === png, iphone: i.ok && i.digital, photo: !ph.digital };
   return { png: a.ok && a.digital && a.file === png, jpgOk: j.ok, jpgProblems: j.problems };
 });
 check(r.png, 'a bank-app screenshot is accepted as it is');
-check(!r.jpgOk || r.jpgProblems.length >= 0, `a camera photo still goes through the slip check (${r.jpgProblems?.join(' ') || 'accepted'})`);
+check(r.iphone, 'an iPhone screenshot handed over as image.jpg is accepted too');
+check(r.photo, 'a camera photo (4:3) still goes through the slip check');
 await b.close(); server.close();
 console.log(fails.length ? `SCREENSHOT UI: FAIL (${fails.length})` : 'SCREENSHOT UI: PASS'); process.exit(fails.length ? 1 : 0);

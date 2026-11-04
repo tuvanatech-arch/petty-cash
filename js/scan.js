@@ -80,6 +80,13 @@ function sharpness(g, w, h) {   // variance of the Laplacian: low = blurred
 /** Turn a picture into a scan, or say what is wrong with it. */
 export const isScreenshot = (file) => /^image\/(png|webp)$/i.test(file?.type || '') || /screen ?shot|screenshot|scr_/i.test(file?.name || '');
 
+export function screenShaped(W, H) {
+  const long = Math.max(W, H), short = Math.min(W, H); const r = long / short;
+  const dpr = window.devicePixelRatio || 1; const sw = Math.round(Math.min(screen.width, screen.height) * dpr), sl = Math.round(Math.max(screen.width, screen.height) * dpr);
+  if (Math.abs(short - sw) <= 2 && Math.abs(long - sl) <= 2) return true;
+  return r >= 2.0 && r <= 2.4;
+}
+
 export async function scanReceipt(file) {
   if (!file) return { ok: false, problems: ['No file.'] };
   if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')) return { ok: true, file, problems: [], pdf: true };
@@ -89,7 +96,9 @@ export async function scanReceipt(file) {
   if (Math.min(W, H) < 600) return { ok: false, file, problems: ['The picture is too small to read. Move closer, or use the camera instead of a screenshot.'] };
   // a screenshot (a bank app's payment, an e-receipt) is already flat and sharp: no slip to find, keep it as it is.
   // Phones save screenshots as PNG (camera photos are JPEG/HEIC) and usually name them "Screenshot…".
-  if (isScreenshot(file)) return { ok: true, file, problems: [], digital: true };
+  // Some phones (iPhones) hand a screenshot over as "image.jpg", so its shape tells too: exactly this screen's size,
+  // or a tall phone-screen shape (19:9 to 21:9) that a camera never takes (camera photos are 4:3 or 16:9).
+  if (isScreenshot(file) || screenShaped(W, H)) return { ok: true, file, problems: [], digital: true };
 
   // 1. find the slip on a small copy
   const k = ANALYSE / Math.max(W, H); const aw = Math.round(W * k), ah = Math.round(H * k);
