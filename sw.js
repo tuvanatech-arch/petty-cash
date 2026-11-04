@@ -18,7 +18,7 @@ self.addEventListener('install', (e) => {
   }))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== 'pcs-share').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== 'pcs-share' && k !== 'petti-open').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
@@ -88,8 +88,21 @@ self.addEventListener('notificationclick', (e) => {
   // an alert from the old GitHub Pages address opens Petti's home, app.usepetti.com, not the old address
   const old = /\.github\.io$/.test(self.location.hostname);
   const target = old ? 'https://app.usepetti.com/' + hash : new URL('./' + hash, self.registration.scope).href;
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-    if (!old) for (const c of list) { if (c.url.startsWith(self.registration.scope)) { c.navigate(target); return c.focus(); } }
-    return self.clients.openWindow(target);
-  }));
+  // Petti already open (phone in the background, a laptop tab): bring it forward and tell it which page to show
+  // (navigate() is ignored by many phones and by tabs the worker does not control). Petti closed: open the page,
+  // and leave a note it reads on start-up, for phones that open the app's start page instead of the link.
+  e.waitUntil((async () => {
+    if (!old) {
+      try { const c = await caches.open('petti-open'); await c.put(new Request('./__open'), new Response(JSON.stringify({ hash, at: Date.now() }))); } catch {}
+      const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const mine = list.filter((c) => c.url.startsWith(self.registration.scope));
+      const c = mine.find((x) => x.focused) || mine.find((x) => x.visibilityState === 'visible') || mine[0];
+      if (c) {
+        c.postMessage({ type: 'open', hash });
+        try { await c.focus(); } catch {}
+        return;
+      }
+    }
+    await self.clients.openWindow(target);
+  })());
 });

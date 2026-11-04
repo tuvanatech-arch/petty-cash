@@ -212,7 +212,25 @@ async function verifyPage() {
 }
 
 window.addEventListener('hashchange', render);
-if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'push' && state.me) refreshUnread().catch(() => {}); });
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => {
+  if (e.data?.type === 'push' && state.me) refreshUnread().catch(() => {});
+  if (e.data?.type === 'open' && e.data.hash) openFromAlert(e.data.hash);
+});
+/** A tapped alert: show its page (a request, Petty cash, a note …), even when Petti was already on that page. */
+function openFromAlert(hash) {
+  try { caches?.open('petti-open').then((c) => c.delete('./__open')).catch(() => {}); } catch {}
+  if (location.hash === hash) render(); else location.hash = hash;
+}
+/** Start-up after tapping an alert: some phones open Petti's start page instead of the alert's link. */
+async function pendingAlertLink() {
+  try {
+    if (!('caches' in window)) return;
+    const c = await caches.open('petti-open'); const r = await c.match('./__open'); if (!r) return;
+    const { hash, at } = await r.json(); await c.delete('./__open');
+    if (hash && Date.now() - at < 2 * 60 * 1000 && location.hash !== hash) openFromAlert(hash);
+  } catch {}
+}
+pendingAlertLink();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.me) { refreshUnread().catch(() => {}); checkIn().catch(() => {}); } });
 
 // signed out from another device (or by the administrator): sign out here too and say why on the sign-in screen
