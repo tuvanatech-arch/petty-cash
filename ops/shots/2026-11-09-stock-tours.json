@@ -1,0 +1,9 @@
+{
+ "requester": [ { "at": "#/stock", "css": "#suggest-item", "text": "Suggest an item", "say": "Something the store should keep? Tap here, say what it is and why. The stock controller checks it, then the GM approves it." } ],
+ "finance": [ { "at": "#/stock", "css": "#suggest-item", "text": "Suggest an item", "say": "Something the store should keep? Tap here, say what it is and why. The stock controller checks it, then the GM approves it." } ],
+ "stock_manager": [
+  { "at": "#/stock/suggestions", "css": "main .tabs button", "text": "Suggestions", "say": "Suggestions from the team land here and on your Home. Agree to send one to the GM, or decline it with a reason." },
+  { "at": "#/stock", "css": "main .tabs button", "text": "Items", "say": "Tap an item, then “Add a photo” (up to three). A photo helps everyone pick the right item." }
+ ],
+ "approver": [ { "at": "#/stock/suggestions", "css": "main .tabs button", "text": "Suggestions", "say": "Suggestions the stock controller agreed to wait here for your final approval: “Approve – add to the store”, or decline with a reason." } ]
+}

@@ -180,6 +180,15 @@ async function buildHome() {
     const physical = byStatus('physical_required');
     if (physical.length) cards.push(card('Paper receipts awaited', physical.length, null, list(physical)));
   }
+  // suggestions for the store waiting for me: the stock controller checks, the GM approves (053)
+  if (['stock_manager', 'approver'].includes(role())) {
+    const { data: sugs } = await sb.from('item_suggestions').select('*').in('status', ['with_stock', 'with_gm']).order('created_at');
+    const mineS = (sugs || []).filter((x) => x.suggested_by !== me.id && ((x.status === 'with_stock' && role() === 'stock_manager') || (x.status === 'with_gm' && role() === 'approver')));
+    if (mineS.length) cards.push(card(role() === 'approver' ? 'Item suggestions to approve' : 'Item suggestions to check', mineS.length,
+      h('p', { class: 'hint' }, 'Someone suggested the store keeps these. Open one to agree or decline.'),
+      h('ul', { class: 'ledger-list', id: 'sug-home' }, mineS.map((x) => h('li', { class: 'click', onclick: () => { location.hash = '#/stock/suggestions'; } },
+        h('div', { class: 'what' }, h('strong', {}, x.name), h('span', {}, `${personName(x.suggested_by)}: ${x.reason}`)))))));
+  }
   // urgent requests waiting for me (049): one red card at the very top, before everything else
   const urgentMine = open.filter((q) => q.urgent && (
     (q.status === 'pending_approval' && toApprove.includes(q))

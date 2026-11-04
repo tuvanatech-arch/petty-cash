@@ -8,7 +8,7 @@ const TABLES = ["settings", "profiles", "categories", "suppliers", "items", "sto
   "expenses", "expense_lines", "expense_proofs", "receipt_inbox", "floats", "float_transactions", "packs", "budgets", "delegations", "notifications", "push_subscriptions", "invitations",
   "companies", "branches", "fx_rates", "schedule_versions", "cash_counts", "top_ups", "stock_receipts", "stock_adjustments", "exception_reviews", "admin_log", "access_reviews",
   "security_events", "sign_ins", "device_sessions", "request_documents",
-  "updates", "update_recipients", "user_places", "subscription"];
+  "updates", "update_recipients", "user_places", "subscription", "item_suggestions"];
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);

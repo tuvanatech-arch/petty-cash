@@ -1,0 +1,4 @@
+[
+ { "name": "suggest-item", "role": "requester", "step": { "at": "#/stock", "css": "#suggest-item", "text": "Suggest an item" } },
+ { "name": "item-suggestions", "role": "stock_manager", "step": { "at": "#/stock/suggestions", "css": "#suggestions", "text": "" } }
+]

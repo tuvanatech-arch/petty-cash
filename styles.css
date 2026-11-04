@@ -849,3 +849,20 @@ html[data-pointer="coarse"] .branch-switch { min-height: 44px; }
 .start-doc .hint { color: var(--ink-2); font-weight: 400; margin-top: 2px; }
 .payee-bank .kv { margin: 6px 0; }
 .payee-bank dd { overflow-wrap: anywhere; }
+
+/* stock item photos and suggestions (053) */
+.item-cell { display: flex; align-items: center; gap: 10px; }
+.item-thumb { flex: 0 0 auto; display: inline-grid; place-items: center; border-radius: var(--radius); overflow: hidden; background: var(--paper); border: 1px solid var(--rule); }
+.item-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.item-thumb.empty { background: repeating-linear-gradient(45deg, var(--paper), var(--paper) 4px, var(--sheet) 4px, var(--sheet) 8px); }
+.item-photos { margin-bottom: 12px; display: grid; gap: 8px; }
+.item-photo-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.item-photo { margin: 0; display: grid; gap: 4px; justify-items: start; }
+.item-photo img { width: 120px; height: 120px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--rule); display: block; }
+.item-photo-add { padding: 10px; }
+.report-pic { display: flex; align-items: center; gap: 10px; margin: -6px 0 12px; }
+.report-pic:empty { display: none; }
+.sug-list li.sug { display: flex; gap: 12px; align-items: flex-start; }
+.sug-list .sug-todo { box-shadow: inset 3px 0 0 var(--amber); padding-left: 10px; }
+.sug-pic img { width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--rule); display: block; }
+.sug-reason { display: block; font-style: italic; color: var(--ink-2); margin-top: 2px; }

@@ -3,24 +3,31 @@ import { branchGate } from '../branch.js';
 import { myTopReported } from '../usage.js';
 import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint, showIf, picker, units } from '../ui.js';
 import { barChart } from '../charts.js';
+import { itemThumb, itemPhotos, uploadPhoto, photoUrl } from '../itemphotos.js';
+import { storeMatches } from './requests.js';
 
 export async function stockPage(tab = 'items') {
   const manage = can('manage_stock');
   // one store at a time: looking at all branches, pick one first
-  const gate = branchGate('store');
+  const gate = tab === 'suggestions' ? null : branchGate('store');   // suggestions from every branch can be decided without picking one
   if (gate) return h('div', {}, h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Stock'), h('p', {}, 'Each branch keeps its own store.'))), gate);
   const openReports = (await sb.from('stock_reports').select('id', { count: 'exact', head: true }).is('resolved_at', null)).count || 0;
   const acts = manage ? (await sb.rpc('stock_actions')).data || {} : {};
   const nDeliv = Number(acts.receipts_to_check || 0), nCorr = Number(acts.adjustments_to_approve || 0);
+  // suggestions waiting for me: the stock controller checks, the GM approves (053)
+  const nSug = (await sb.from('item_suggestions').select('id, status, suggested_by')).data?.filter((x) => x.suggested_by !== state.me.id
+    && ((x.status === 'with_stock' && state.me.role === 'stock_manager') || (x.status === 'with_gm' && state.me.role === 'approver'))).length || 0;
+  const sugTab = ['suggestions', nSug ? `Suggestions (${nSug})` : 'Suggestions'];
   // daily work in the tab bar; catalogue setup (suppliers, categories) one tap away under "Catalogue"
   const setup = tab === 'suppliers' || tab === 'categories';
   const tabs = setup ? [['suppliers', 'Suppliers'], ['categories', 'Categories']]
-    : manage ? [['items', 'Items'], ['reports', openReports ? `Reported (${openReports})` : 'Reported'], ['deliveries', nDeliv ? `Deliveries (${nDeliv})` : 'Deliveries'], ['usage', 'Usage'], ['movements', 'Movements'], ['adjustments', nCorr ? `Corrections (${nCorr})` : 'Corrections']]
-    : [['items', 'Items'], ['reports', 'My reports']];
+    : manage ? [['items', 'Items'], ['reports', openReports ? `Reported (${openReports})` : 'Reported'], sugTab, ['deliveries', nDeliv ? `Deliveries (${nDeliv})` : 'Deliveries'], ['usage', 'Usage'], ['movements', 'Movements'], ['adjustments', nCorr ? `Corrections (${nCorr})` : 'Corrections']]
+    : [['items', 'Items'], ['reports', 'My reports'], sugTab];
   const body = h('div', {});
   const tabBar = h('div', { class: 'tabs' }, tabs.map(([k, l]) => h('button', { class: k === tab ? 'active' : '', onclick: () => { location.hash = `#/stock/${k}`; } }, l)));
   const actions = [];
   if (!manage) actions.push(h('button', { class: 'btn btn-primary', onclick: () => reportDialog(null) }, 'Report low / out'));
+  if (!setup) actions.push(h('button', { class: `btn${manage ? ' btn-quiet' : ''}`, id: 'suggest-item', onclick: () => suggestDialog() }, 'Suggest an item'));
   if (manage && !setup) {
     actions.push(h('button', { class: 'btn btn-primary', onclick: () => quickCountDialog() }, 'Quick count'));
     const restock = h('button', { class: 'btn' }, 'Restock order');
@@ -34,7 +41,7 @@ export async function stockPage(tab = 'items') {
     if (tab === 'suppliers' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => supplierDialog(null, () => refresh()) }, 'Add supplier'));
     if (tab === 'categories' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => categoryDialog(null, () => refresh()) }, 'Add category'));
   }
-  mount(body, await ({ items: itemsTab, reports: reportsTab, deliveries: deliveriesTab, adjustments: adjustmentsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
+  mount(body, await ({ items: itemsTab, reports: reportsTab, suggestions: suggestionsTab, deliveries: deliveriesTab, adjustments: adjustmentsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
   return h('div', {},
     h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, setup ? 'Catalogue' : 'Stock'), h('p', {}, setup ? 'Suppliers and categories – set up once, rarely changed.' : manage ? 'What is in the store, how fast it goes, and when it runs out.' : 'Tap an item that is running low or finished to report it.')),
       h('div', { class: 'page-actions' }, actions)),
@@ -79,8 +86,8 @@ async function itemsTab(manage) {
       h('tbody', {}, rows.map((i) => {
         const s = stats[i.id];
         return h('tr', { class: `item-row${low(i) ? ' low' : ''}`, onclick: () => (manage ? itemSheet(i, s, { catName, supName, sups }) : reportDialog(i)) },
-          h('td', {}, h('strong', {}, i.name), paceBadge(s), manage && i.tracking === 'issued' ? h('span', { class: 'pill pill-purple', style: { marginLeft: '6px' }, title: 'Recorded at each hand-out; a count difference is a variance' }, 'Issued') : null, !i.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null,
-            manage ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, [catName(i.category_id), i.recurring ? 'monthly' : null].filter((x) => x && x !== '—').join(' · ')) : null),
+          h('td', {}, h('div', { class: 'item-cell' }, itemThumb(i), h('div', {}, h('strong', {}, i.name), paceBadge(s), manage && i.tracking === 'issued' ? h('span', { class: 'pill pill-purple', style: { marginLeft: '6px' }, title: 'Recorded at each hand-out; a count difference is a variance' }, 'Issued') : null, !i.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null,
+            manage ? h('div', { class: 'muted', style: { fontSize: '.8rem' } }, [catName(i.category_id), i.recurring ? 'monthly' : null].filter((x) => x && x !== '—').join(' · ')) : null))),
           h('td', { class: 'num amt' }, `${units(i.qty_on_hand, i.unit)}`),
           manage ? h('td', { class: 'num hide-xs' }, s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : h('span', { class: 'muted' }, '—')) : null,
           runoutCell(i, s),
@@ -94,7 +101,9 @@ async function itemsTab(manage) {
   const chipBar = h('div', { class: 'tabs', style: { borderBottom: 0, marginBottom: '6px' } });
   const drawChips = () => mount(chipBar, chips.map(([k, l]) => h('button', { class: k === filter ? 'active' : '', onclick: () => { filter = k; showInactive = k === 'inactive'; drawChips(); draw(); } }, l)));
   drawChips();
+  const noPhoto = items.filter((i) => i.active && !(i.photos || []).length).length;
   return h('div', {},
+    can('catalogue') && noPhoto ? h('div', { class: 'banner banner-grey', id: 'no-photo-count' }, h('strong', {}, `${noPhoto} item${noPhoto === 1 ? '' : 's'} without a photo`), 'A photo helps everyone pick the right item. Tap an item, then “Add a photo”.') : null,
     items.length > 8 ? h('div', { class: 'toolbar' }, h('input', { class: 'input', placeholder: 'Search items', oninput: (e) => { search = e.target.value.toLowerCase(); draw(); } })) : null,
     chipBar,
     h('div', { class: 'sheet' }, wrap),
@@ -107,6 +116,7 @@ function itemSheet(i, s, { catName, supName, sups }) {
     const done = () => { close(); refresh(); };
     const stat = (k, v) => h('div', { class: 'stat' }, h('span', { class: 'k' }, k), h('span', { class: 'v', style: { fontSize: '1.1rem' } }, v));
     return h('div', {},
+      itemPhotos(i, { canEdit: can('catalogue') }),
       h('div', { class: 'row', style: { marginBottom: '10px' } },
         stat('On hand', `${units(i.qty_on_hand, i.unit)}`),
         stat('Used / month', s && Number(s.used_per_month) > 0 ? qty(s.used_per_month) : '—'),
@@ -127,11 +137,117 @@ function itemSheet(i, s, { catName, supName, sups }) {
   });
 }
 
+/* ---------------- suggestions for the store (053) ---------------- */
+const SUG_STATUS = { with_stock: ['pill-amber', 'With the stock controller'], with_gm: ['pill-purple', 'With the GM'], approved: ['pill-green', 'Added to the store'], declined: ['pill-red', 'Not added'], withdrawn: ['pill-grey', 'Withdrawn'] };
+async function suggestionsTab() {
+  const { data } = await scoped(sb.from('item_suggestions').select('*')).order('created_at', { ascending: false }).limit(100);
+  const list = data || [];
+  const me = state.me.id;
+  const mineToDo = (x) => x.suggested_by !== me && ((x.status === 'with_stock' && state.me.role === 'stock_manager') || (x.status === 'with_gm' && state.me.role === 'approver'));
+  const order = [...list].sort((a, b) => Number(mineToDo(b)) - Number(mineToDo(a)));
+  const card = async (x) => {
+    const [pill, label] = SUG_STATUS[x.status] || ['pill-grey', x.status];
+    const u = x.photo_path ? await photoUrl(x.photo_path) : null;
+    const acts = [];
+    if (mineToDo(x)) {
+      const final = x.status === 'with_gm' || x.suggested_role === 'approver';
+      const ok = h('button', { class: 'btn btn-primary btn-sm', 'data-act': 'ok' }, final ? 'Approve – add to the store' : 'Agree – send to the GM');
+      ok.onclick = busy(ok, async () => {
+        const n = await confirmDialog(final ? `Add ${x.name} to the store?` : `Agree to stock ${x.name}?`, final ? 'It goes into the catalogue; you then set the reorder level and supplier, and order it with the next restock.' : 'The GM gives the final approval.', { ok: final ? 'Approve' : 'Agree', note: { label: 'Note (optional)' } });
+        if (n === null) return; await rpc('review_item_suggestion', { p_id: x.id, p_ok: true, p_note: n || null }); toast(final ? `${x.name} added to the store.` : 'Sent to the GM.'); refresh();
+      });
+      const no = h('button', { class: 'btn btn-sm btn-quiet btn-danger', 'data-act': 'no' }, 'Decline');
+      no.onclick = busy(no, async () => {
+        const n = await confirmDialog(`Decline ${x.name}?`, `${personName(x.suggested_by)} sees your reason.`, { ok: 'Decline', danger: true, note: { label: 'Why', required: true } });
+        if (!n) return; await rpc('review_item_suggestion', { p_id: x.id, p_ok: false, p_note: n }); toast('Declined.'); refresh();
+      });
+      acts.push(ok, no);
+    }
+    if (x.suggested_by === me && ['with_stock', 'with_gm'].includes(x.status)) {
+      const w = h('button', { class: 'btn btn-sm btn-quiet' }, 'Withdraw');
+      w.onclick = busy(w, async () => { if (!(await confirmDialog('Withdraw your suggestion?', 'It is no longer considered.', { ok: 'Withdraw' }))) return; await rpc('withdraw_item_suggestion', { p_id: x.id }); toast('Withdrawn.'); refresh(); });
+      acts.push(w);
+    }
+    const why = x.status === 'declined' ? (x.gm_note || x.stock_note) : null;
+    return h('li', { class: `sug${mineToDo(x) ? ' sug-todo' : ''}` },
+      u ? h('a', { href: u, target: '_blank', rel: 'noopener', class: 'sug-pic' }, h('img', { src: u, alt: x.name, loading: 'lazy' })) : null,
+      h('div', { class: 'what' },
+        h('strong', {}, x.name, ' ', h('span', { class: `pill ${pill}` }, label)),
+        h('span', {}, `${personName(x.suggested_by)}${multiBranch() ? ` · ${branchName(x.branch_id)}` : ''} · ${fmtDate(x.created_at)}${x.monthly_qty ? ` · about ${qty(x.monthly_qty)} a month` : ''}${x.est_price ? ` · about ${money(x.est_price)} each` : ''}${x.where_to_buy ? ` · ${x.where_to_buy}` : ''}`),
+        h('span', { class: 'sug-reason' }, `“${x.reason}”`),
+        x.stock_note && x.status !== 'declined' ? h('span', { class: 'muted' }, `Stock controller: ${x.stock_note}`) : null,
+        why ? h('span', { style: { color: 'var(--red)' } }, `Why not: ${why}`) : null,
+        acts.length ? h('div', { class: 'form-actions', style: { justifyContent: 'flex-start', margin: '6px 0 0' } }, acts) : null));
+  };
+  return h('div', {},
+    h('p', { class: 'hint' }, 'Something the store should keep? Suggest it with a good reason. The stock controller checks it, then the GM approves it.'),
+    h('div', { class: 'sheet' }, list.length ? h('ul', { class: 'ledger-list sug-list', id: 'suggestions' }, await Promise.all(order.map(card)))
+      : emptyState('No suggestions yet', 'Tap “Suggest an item” for something the store should keep.')));
+}
+
+export function suggestDialog() {
+  modal('Suggest an item for the store', async (close) => {
+    const [{ data: items }, { data: cats }, { data: open }] = await Promise.all([
+      scoped(sb.from('items').select('id, name, unit, qty_on_hand, photos')).eq('active', true).order('name'),
+      sb.from('categories').select('*').eq('active', true).order('name'),
+      scoped(sb.from('item_suggestions').select('id, name, status, suggested_by')).in('status', ['with_stock', 'with_gm']),
+    ]);
+    const name = h('input', { class: 'input', id: 'sug-name', maxlength: 80, placeholder: 'e.g. Sticky notes, yellow 76 × 76 mm' });
+    const already = h('div', { id: 'sug-already' });
+    name.addEventListener('input', () => {
+      const t = name.value.trim();
+      const hits = t.length >= 3 ? storeMatches(t, items || []).slice(0, 3) : [];
+      const waiting = t.length >= 3 ? (open || []).filter((x) => x.name.toLowerCase().includes(t.toLowerCase()) || t.toLowerCase().includes(x.name.toLowerCase())).slice(0, 2) : [];
+      mount(already, hits.length || waiting.length ? h('div', { class: 'banner banner-amber' },
+        hits.length ? [h('strong', {}, 'Already in the store'), h('ul', { class: 'plain-list' }, hits.map((i) => h('li', { class: 'item-cell' }, itemThumb(i, { size: 28 }), `${i.name} · ${units(i.qty_on_hand, i.unit)} on hand`)))] : null,
+        waiting.length ? [h('strong', {}, 'Already suggested'), h('ul', { class: 'plain-list' }, waiting.map((x) => h('li', {}, `${x.name} · ${SUG_STATUS[x.status][1].toLowerCase()}`)))] : null) : null);
+    });
+    const reason = h('textarea', { class: 'input', id: 'sug-reason', rows: 3, placeholder: 'e.g. Reception buys these every week from their own pocket; we use about two packs a week.' });
+    const monthly = h('input', { class: 'input num', id: 'sug-qty', type: 'number', min: 0, step: 'any', inputmode: 'decimal' });
+    const price = h('input', { class: 'input num', id: 'sug-price', type: 'number', min: 0, step: '0.01', inputmode: 'decimal' });
+    const where = h('input', { class: 'input', id: 'sug-where', maxlength: 80, placeholder: 'e.g. Pick n Pay, or a website' });
+    const cat = select([['', 'Not sure'], ...(cats || []).filter((c) => c.kind !== 'cash').map((c) => [c.id, c.name])], '');
+    let photo = null;
+    const photoIn = h('input', { type: 'file', accept: 'image/*' });
+    const photoLabel = h('label', { class: 'upload', id: 'sug-photo' }, photoIn, '📷 Add a photo (recommended)');
+    photoIn.onchange = async () => {
+      const f = photoIn.files?.[0]; if (!f) return;
+      photoLabel.lastChild.textContent = 'Uploading…';
+      try { photo = await uploadPhoto(f, `suggestions/${state.me.id}`); photoLabel.lastChild.textContent = '✓ Photo added – tap to change'; }
+      catch (e) { photoLabel.lastChild.textContent = '📷 Add a photo (recommended)'; toast(e.message, { error: true }); }
+    };
+    const err = h('div', { class: 'error' });
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Send the suggestion');
+    const go = busy(b, async () => {
+      err.textContent = '';
+      if (name.value.trim().length < 2) { err.textContent = 'Say what the item is.'; name.focus(); return; }
+      if (reason.value.trim().length < 20) { err.textContent = 'Say why the store should keep it, in a full sentence.'; reason.focus(); return; }
+      try {
+        const r = await rpc('suggest_item', { p_name: name.value.trim(), p_reason: reason.value.trim(), p_monthly_qty: num(monthly.value) || null, p_price: price.value === '' ? null : num(price.value),
+          p_where: where.value.trim() || null, p_photo: photo, p_category: cat.value || null });
+        toast(r.status === 'with_gm' ? 'Sent to the GM for approval.' : 'Sent to the stock controller. You are told at each step.', { ms: 5000 });
+        close(); location.hash = '#/stock/suggestions'; refresh();
+      } catch (e) { err.textContent = e.message; }
+    });
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      field('What is the item?', h('div', {}, name, already)),
+      field('Why should the store keep it?', reason, 'Required. Who needs it, how often, and what happens now without it.'),
+      h('div', { class: 'row' }, field('About how many a month', monthly, 'Optional'), field('Price each (about)', price, 'Optional')),
+      h('div', { class: 'row' }, field('Where to buy it', where, 'Optional'), field('Category', cat)),
+      field('Photo', photoLabel, 'Optional, but it helps the stock controller buy the right one.'),
+      h('p', { class: 'hint' }, 'The stock controller checks it, then the GM gives the final approval. You are told at each step.'),
+      err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
+  });
+}
+
 /* ---------------- low-stock reports from the team ---------------- */
 export function reportDialog(item) {
   modal(item ? `Report: ${item.name}` : 'Report low stock', async (close) => {
-    const items = item ? [item] : (await scoped(sb.from('items').select('id, name, unit, qty_on_hand')).eq('active', true).order('name')).data || [];
+    const items = item ? [item] : (await scoped(sb.from('items').select('id, name, unit, qty_on_hand, photos')).eq('active', true).order('name')).data || [];
     const sel = select([['', 'Choose an item…'], ...items.map((i) => [i.id, `${i.name} (${units(i.qty_on_hand, i.unit)} on the books)`])], item?.id || '', { disabled: !!item });
+    const pic = h('div', { class: 'report-pic' });
+    const drawPic = () => { const it = items.find((x) => x.id === sel.value); mount(pic, it && (it.photos || []).length ? [itemThumb(it, { size: 72 }), h('span', { class: 'hint' }, 'Is this the one?')] : null); };
+    sel.addEventListener('change', drawPic); drawPic();
     let level = 'low';
     const lvl = h('div', { class: 'tabs', style: { marginBottom: '12px' } });
     const drawLvl = () => mount(lvl, [['low', 'Running low'], ['out', 'Completely out']].map(([k, l]) => h('button', { type: 'button', class: k === level ? 'active' : '', onclick: () => { level = k; drawLvl(); } }, l)));
@@ -144,7 +260,7 @@ export function reportDialog(item) {
       toast('Reported – the stock manager has been told.'); close(); refresh();
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      field('Item', picker(sel, { top: item ? [] : await myTopReported().catch(() => []), topLabel: 'You report these most', placeholder: 'Type the item…', min: 6 })), h('div', { class: 'field' }, h('label', {}, 'How bad is it?'), lvl), field('Note', note),
+      field('Item', picker(sel, { top: item ? [] : await myTopReported().catch(() => []), topLabel: 'You report these most', placeholder: 'Type the item…', min: 6 })), pic, h('div', { class: 'field' }, h('label', {}, 'How bad is it?'), lvl), field('Note', note),
       h('p', { class: 'hint' }, 'Need something from the store right now? Ask the stock manager – they hand it over and log it.'),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
