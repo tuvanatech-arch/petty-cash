@@ -52,11 +52,15 @@
 
       <figure class="hero-shot">
         <div class="browser">
-          <div class="browser-bar" aria-hidden="true"><span></span><span></span><span></span><em>app.usepetti.com</em></div>
-          <picture>
-            <source media="(max-width: 640px)" srcset="img/hero-phone.jpg" width="780" height="1370">
-            <img src="img/hero-desk.jpg" width="1920" height="588" alt="Petti's petty cash screen for finance, November, sample data. Allocated N$3,000.00, carried over N$612.50, topped up N$1,500.00, spent N$1,827.47, out with people N$1,400.00, balance in the box N$1,885.03. Last counted 25 November: N$20.00 short, waiting for the GM.">
-          </picture>
+          <div class="browser-bar" aria-hidden="true"><span></span><span></span><span></span><em id="hero-url">app.usepetti.com</em></div>
+          <div class="cycle" id="cycle">
+            <picture>
+              <source media="(max-width: 640px)" srcset="img/cycle/phone-page.jpg" width="780" height="1370">
+              <img src="img/cycle/desk-page.jpg" width="1600" height="900" alt="Petti's petty cash screen for finance, November, sample data. Cash box N$1,765.03 with N$1,520.00 more out with people, bank account N$1,150.00, petty cash in total N$2,915.03. Last counted 25 November: N$20.00 short, waiting for the GM. Buttons: Month-end pack, Pay out now, Count cash, Check the bank, Move cash, Return cash, Close &amp; reconcile.">
+            </picture>
+            <span class="cycle-tap" aria-hidden="true"></span>
+            <svg class="cycle-cursor" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 2v18l5-5 3.5 7 3-1.5-3.5-6.7H19z" fill="#fff" stroke="#19231f" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          </div>
         </div>
         <figcaption>
           <p class="sample-tag">Sample data</p>
