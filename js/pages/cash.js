@@ -5,6 +5,7 @@ import { downloadFullExport } from '../export.js';
 import { proofChoice } from '../proofs.js';
 import { myTopPayees } from '../usage.js';
 import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog, titled, retext, picker } from '../ui.js';
+import { approvalLevelFor, quickLimit } from '../schedule-meta.js';
 
 export function floatStrip(f) {
   const cell = (k, v, cls = '') => h('div', {}, h('span', { class: 'k' }, k), h('span', { class: `v ${cls}` }, money(v)));
@@ -95,7 +96,7 @@ export async function cashPage() {
   if (!open) actions.push(h('button', { class: 'btn btn-primary', onclick: () => openFloatDialog(floats) }, 'Open this month\'s float'));
   else {
     actions.push(packButton(open));
-    if (custodian) actions.push(h('button', { class: 'btn', onclick: () => payoutNowDialog(open) }, 'Pay out now'));   // finance pays out (046)
+    if (custodian && quickLimit(state.settings) > 0) actions.push(h('button', { class: 'btn', onclick: () => payoutNowDialog(open) }, 'Pay out now'));   // finance pays out (046), within its own limit (047)
     if (custodian) actions.push(h('button', { class: 'btn', onclick: () => countDialog(open) }, 'Count cash'));
     if (custodian && bank) actions.push(h('button', { class: 'btn', id: 'check-bank', onclick: () => bankCheckDialog(open, bank) }, 'Check the bank'));
     if (bank && (has('finance') || has('approver'))) actions.push(h('button', { class: 'btn', id: 'move-cash', onclick: () => moveCashDialog(open, bank) }, 'Move cash'));
@@ -133,7 +134,7 @@ export async function cashPage() {
           h('ul', { class: 'plain-list' },
             h('li', {}, `Finance counts the cash ${Number(state.settings.cash_count_days) > 0 ? `at least every ${Number(state.settings.cash_count_days) === 7 ? 'week' : `${state.settings.cash_count_days} days`}` : 'regularly'} and at month-end; the General Manager signs each count off.`),
             h('li', {}, `A difference above ${money(state.settings.cash_variance_limit || 0)} needs a reason from finance and a resolution from the GM, who can write it off.`),
-            h('li', {}, `Top-ups are requested with a count, authorised by the GM (the MD above ${money(state.settings.gm_limit)}) and recorded when the cash arrives.`),
+            h('li', {}, `Top-ups are requested with a count, always authorised (by the GM, or the MD where the approval steps say so) and recorded when the cash arrives.`),
             bank ? h('li', {}, `The bank account is checked against its statement (“Check the bank”) and at month-end; the GM signs each check off. Cash taken out of the bank into the box, or paid in, is recorded under “Move cash”.`) : null))));
   }
 
@@ -259,14 +260,14 @@ export async function packPage(floatId) {
 function payoutNowDialog(f) {
   modal('Pay out now', async (close) => {
     const cats = (await sb.from('categories').select('id, name, kind').eq('active', true).order('name')).data || [];
-    const thr = Number(state.settings?.approval_threshold || 0);
+    const thr = quickLimit(state.settings);   // "Pay out now" has its own limit (047)
     const to = select([['', 'Who gets the cash…'], ...state.people.filter((p) => p.active).map((p) => [p.id, p.full_name || p.email])], '');
     const amount = h('input', { class: 'input num', type: 'number', min: '0.01', max: thr.toFixed(2), step: '0.01', inputmode: 'decimal' });
     const purpose = h('input', { class: 'input', placeholder: 'e.g. Courier at the door – contracts to Walvis Bay', maxlength: 140 });
     const cat = select([['', 'No category'], ...cats.filter((c) => c.kind !== 'stock').map((c) => [c.id, c.name])], '');
     const note = h('input', { class: 'input', placeholder: 'Optional' });
     const warn = h('div', { class: 'hint' });
-    amount.oninput = () => { warn.textContent = num(amount.value) > thr ? `Above ${money(thr)} – that needs the approver. Raise a request instead.` : ''; warn.style.color = warn.textContent ? 'var(--purple)' : ''; };
+    amount.oninput = () => { warn.textContent = num(amount.value) > thr ? `“Pay out now” is for up to ${money(thr)}. Raise a request instead.` : ''; warn.style.color = warn.textContent ? 'var(--purple)' : ''; };
     const proof = proofChoice('required', '');
     const owing = h('div', { class: 'hint', style: { color: 'var(--amber)' } });
     to.onchange = async () => {
@@ -565,7 +566,7 @@ function topUpDialog(f) {
     const amount = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01', inputmode: 'decimal', required: true });
     const reason = h('input', { class: 'input', placeholder: 'e.g. Busy month – three site visits still to pay for', maxlength: 200, required: true });
     const who = h('div', { class: 'hint' });
-    amount.oninput = () => { const a = num(amount.value); who.textContent = titled(a > Number(state.settings.gm_limit) && mdInPlace() ? 'Above the GM limit: the Managing Director authorises it.' : 'The General Manager authorises it.'); };
+    amount.oninput = () => { const a = num(amount.value); who.textContent = titled(approvalLevelFor(a, state.settings) === 'md' && mdInPlace() ? 'The Managing Director authorises it.' : 'The General Manager authorises it.'); };
     amount.oninput();
     const { counted, el } = countField(f, 'Cash in the box now');
     const note = h('input', { class: 'input', placeholder: 'Only if the count does not match' });

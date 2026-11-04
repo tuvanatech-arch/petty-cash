@@ -1,8 +1,8 @@
 // The authority schedule : limits, the float, reminder periods, budgets and who holds each position,
 // in one versioned place. The administrator changes it; the Managing Director approves what needs approving.
 import { sb, state, unwrap, rpc, role, has, personName, ROLE_LABEL, mdInPlace, multiBranch, branchName } from '../api.js';
-import { h, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today, showIf } from '../ui.js';
-import { ITEMS, SECTIONS, WEEKDAYS, EVERY, BUDGET_MODES, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText } from '../schedule-meta.js';
+import { h, mount, money, num, fmtDate, toast, busy, field, select, modal, refresh, confirmDialog, emptyState, today, showIf } from '../ui.js';
+import { ITEMS, SECTIONS, WEEKDAYS, EVERY, BUDGET_MODES, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText, approvalSteps } from '../schedule-meta.js';
 import { downloadSchedulePdf } from '../schedule-pdf.js';
 
 async function load() {
@@ -169,17 +169,28 @@ function inputFor(k, v) {
 function valuesBlock(d, admin) {
   const s = state.settings;
   const pend = d.pending?.proposed || {};
-  const inputs = {};
+  const inputs = {}; const wraps = {};
   const waiting = (k) => (k in pend && !same(k, pend[k], s[k]) ? h('span', { class: 'pending-val' }, `Waiting for the MD: ${fmtValue(k, pend[k])}`) : null);
+  // the approval steps in plain words, at the top of "Who approves what"; while editing they follow the inputs (047)
+  const STEP_KEYS = ['approval_threshold', 'gm_step', 'gm_limit', 'md_step', 'quick_payout_limit'];
+  const stepsBox = h('div', { class: 'banner banner-blue', id: 'approval-steps', style: { marginBottom: '14px' } });
+  const drawSteps = () => {
+    const v = admin ? { ...s, ...Object.fromEntries(STEP_KEYS.filter((k) => inputs[k]).map((k) => [k, readInput(k, inputs[k])])) } : s;
+    mount(stepsBox, h('strong', {}, admin ? 'The approval steps, as set here' : 'The approval steps'), h('ul', {}, approvalSteps(v).map((l) => h('li', {}, l))));
+    if (wraps.gm_limit) wraps.gm_limit.style.display = v.gm_step !== false && v.md_step !== false ? '' : 'none';   // only used when both steps are on
+  };
   const sections = SECTIONS.map((sec) => h('div', { class: 'sheet' },
     head(sec.title, sec.md),
+    sec.keys.includes('approval_threshold') ? stepsBox : null,
     admin
       ? h('div', { class: 'sched-grid' }, sec.keys.map((k) => {
         const it = ITEMS[k]; const el = inputFor(k, s[k]); inputs[k] = el;
-        if (it.kind === 'bool') return h('div', { class: 'field' }, h('label', { class: 'check' }, el, it.label), it.hint ? h('span', { class: 'hint' }, it.hint) : null, waiting(k));
-        const f = field(it.label, el, it.hint); const w = waiting(k); if (w) f.append(w); return f;
+        if (STEP_KEYS.includes(k)) { el.addEventListener('input', drawSteps); el.addEventListener('change', drawSteps); }
+        if (it.kind === 'bool') return (wraps[k] = h('div', { class: 'field' }, h('label', { class: 'check' }, el, it.label), it.hint ? h('span', { class: 'hint' }, it.hint) : null, waiting(k)));
+        const f = field(it.label, el, it.hint); const w = waiting(k); if (w) f.append(w); return (wraps[k] = f);
       }))
       : h('dl', { class: 'kv sched-kv' }, sec.keys.filter((k) => k !== 'policy_url').map((k) => [h('dt', {}, ITEMS[k].label), h('dd', {}, fmtValue(k, s[k]), waiting(k) ? [h('br'), waiting(k)] : null)]))));
+  drawSteps();
   if (!admin) return sections;
   const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Review and save…');
   return h('form', { onsubmit: (e) => { e.preventDefault(); reviewChanges(inputs); } }, sections,

@@ -8,8 +8,11 @@ export const WEEKDAYS = [[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'T
 export const BUDGET_MODES = [['warn', 'Flag it, let it through'], ['require_approval', 'Send it for approval'], ['block', 'Block it']];
 
 export const ITEMS = {
-  approval_threshold: { label: 'Finance pays alone up to', kind: 'money', hint: 'Above this the General Manager approves.' },
+  approval_threshold: { label: 'Finance pays alone up to', kind: 'money', hint: 'No approval needed up to this amount. N$0: every amount is approved first.' },
+  gm_step: { label: 'The GM approves above that', kind: 'bool', hint: 'No: amounts above what finance pays alone go straight to the MD.' },
   gm_limit: { label: 'General Manager approves up to', kind: 'money', hint: 'Above this the Managing Director approves instead.' },
+  md_step: { label: 'The MD approves above the GM limit', kind: 'bool', hint: 'No: the GM approves every amount above what finance pays alone.' },
+  quick_payout_limit: { label: '“Pay out now” (cash without a request) up to', kind: 'money', hint: 'Finance hands out small urgent cash straight from Petty cash, logged but with no request. Never more than finance pays alone; N$0 switches it off.' },
   split_window_days: { label: 'Requests counted together over', kind: 'days', min: 1, max: 31, hint: 'One person’s small requests in this period are added up, so splitting a purchase cannot avoid approval.' },
   change_tolerance_pct: { label: 'Pay-out tolerance', kind: 'pct', min: 0, max: 50, hint: 'Paying or spending more than was approved by more than this goes back for approval or a review.' },
   claims_need_approval: { label: 'Every claim needs approval', kind: 'bool', hint: 'A claim is money someone paid from their own pocket without asking first. Yes: approved whatever the amount. No: claims under the finance limit go straight to finance.' },
@@ -30,7 +33,7 @@ export const ITEMS = {
 };
 
 export const SECTIONS = [
-  { title: 'Who approves what', md: true, keys: ['approval_threshold', 'gm_limit', 'split_window_days', 'change_tolerance_pct', 'claims_need_approval', 'budget_mode', 'block_with_outstanding'] },
+  { title: 'Who approves what', md: true, keys: ['approval_threshold', 'gm_step', 'gm_limit', 'md_step', 'quick_payout_limit', 'split_window_days', 'change_tolerance_pct', 'claims_need_approval', 'budget_mode', 'block_with_outstanding'] },
   { title: 'The float and cash counts', md: true, keys: ['default_monthly_float', 'float_rollover', 'cash_variance_limit'] },
   { title: 'The store', md: true, keys: ['stock_adjust_limit'] },
   { title: 'Reminders and warnings', md: false, keys: ['advance_grace_days', 'advance_escalate_days', 'cash_count_days', 'count_day', 'reserve_buffer_pct'] },
@@ -40,11 +43,36 @@ export const SECTIONS = [
 export const AREA_LABEL = { start: 'Starting schedule', rules: 'Limits, rules and reminders', budgets: 'Budgets', positions: 'Who holds each position' };
 
 export const POSITIONS = [
-  { role: 'finance', label: 'Finance – custodian of the float', duty: (s) => `Holds the cash and pays out. Pays alone up to ${money(s.approval_threshold)}; checks every receipt; counts the box and requests top-ups.` },
-  { role: 'approver', label: 'General Manager', duty: (s) => `Approves above ${money(s.approval_threshold)} up to ${money(s.gm_limit)}, and finance’s own requests. Signs off cash counts and authorises top-ups up to ${money(s.gm_limit)}. Approves stock corrections above ${money(s.stock_adjust_limit)}. Administers the app.` },
-  { role: 'managing_director', label: 'Managing Director', duty: (s) => `Approves above ${money(s.gm_limit)}, the GM’s own requests and top-ups above ${money(s.gm_limit)}; approves changes to limits, rules and the float.` },
+  { role: 'finance', label: 'Finance – custodian of the float', duty: (s) => `Holds the cash and makes every pay-out. Pays alone up to ${money(s.approval_threshold)}; checks every receipt; counts the box and requests top-ups.` },
+  { role: 'approver', label: 'General Manager', duty: (s) => `${gmBand(s) ? `Approves ${gmBand(s)}, ` : 'Approves '}finance’s own requests, claims and top-ups${mdBand(s) ? ` up to ${money(s.gm_limit)}` : ''}. Signs off cash counts. Approves stock corrections above ${money(s.stock_adjust_limit)}. Administers the app.` },
+  { role: 'managing_director', label: 'Managing Director', duty: (s) => `${mdBand(s) ? `Approves ${mdBand(s)} (requests and top-ups), and ` : 'Approves '}the GM’s own requests; approves changes to limits, rules and the float.` },
   { role: 'stock_manager', label: 'Stock controller', duty: (s) => `Keeps the store and the catalogue; records hand-outs of issued items; confirms deliveries; counts the shelf; corrects differences up to ${money(s.stock_adjust_limit)} alone; reviews stock requests and raises restock orders.` },
 ];
+
+/** Who approves an amount under the approval steps: null (finance pays alone), 'gm' or 'md' – as approval_level_for in the database. */
+export function approvalLevelFor(amount, s) {
+  const a = Number(amount);
+  if (a <= Number(s?.approval_threshold ?? 0)) return null;
+  const gm = s?.gm_step !== false; const md = s?.md_step !== false;
+  if (gm && (!md || a <= Number(s?.gm_limit ?? 0))) return 'gm';
+  return md ? 'md' : 'gm';
+}
+/** "Pay out now": its own limit, never above what finance pays alone. */
+export const quickLimit = (s) => Math.min(Number(s?.quick_payout_limit ?? s?.approval_threshold ?? 0), Number(s?.approval_threshold ?? 0));
+const gmBand = (s) => (s.gm_step === false ? '' : s.md_step === false ? `above ${money(s.approval_threshold)}` : `above ${money(s.approval_threshold)} up to ${money(s.gm_limit)}`);
+const mdBand = (s) => (s.md_step === false ? '' : `above ${money(s.gm_step === false ? s.approval_threshold : s.gm_limit)}`);
+/** The approval steps in plain words, one line each – the Schedule screen and its PDF show these. */
+export function approvalSteps(s) {
+  const thr = Number(s.approval_threshold);
+  const lines = [thr > 0 ? `Up to ${money(thr)}: finance pays, no approval needed.` : 'Every amount is approved before it is paid.'];
+  if (s.gm_step !== false && s.md_step !== false) lines.push(`${money(thr)} – ${money(s.gm_limit)}: the GM approves.`, `Above ${money(s.gm_limit)}: the MD approves.`);
+  else if (s.gm_step !== false) lines.push(`Above ${money(thr)}: the GM approves, whatever the amount.`);
+  else lines.push(`Above ${money(thr)}: the MD approves.`);
+  const q = quickLimit(s);
+  lines.push(q > 0 ? `“Pay out now” (cash without a request): up to ${money(q)}.` : '“Pay out now” is switched off.');
+  lines.push('Always: finance pays; nobody approves or pays their own request; finance’s own requests go to the GM and the GM’s own to the MD; top-ups and payments from the company account are always approved.');
+  return lines;
+}
 
 /** A schedule value in words, the same way the database writes it in the history. */
 export function fmtValue(key, v) {

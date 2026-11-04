@@ -132,9 +132,9 @@ async function usersTab() {
   const roleHelp = {
     requester: 'Raises requests and claims; records what they spent.',
     stock_manager: 'Reviews stock requests, keeps the store, raises the monthly restock.',
-    finance: 'Opens the float, pays out, checks receipts, closes the month.',
-    approver: 'General Manager: approves above the finance limit up to the GM limit (never their own); administers the system.',
-    managing_director: 'Approves above the GM limit, the GM’s own requests and changes to the schedule’s limits and float; sees everything; no administration. Their own requests are paid, then reviewed by the GM.',
+    finance: 'Opens the float, makes every pay-out, checks receipts, closes the month.',
+    approver: 'General Manager: approves as the approval steps on the Schedule say (never their own); does not pay out; administers the system.',
+    managing_director: 'Approves the larger amounts as the approval steps on the Schedule say, the GM’s own requests and changes to the schedule’s limits and float; sees everything; no administration. Their own requests are paid, then reviewed by the GM.',
   };
   return h('div', {},
     planLine(),
@@ -299,7 +299,7 @@ export function standinDialog(d, { fixedFrom = null } = {}) {
       } catch (e) { err.textContent = e.message; }
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      field('Who is away', from, 'Their role is what gets covered.'), field('Who covers', to),
+      field('Who is away', from, 'Their role is what gets covered.'), field('Who covers', to, 'One person never both approves and pays: the GM or the MD cannot cover finance, and finance cannot cover the GM or the MD.'),
       h('div', { class: 'row' }, field('From', starts), field('Until', ends)), field('Note', note),
       err, h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });

@@ -1,0 +1,7 @@
+[
+ {
+  "name": "approval-steps",
+  "role": "approver",
+  "step": { "at": "#/admin/schedule", "css": "#approval-steps", "text": "" }
+ }
+]

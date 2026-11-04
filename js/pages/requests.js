@@ -2,6 +2,7 @@ import { sb, state, can, has, role, personName, unwrap, rpc, uploadProof, proofU
 import { branchTag } from '../branch.js';
 import { h, mount, money, qty, num, fmtDate, pill, OPEN_STATUSES, EVENT_LABEL, MOVEMENT_LABEL, emptyState, toast, busy, field, select, confirmDialog, today, more, onceHint, showIf, adapted, refresh, picker, units } from '../ui.js';
 import { outlookBox } from './cash.js';
+import { approvalLevelFor } from '../schedule-meta.js';
 import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } from '../proofs.js';
 import { keepForm, keepRead, keepDrop, whenText } from '../keep.js';
 import { myHistory, forgetHistory, repeats, matching, amountOf, myTopItems, myTopPayees } from '../usage.js';
@@ -812,7 +813,7 @@ function disbursePanel(q, reload) {
   const tol = 1 + Number(state.settings?.change_tolerance_pct ?? 10) / 100;
   const limitText = (a) => (a > thr() && !q.approved_by && !q.review_reason ? `Above ${money(thr())} and not approved – escalate it instead.`
       : (q.approved_by || q.review_reason) && a > Math.round(Number(q.estimated_total) * tol * 100) / 100 ? `More than the ${money(q.estimated_total)} ${q.approved_by ? 'approved' : 'requested'} – send it back for approval with the new amount.`
-      : q.approved_by && (q.approval_level || 'gm') === 'gm' && a > Number(state.settings?.gm_limit ?? 5000) ? `Above the GM limit – the Managing Director must approve the new amount.` : '');
+      : q.approved_by && (q.approval_level || 'gm') === 'gm' && approvalLevelFor(a, state.settings) === 'md' ? `That amount needs the Managing Director’s approval – the MD must approve the new amount.` : '');
   const showLimit = (el, a) => { el.textContent = limitText(a); el.style.color = el.textContent ? 'var(--purple)' : ''; };
   const check = () => showLimit(warn, num(amount.value));
   amount.oninput = check; check();
@@ -897,14 +898,18 @@ function disbursePanel(q, reload) {
   const ways = [['cash', 'Cash from the box'], bank ? ['petty', 'Petty cash account'] : null, ['company', 'Company account']].filter(Boolean);
   const tabs = canTransfer ? h('div', { class: 'tabs', id: 'pay-how', role: 'tablist', 'aria-label': 'How it is paid' }) : null;
   const doc = `${quoted?.kind === 'invoice' ? 'invoice' : 'quote'}${quoted?.extracted?.supplier ? ` from ${quoted.extracted.supplier}` : ''}`;
+  const companyNeedsOk = !q.approved_by && !q.review_reason;
   const info = () => {
     tInfo.textContent = how === 'petty'
       ? `Pay the supplier from ${bank}, then record it here with the proof of payment. It comes off the petty cash bank account${bankBal != null ? ` (${money(bankBal)} on the book)` : ''}; the box is not touched. ${personName(q.requester_id)} gets the proof of payment and confirms when the supplier has delivered.`
       : `Pay the supplier from the company account, then record it here with the proof of payment. This is a direct payment outside petty cash: kept with the ${doc}, but not part of the petty cash balances or budgets. ${personName(q.requester_id)} gets the proof of payment and confirms when the supplier has delivered.`;
+    // a payment from the company account always has an approval first (047)
+    if (how === 'company' && companyNeedsOk) tInfo.textContent = `Not approved yet (it is within the ${money(thr())} limit for petty cash). A payment from the company account needs approval first, whatever the amount: tap “Send for approval”, and pay it once approved.`;
   };
   if (bank && canTransfer) sb.from('v_floats').select('bank_balance').eq('branch_id', q.branch_id).eq('status', 'open').maybeSingle().then(({ data }) => { if (data) { bankBal = Number(data.bank_balance); info(); } }).catch(() => {});
   const draw = () => {
     title.textContent = how === 'petty' ? 'Pay from the petty cash account' : how === 'company' ? 'Pay from the company account' : 'Pay out from petty cash';
+    tPay.disabled = how === 'company' && companyNeedsOk;
     if (tabs) mount(tabs, ways.map(([k, l]) =>
       h('button', { type: 'button', class: k === how ? 'active' : '', role: 'tab', 'aria-selected': String(k === how), onclick: () => { how = k; draw(); } }, l)));
     info();

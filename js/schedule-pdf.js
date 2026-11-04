@@ -2,7 +2,7 @@
 // Used on its own (Download PDF) and inside the month-end pack.
 import { state, personName } from './api.js';
 import { money, titled } from './ui.js';
-import { ITEMS, SECTIONS, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText } from './schedule-meta.js';
+import { ITEMS, SECTIONS, AREA_LABEL, POSITIONS, fmtValue, versionStatus, changeText, approvalSteps } from './schedule-meta.js';
 import { loadLogo, drawLogo } from './brand.js';
 
 let jsPDFCtor = null;
@@ -64,6 +64,7 @@ export function drawSchedule(doc, v, { inPack = false, monthChanges = [], logo =
 
   for (const sec of SECTIONS) {
     heading(sec.title, sec.md ? 'Changes take effect only once the Managing Director approves them.' : 'Changes take effect at once; the Managing Director is told.');
+    if (sec.keys.includes('approval_threshold')) for (const line of approvalSteps(val)) text(`•  ${line}`, { size: 9 });
     table([{ label: 'Item', w: 78 }, { label: 'Setting', w: 100 }], sec.keys.map((k) => [ITEMS[k].label, fmtValue(k, val[k])]));
   }
 
