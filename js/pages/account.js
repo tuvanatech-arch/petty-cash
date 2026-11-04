@@ -4,6 +4,7 @@ import { standinDialog, endDelegation } from './admin.js';
 import { BUILD, log } from '../diag.js';
 import { devicesBlock } from '../devices.js';
 import { twoStepSheet } from '../twostep.js';
+import { installLabel, deviceWord } from './install.js';
 
 export async function accountPage() {
   const me = state.me;
@@ -53,7 +54,7 @@ export async function accountPage() {
   }
 
   const standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone;
-  const installSheet = standalone ? null : more('Put it on your phone', h('p', { class: 'hint' }, 'Opens like an app, “Snap or upload” is a long-press away, and counts done without signal are sent later.'), h('a', { class: 'btn', href: '#/install' }, 'Show me how'));
+  const installSheet = standalone ? null : more(installLabel(), h('p', { class: 'hint' }, 'Opens like an app, “Snap or upload” is a long-press away, and counts done without signal are sent later.'), h('a', { class: 'btn', href: '#/install' }, 'Show me how'));
 
   // phone alerts
   const ps = await pushStatus();
@@ -68,7 +69,7 @@ export async function accountPage() {
     mount(pushBox,
       st.on ? [h('p', { class: 'hint' }, '✓ This phone buzzes when something needs you.'), h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, tst, offBtn)]
       : st.ok ? [h('p', { class: 'hint' }, 'Get a buzz the moment something needs you – an approval, cash to collect, a receipt to check – even with the app closed.'), h('div', { class: 'form-actions', style: { justifyContent: 'flex-start' } }, onBtn)]
-      : h('p', { class: 'hint' }, st.reason === 'ios_not_installed' ? 'On iPhone, alerts work once the app is on your home screen. ' : st.reason === 'denied' ? 'Notifications are blocked for this site in the browser settings – allow them there, then come back.' : 'This browser cannot receive phone alerts; you still get them in the app and by email.',
+      : h('p', { class: 'hint' }, st.reason === 'ios_not_installed' ? `On ${deviceWord() === 'iPad' ? 'iPad' : 'iPhone'}, alerts work once the app is on your home screen. ` : st.reason === 'denied' ? 'Notifications are blocked for this site in the browser settings – allow them there, then come back.' : 'This browser cannot receive phone alerts; you still get them in the app and by email.',
           st.reason === 'ios_not_installed' ? h('a', { href: '#/install' }, 'Install it first') : null));
   }
   drawPush(ps);

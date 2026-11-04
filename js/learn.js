@@ -3,6 +3,7 @@
 // do not both ask; the browser copy only covers the moment before the profile has loaded.
 import { sb, state, role, can, rpc, ROLE_LABEL } from './api.js';
 import { h, mount, money, toast, busy, more, setTipStore } from './ui.js';
+import { deviceWord } from './pages/install.js';
 
 const thr = () => money(state.settings?.approval_threshold || 0);
 
@@ -34,7 +35,7 @@ export async function setupCard() {
     { done: !!s.people, title: 'People', what: s.people ? `Finance: ${s.finance_named}${s.stock_manager_named ? ` · Stock: ${s.stock_manager_named}` : ''}` : 'Add finance first, then the stock manager and the team. Each gets a temporary password you hand over.', href: '#/admin', go: 'People' },
     { done: Number(s.items) > 0 || seen('setup_stock_skip'), title: 'Stock catalogue', what: Number(s.items) > 0 ? `${s.items} item${s.items === 1 ? '' : 's'} on the shelf.` : 'The things you buy again and again – paper, toner, cleaning. The stock manager can do this; or skip it and add items as they come up.', href: '#/stock', go: 'Stock', skip: 'setup_stock_skip' },
     { done: !!s.float, title: 'This month’s float', what: s.float ? 'Open.' : 'Finance opens the month under Petty cash with the cash actually in the box. You can too.', href: '#/cash', go: 'Petty cash' },
-    { done: !!s.alerts || seen('setup_phone_skip'), title: 'Phones and alerts', what: s.alerts ? 'This phone buzzes when something needs you.' : `${standalone ? 'Turn on alerts under Account' : 'Put it on your home screen, then turn on alerts'} – and tell the team to do the same.`, href: standalone ? '#/account' : '#/install', go: standalone ? 'Account' : 'Install', skip: 'setup_phone_skip' },
+    { done: !!s.alerts || seen('setup_phone_skip'), title: 'Phones and alerts', what: s.alerts ? 'This phone buzzes when something needs you.' : `${standalone ? 'Turn on alerts under Account' : (deviceWord() === 'computer' ? 'Install it on this computer (or your phone), then turn on alerts' : 'Put it on your home screen, then turn on alerts')} – and tell the team to do the same.`, href: standalone ? '#/account' : '#/install', go: standalone ? 'Account' : 'Install', skip: 'setup_phone_skip' },
   ];
   const n = steps.filter((x) => x.done).length;
   if (n === steps.length) { markSeen('setup_hidden'); return null; }

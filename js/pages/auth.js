@@ -1,5 +1,6 @@
 import { sb, adminUsers, accountMail, cleanError } from '../api.js';
 import { h, field, busy, toast } from '../ui.js';
+import { installLabel } from './install.js';
 
 const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, h('span', {}, 'P', h('span', { class: 'dot' }, '.'))),
   h('div', { class: 'brand-name' }, 'Petti', h('span', { class: 'dot' }, '.'), h('small', {}, 'Petty cash & stock · by Tuvana Tech')));
@@ -26,7 +27,7 @@ function loginForm() {
     linkBtn,
     h('div', { class: 'links' },
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); forgot(email.value); } }, 'Forgot password?'),
-      h('a', { href: '#/install' }, 'Put it on your phone')),
+      h('a', { href: '#/install' }, installLabel())),
     h('p', { class: 'hint', style: { marginTop: '10px' } }, 'No account? Ask your administrator.'));
   const submit = busy(btn, async () => {
     err.textContent = '';

@@ -31,6 +31,17 @@ export function detect() {
   return { iOS, android, mobile, browser };
 }
 
+/** What the person is holding: 'phone', 'iPad', 'tablet' or 'computer' (iPads that report as a Mac count as iPads). */
+export function deviceWord() {
+  const ua = navigator.userAgent || '';
+  if (/iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/iPhone|iPod/.test(ua)) return 'phone';
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'phone' : 'tablet';
+  return /Mobile|Tablet/.test(ua) ? (/Tablet/.test(ua) ? 'tablet' : 'phone') : 'computer';
+}
+/** "Put it on your phone" – or iPad, tablet, computer – so the link says what will happen on this device. */
+export const installLabel = () => `Put it on your ${deviceWord()}`;
+
 const share = () => h('span', { class: 'ios-share', title: 'Share' }, '⬆');
 const menu = () => h('span', { class: 'kbd' }, '⋮');
 
@@ -42,7 +53,7 @@ function steps({ browser, iOS, android }) {
       ['Tap Add', 'Petti appears on your home screen with its green “P.” icon.'],
     ];
     case 'ios-chrome': case 'ios-firefox': case 'ios-edge': return [
-      ['Open this page in Safari', 'On iPhone only Safari can add apps to the home screen. Tap the address bar, copy the link, and open it in Safari.'],
+      ['Open this page in Safari', `On ${deviceWord() === 'iPad' ? 'iPad' : 'iPhone'} only Safari can add apps to the home screen. Tap the address bar, copy the link, and open it in Safari.`],
       ['Tap the Share button', h('span', {}, 'The ', share(), ' icon at the bottom of Safari.')],
       ['Choose “Add to Home Screen”, then Add', 'The app appears on your home screen.'],
     ];
@@ -89,10 +100,12 @@ export async function installPage() {
     mount(box,
       btn ? [btn, h('p', { class: 'hint', style: { marginBottom: '12px' } }, 'One tap. If the button does nothing, follow the steps below.')] : null,
       h('ol', { class: 'steps' }, list.map(([t, sub]) => h('li', {}, h('strong', {}, t), sub ? h('div', { class: 'hint' }, sub) : null))),
-      h('p', { class: 'hint', style: { marginTop: '14px' } }, 'Once installed it opens like any app, works without signal for quick counts, and a long press on the Petti icon gives you “Snap or upload”.'));
+      h('p', { class: 'hint', style: { marginTop: '14px' } }, deviceWord() === 'computer'
+        ? 'Once installed it opens in its own window, like any program, and sits with your other apps.'
+        : 'Once installed it opens like any app, works without signal for quick counts, and a long press on the Petti icon gives you “Snap or upload”.'));
   }
   listeners.add(draw); draw();
-  return h('div', {}, h('h1', {}, 'Put it on your phone'), h('p', { class: 'lead' }, `${d.iOS ? 'iPhone / iPad' : d.android ? 'Android' : 'Computer'} · ${{ 'ios-safari': 'Safari', 'ios-chrome': 'Chrome', 'ios-firefox': 'Firefox', 'ios-edge': 'Edge', samsung: 'Samsung Internet', edge: 'Edge', opera: 'Opera', firefox: 'Firefox', chrome: 'Chrome', 'mac-safari': 'Safari', other: 'your browser' }[d.browser]}`), box);
+  return h('div', {}, h('h1', {}, installLabel()), h('p', { class: 'lead' }, `${{ phone: d.iOS ? 'iPhone' : 'Android phone', iPad: 'iPad', tablet: 'Android tablet', computer: 'Computer' }[deviceWord()]} · ${{ 'ios-safari': 'Safari', 'ios-chrome': 'Chrome', 'ios-firefox': 'Firefox', 'ios-edge': 'Edge', samsung: 'Samsung Internet', edge: 'Edge', opera: 'Opera', firefox: 'Firefox', chrome: 'Chrome', 'mac-safari': 'Safari', other: 'your browser' }[d.browser]}`), box);
 }
 
 /** A small banner on phones that are not installed yet; dismissable, shown again after 14 days. */
