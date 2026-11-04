@@ -105,7 +105,7 @@
     await wait(300);
     if (img.complete && img.naturalWidth) img.classList.add('on');
     if (url && k === 'month-end') url.textContent = 'petty-cash-2026-11.pdf';
-    await wait(3000);
+    await wait(6000);   // each window stays 6 seconds
     img.classList.remove('on'); if (url) url.textContent = home;
     i += 1;
     await wait(900);
