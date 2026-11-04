@@ -156,6 +156,14 @@ async function buildHome() {
       h('ul', { class: 'ledger-list' }, adj.map((a) => h('li', {}, h('div', { class: 'what' }, h('strong', {}, `${a.item?.name || 'Item'} · ${qty(a.qty_before)} → ${units(a.qty_after, a.item?.unit)}`),
         h('span', {}, `${{ count: 'Count difference', correction: 'Correction', delivery: 'Short delivery' }[a.kind] || a.kind} · worth ${money(a.value)} · ${personName(a.requested_by)}, ${fmtDate(a.requested_at)}${a.reason ? ` – “${a.reason}”` : ''}`)), decideAdjustmentActions(a)))), null, 'purple'));
   }
+  // the last week of a free trial: the GM is told when it ends and that everything entered stays (048)
+  const plan = state.plan;
+  if (role() === 'approver' && plan?.status === 'trial' && plan.trial_ends) {
+    const left = Math.round((new Date(plan.trial_ends) - new Date(new Date().toDateString())) / 86400000);
+    if (left <= 7) cards.push({ n: 0, el: h('div', { class: 'banner banner-amber', id: 'trial-ending', style: { marginBottom: '14px' } },
+      h('strong', {}, left > 0 ? `Your free trial ends on ${fmtDate(plan.trial_ends)}` : left === 0 ? 'Your free trial ends today' : `Your free trial ended on ${fmtDate(plan.trial_ends)}`),
+      ` To keep using Petti, call Tuvana Tech${plan.support_phone ? ` on ${plan.support_phone}` : ''}. Everything you have entered stays as it is.`) });
+  }
   // the exception log: open entries wait for the GM
   const excN = Number(excRes.data || 0);
   if (role() === 'approver' && excN) cards.push(card('Exceptions to clear', excN, h('p', { class: 'hint' }, 'Overrides, corrections and flags nobody has looked at yet: mark each justified or resolved.'),

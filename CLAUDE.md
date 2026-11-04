@@ -63,6 +63,8 @@ Every night at 02:30 UTC `functions/offsite` (db/040) sends the latest records c
 
 Each client's plan limits how many people (accounts switched on) and branches it can have; Admin → People shows the places used and blocks adding beyond them, and the database enforces the same. Tuvana Tech sets the plan, never the client: `update public.subscription set plan = 'business', people_limit = 30, branch_limit = 3, status = 'active' where id = 1;` (starter 10/1, business 30/3, group as agreed; `ops/new-client.mjs` sets it from the client file's `plan`). A plan of null shows nothing and limits nothing. Setting or changing a client's plan changes what its GM sees: announce it to the GM.
 
+A trial is set up by hand (status 'trial', `trial_ends` 30 days after setup), one per company: check the "Petti trial register" doc (Claude Docs) for the name, registration number, phone and email domain first. The health check alerts 7 days before the end, on Mondays of that week, on the day, and daily after it while still 'trial' (db/048); the GM sees a notice on Home in the last week. Set status 'active' when they pay.
+
 The GM cancels under Admin → Settings → Your Petti subscription, after being offered "Download everything". Petti stays open 30 days (the GM can keep it); the daily health check alerts on the day of cancelling (stop billing) and on the removal day: then remove the client's Supabase project and empty its Backblaze bucket, as the terms promise.
 
 ## Payment requests (db/042)

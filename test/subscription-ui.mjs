@@ -94,5 +94,22 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
   await k.ctx.close();
 }
 
+/* trial ending (048): the GM sees it on Home in the last week; finance does not */
+{
+  const ends = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  const plan = { plan: 'business', people_limit: 30, branch_limit: 3, status: 'trial', trial_ends: ends };
+  const g = await open('approver', '#/home', plan, 390);
+  check(/Your free trial ends on/.test(await g.page.locator('#trial-ending').innerText().catch(() => '')) && /Everything you have entered stays/.test(await g.page.locator('#trial-ending').innerText().catch(() => '')), 'GM: the trial end shows on Home in the last week');
+  check(await noSideScroll(g.page), 'GM: phone, no sideways scrolling');
+  check(!g.errs.length, `GM trial: no page errors ${g.errs.join(' | ')}`);
+  await g.ctx.close();
+  const f = await open('finance', '#/home', plan);
+  check(await f.page.locator('#trial-ending').count() === 0, 'finance: no trial notice');
+  await f.ctx.close();
+  const far = await open('approver', '#/home', { ...plan, trial_ends: new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10) });
+  check(await far.page.locator('#trial-ending').count() === 0, 'GM: nothing while the end is more than a week away');
+  await far.ctx.close();
+}
+
 await b.close(); server.close();
 console.log(fails.length ? `SUBSCRIPTION UI: FAIL (${fails.length})` : 'SUBSCRIPTION UI: PASS'); process.exit(fails.length ? 1 : 0);
