@@ -6,6 +6,7 @@ import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy
 import { barChart } from '../charts.js';
 import { itemThumb, itemPhotos, uploadPhoto, photoUrl } from '../itemphotos.js';
 import { storeMatches } from './requests.js';
+import { thisDevice } from '../device-label.js';
 
 export async function stockPage(tab = 'items') {
   const manage = can('manage_stock');
@@ -227,7 +228,7 @@ export function suggestDialog() {
         p_where: where.value.trim() || null, p_photo: photo, p_category: cat.value || null };
       if (offline.on || navigator.onLine === false) {   // no signal: kept on this phone, sent when the signal is back
         await outboxAdd('rpc', { fn: 'suggest_item', args, what: `Suggestion: ${args.p_name}` });
-        toast('No signal: the suggestion is kept on this phone and sent when the signal is back.', { ms: 6000 }); close(); return;
+        toast(`No signal: the suggestion is kept on ${thisDevice()} and sent when the signal is back.`, { ms: 6000 }); close(); return;
       }
       try {
         const r = await rpc('suggest_item', args);
@@ -264,7 +265,7 @@ export function reportDialog(item) {
       if (!sel.value) throw new Error('Choose the item.');
       if (offline.on || navigator.onLine === false) {   // no signal: kept on this phone, sent when the signal is back
         await outboxAdd('rpc', { fn: 'report_stock', args: { p_item: sel.value, p_level: level, p_note: note.value }, what: 'Stock report' });
-        toast('No signal: the report is kept on this phone and sent to the stock manager when the signal is back.', { ms: 6000 }); close(); return;
+        toast(`No signal: the report is kept on ${thisDevice()} and sent to the stock manager when the signal is back.`, { ms: 6000 }); close(); return;
       }
       await rpc('report_stock', { p_item: sel.value, p_level: level, p_note: note.value });
       toast('Reported – the stock manager has been told.'); close(); refresh();
@@ -414,7 +415,7 @@ function quickCountDialog() {
       toast(!changed ? 'Count saved – everything matched the book.' : waiting ? `Count saved – ${changed} item${changed === 1 ? '' : 's'} differ; ${waiting} above the correction limit wait${waiting === 1 ? 's' : ''} for the GM.` : `Count saved – ${changed} item${changed === 1 ? '' : 's'} adjusted.`, { ms: waiting ? 7000 : 4000 }); close(); refresh();
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      offline ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'You are offline'), 'Book quantities are from the last time this phone was online. The count is kept here and sent later.') : null,
+      offline ? h('div', { class: 'banner banner-amber' }, h('strong', {}, 'You are offline'), `Book quantities are from the last time ${thisDevice()} was online. The count is kept here and sent later.`) : null,
       h('p', { class: 'hint' }, `Type what is actually on the shelf. Anything you leave blank is skipped. For counted items, less than the book is logged as used. For issued items a difference is a variance: within ${money(state.settings?.stock_adjust_limit || 0)} it is applied and logged; above that the GM approves it first.`),
       h('div', { class: 'row' }, field('Counted on', date), field('Note', note)),
       h('label', { class: 'check', style: { marginBottom: '10px' } }, h('input', { type: 'checkbox', checked: onlyRecurring, onchange: (e) => { onlyRecurring = e.target.checked; draw(); } }), 'Monthly items only'),

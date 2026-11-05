@@ -68,7 +68,8 @@ export function twoStepSheet() {
     h('div', { class: 'sheet-head' }, h('h2', {}, 'Two-step sign-in'), h('span', { class: 'sub' }, on ? 'On' : ts.from ? `From ${fmtDate(ts.from)}` : 'Off')),
     h('p', { class: 'hint' }, on || ts.from
       ? `After your password, Petti emails a 6-digit code to ${ts.email || 'your email'} and asks for it, so a stolen password alone cannot release money. Nothing to set up.`
-      : 'When your GM switches it on, Petti will email you a 6-digit code after your password. Nothing to set up.'));
+      : state.me?.role === 'approver' ? 'When you switch it on under Admin → Settings, Petti will email a 6-digit code after the password to you, finance and the MD. Switch it on once email sending is set up.'
+        : 'When your GM switches it on, Petti will email you a 6-digit code after your password. Nothing to set up.'));
 }
 
 /** Home: nothing to set up any more (the code comes by email). */

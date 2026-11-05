@@ -7,6 +7,7 @@ import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } 
 import { keepForm, keepRead, keepDrop, whenText } from '../keep.js';
 import { offline, outboxAdd } from '../offline.js';
 import { myHistory, forgetHistory, repeats, matching, amountOf, myTopItems, myTopPayees } from '../usage.js';
+import { thisDevice } from '../device-label.js';
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
 const thr = () => Number(state.settings?.approval_threshold || 0);
@@ -257,7 +258,7 @@ export async function newRequestPage(editId, presetType) {
     const d = { type, purpose: purpose.value.trim(), needed_by: needed.value || null, category_id: type !== 'stock' ? (category.value || null) : null, not_stock: type === 'cash' && notStock,
       branch_id: myBranch(), lines: clean, urgent: urgentTick.checked, urgent_reason: urgentWhy.value.trim() || null, spent_at: spentAt.value, supplier: supplier.value.trim(), notes: notes.value.trim() };
     await outboxAdd(type === 'claim' ? 'claim' : 'request', d, type === 'claim' ? offlineReceipts : []);
-    toast('No signal: kept on this phone. When the signal is back it becomes a draft – then check it and send.', { ms: 7000 });
+    toast(`No signal: kept on ${thisDevice()}. When the signal is back it becomes a draft – then check it and send.`, { ms: 7000 });
     formKeep?.done(); forgetHistory();
     location.hash = '#/requests';
   }
@@ -303,7 +304,7 @@ export async function newRequestPage(editId, presetType) {
           catch (ex) { toast(ex.message, { error: true }); }
           drawReceipts();
         } }), '📷 Scan the receipt or upload it'),
-        offlineReceipts.length ? h('span', { class: 'hint offline-kept', id: 'offline-receipts' }, `📷 ${offlineReceipts.length} photo${offlineReceipts.length === 1 ? '' : 's'} kept on this phone – read and attached when the signal is back.`)
+        offlineReceipts.length ? h('span', { class: 'hint offline-kept', id: 'offline-receipts' }, `📷 ${offlineReceipts.length} photo${offlineReceipts.length === 1 ? '' : 's'} kept on ${thisDevice()} – read and attached when the signal is back.`)
           : h('span', { class: 'hint' }, 'Hold the slip flat in good light – Petti straightens and cleans it up. A PDF or e-receipt works too.'),
         noneBtn));
       return;

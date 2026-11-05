@@ -8,6 +8,7 @@ import { setupCard, welcomeStrip } from '../learn.js';
 import { overviewSection, liveRoot } from './overview.js';
 import { keepAll, keepDrop, whenText } from '../keep.js';
 import { twoStepBanner } from '../twostep.js';
+import { thisDevice } from '../device-label.js';
 
 /** A duty is a role you hold today: your own, or one you are standing in for. The approver can see everything but only approving is theirs. */
 const duty = (r) => role() === r || state.standingIn.some((d) => d.role === r);
@@ -324,7 +325,7 @@ function alertsAsk() {
     const lost = localStorage.getItem('pcs_push_lost') === '1' && asked !== 'off';   // alerts were on, but this phone could not sign up again after a change
     if (!sup.ok || (!lost && (sup.granted || asked))) return null;
     const b = h('button', { class: 'btn btn-primary btn-sm' }, 'Turn on');
-    const el = h('div', { class: 'banner banner-green install-banner' }, h('div', {}, h('strong', {}, lost ? 'Phone alerts stopped on this phone' : 'Get a buzz when something needs you'), lost ? 'One tap turns them back on.' : 'Even with the app closed.'),
+    const el = h('div', { class: 'banner banner-green install-banner' }, h('div', {}, h('strong', {}, lost ? `Alerts stopped on ${thisDevice()}` : 'Get a buzz when something needs you'), lost ? 'One tap turns them back on.' : 'Even with the app closed.'),
       h('div', { class: 'form-actions', style: { margin: 0 } }, h('button', { class: 'btn btn-quiet btn-sm', onclick: () => { try { localStorage.setItem('pcs_push_asked', 'later'); } catch {} el.remove(); } }, 'Not now'), b));
     b.onclick = busy(b, async () => { await enablePush(); toast('Alerts are on.'); el.remove(); });
     return el;
@@ -370,13 +371,13 @@ function continueCard() {
   const left = keepAll();
   if (!left.length) return null;
   const card = h('div', { class: 'sheet continue-card', id: 'continue-card' },
-    h('div', { class: 'sheet-head' }, h('h2', {}, 'Continue where you left off'), h('span', { class: 'sub' }, 'kept on this phone')),
+    h('div', { class: 'sheet-head' }, h('h2', {}, 'Continue where you left off'), h('span', { class: 'sub' }, `kept on ${thisDevice()}`)),
     left.map((k) => {
       const row = h('div', { class: 'continue-row' },
         h('a', { href: k.link, class: 'continue-link' }, h('strong', {}, k.label), h('span', { class: 'muted' }, ` · ${whenText(k.at)}`)),
         h('a', { class: 'btn btn-sm btn-primary', href: k.link }, 'Continue'),
         h('button', { class: 'btn btn-sm btn-quiet', onclick: async () => {
-          const ok = await confirmDialog('Discard what you were filling in?', k.id ? 'The draft saved on Petti stays under Requests; only the newer changes on this phone are thrown away.' : 'It has not been sent or saved anywhere else.', { ok: 'Discard' });
+          const ok = await confirmDialog('Discard what you were filling in?', k.id ? `The draft saved on Petti stays under Requests; only the newer changes on ${thisDevice()} are thrown away.` : 'It has not been sent or saved anywhere else.', { ok: 'Discard' });
           if (!ok) return; keepDrop(k.name); row.remove(); if (!card.querySelector('.continue-row')) card.remove();
         } }, 'Discard'));
       return row;

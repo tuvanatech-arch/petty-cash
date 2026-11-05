@@ -43,3 +43,10 @@ export async function thisDeviceLabel() {
   } catch { /* not offered */ }
   return `${kind} · ${isStandaloneApp() ? 'installed app' : browserName(ua)}`;
 }
+
+/** "this phone", "this tablet" or "this computer": what people call the device in front of them. */
+export function thisDevice() {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+  const k = deviceKind(ua, typeof navigator !== 'undefined' ? navigator.maxTouchPoints || 0 : 0);
+  return /iPhone|Android phone/.test(k) ? 'this phone' : /iPad|tablet/.test(k) ? 'this tablet' : /PC|Mac|Chromebook|computer/.test(k) ? 'this computer' : 'this device';
+}

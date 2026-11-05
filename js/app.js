@@ -23,6 +23,7 @@ import { startVersionCheck } from './version.js';
 import { tabBar, tabItems, setCounts, moreRows, icon, iconFor, sideBadge } from './tabbar.js';
 import { offline, onOfflineChange, outboxCount, markOffline, wipeOffline } from './offline.js';
 import { sendKept } from './offline-send.js';
+import { thisDevice } from './device-label.js';
 
 startDiagnostics();
 
@@ -116,9 +117,9 @@ function drawOffline(slot = document.getElementById('offline-slot')) {
   const kept = outboxCount() + offlineQueueLength();
   if (offline.on) mount(slot, h('div', { class: 'banner banner-amber offline-banner', id: 'offline-banner', role: 'status' },
     h('strong', {}, `Offline${offline.asOf ? ` – as of ${asOfText(offline.asOf)}` : ''}`),
-    'What you see is from the last time this phone was online. New requests, claims, receipts and stock reports are kept here and sent when the signal is back. Approving and paying need a connection.',
+    `What you see is from the last time ${thisDevice()} was online. New requests, claims, receipts and stock reports are kept here and sent when the signal is back. Approving and paying need a connection.`,
     kept ? h('span', { class: 'offline-kept' }, ` Waiting to send: ${kept}.`) : null));
-  else if (outboxCount()) mount(slot, h('div', { class: 'banner banner-amber', id: 'offline-banner', role: 'status' }, h('strong', {}, `${outboxCount()} kept on this phone, waiting to send`), 'Sent as soon as the connection works.'));
+  else if (outboxCount()) mount(slot, h('div', { class: 'banner banner-amber', id: 'offline-banner', role: 'status' }, h('strong', {}, `${outboxCount()} kept on ${thisDevice()}, waiting to send`), 'Sent as soon as the connection works.'));
   else mount(slot, null);
 }
 function offlineSlot() { const slot = h('div', { id: 'offline-slot' }); drawOffline(slot); return slot; }

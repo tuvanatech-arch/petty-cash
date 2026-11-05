@@ -7,6 +7,7 @@ import { guessCategory } from './requests.js';
 import { h, mount, money, fmtDate, toast, busy, emptyState, today, isoDate, num, confirmDialog } from '../ui.js';
 import { takeSharedFile } from '../share.js';
 import { offline, outboxAdd, isNetworkError } from '../offline.js';
+import { thisDevice } from '../device-label.js';
 
 const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !['from', 'with', 'this', 'that', 'the', 'and', 'for'].includes(w));
 
@@ -89,7 +90,7 @@ export async function snapPage() {
     // no signal: the scan is kept on this phone and lands in "Unfiled receipts" when the signal is back
     const keep = async () => {
       await outboxAdd('inbox', {}, [file]);
-      mount(stage, h('div', { class: 'banner banner-amber', id: 'snap-kept' }, h('strong', {}, 'Kept on this phone'),
+      mount(stage, h('div', { class: 'banner banner-amber', id: 'snap-kept' }, h('strong', {}, `Kept on ${thisDevice()}`),
         'There is no signal. The receipt is sent when the signal is back and waits for you here under “Unfiled receipts” – then choose what it is for.'));
     };
     if (offline.on || navigator.onLine === false) { await keep(); return; }

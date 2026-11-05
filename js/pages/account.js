@@ -6,6 +6,7 @@ import { devicesBlock } from '../devices.js';
 import { twoStepSheet } from '../twostep.js';
 import { rate, revealable, newPasswordField } from '../password.js';
 import { installLabel, deviceWord } from './install.js';
+import { thisDevice } from '../device-label.js';
 
 export async function accountPage() {
   const me = state.me;
@@ -36,6 +37,10 @@ export async function accountPage() {
 
   // email copies of alerts
   const emailToggle = h('input', { type: 'checkbox', checked: me.email_notifications !== false });
+  // email sending not set up yet (the last alert email was held back for that): say so, so nobody waits for emails
+  const emailNote = h('p', { class: 'hint', id: 'email-not-yet', style: { display: 'none' } }, 'Emails start once Petti’s email sending is set up. Until then alerts come here and on phones with alerts on.');
+  sb.from('notifications').select('email_status').not('email_status', 'is', null).neq('email_status', 'in_app_only').order('created_at', { ascending: false }).limit(1)
+    .then(({ data }) => { if (data?.[0]?.email_status === 'no_provider') emailNote.style.display = ''; }).catch(() => {});
   emailToggle.onchange = async () => {
     try { unwrap(await sb.from('profiles').update({ email_notifications: emailToggle.checked }).eq('id', me.id)); state.me.email_notifications = emailToggle.checked; toast(emailToggle.checked ? 'Email copies on.' : 'Email copies off.'); }
     catch (e) { emailToggle.checked = !emailToggle.checked; toast(e.message, { error: true }); }
@@ -62,10 +67,10 @@ export async function accountPage() {
   const ps = await pushStatus();
   const pushBox = h('div', {});
   function drawPush(st) {
-    const onBtn = h('button', { class: 'btn btn-primary' }, 'Turn on alerts on this phone');
-    onBtn.onclick = busy(onBtn, async () => { await enablePush(); toast('Alerts are on for this phone.'); drawPush(await pushStatus()); });
-    const offBtn = h('button', { class: 'btn' }, 'Turn off on this phone');
-    offBtn.onclick = busy(offBtn, async () => { await disablePush(); toast('Alerts off for this phone.'); drawPush(await pushStatus()); });
+    const onBtn = h('button', { class: 'btn btn-primary' }, `Turn on alerts on ${thisDevice()}`);
+    onBtn.onclick = busy(onBtn, async () => { await enablePush(); toast(`Alerts are on for ${thisDevice()}.`); drawPush(await pushStatus()); });
+    const offBtn = h('button', { class: 'btn' }, `Turn off on ${thisDevice()}`);
+    offBtn.onclick = busy(offBtn, async () => { await disablePush(); toast(`Alerts off for ${thisDevice()}.`); drawPush(await pushStatus()); });
     const tst = h('button', { class: 'btn btn-quiet' }, 'Send a test');
     tst.onclick = busy(tst, async () => { await testPush(); toast('Sent – it should buzz in a moment.'); });
     mount(pushBox,
@@ -96,7 +101,7 @@ export async function accountPage() {
     recovery ? h('div', { class: 'banner banner-green' }, h('strong', {}, 'Set a new password'), 'You arrived from a reset link. Choose a new password below.') : null,
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Alerts')),
       pushBox,
-      h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me (bundled – one message, not ten)')),
+      h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me (bundled – one message, not ten)'), emailNote),
     appearanceSheet(),
     twoStepSheet(),
     devicesSheet,
