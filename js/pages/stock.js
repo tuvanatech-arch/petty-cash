@@ -1,5 +1,6 @@
 import { sb, state, can, personName, unwrap, rpc, queueOffline, scoped, multiBranch, myBranch, branchName } from '../api.js';
 import { branchGate } from '../branch.js';
+import { offline, outboxAdd } from '../offline.js';
 import { myTopReported } from '../usage.js';
 import { h, mount, money, qty, num, fmtDate, monthLabel, emptyState, toast, busy, field, select, modal, MOVEMENT_LABEL, PACE, refresh, today, isoDate, confirmDialog, onceHint, showIf, picker, units } from '../ui.js';
 import { barChart } from '../charts.js';
@@ -222,9 +223,14 @@ export function suggestDialog() {
       err.textContent = '';
       if (name.value.trim().length < 2) { err.textContent = 'Say what the item is.'; name.focus(); return; }
       if (reason.value.trim().length < 20) { err.textContent = 'Say why the store should keep it, in a full sentence.'; reason.focus(); return; }
+      const args = { p_name: name.value.trim(), p_reason: reason.value.trim(), p_monthly_qty: num(monthly.value) || null, p_price: price.value === '' ? null : num(price.value),
+        p_where: where.value.trim() || null, p_photo: photo, p_category: cat.value || null };
+      if (offline.on || navigator.onLine === false) {   // no signal: kept on this phone, sent when the signal is back
+        await outboxAdd('rpc', { fn: 'suggest_item', args, what: `Suggestion: ${args.p_name}` });
+        toast('No signal: the suggestion is kept on this phone and sent when the signal is back.', { ms: 6000 }); close(); return;
+      }
       try {
-        const r = await rpc('suggest_item', { p_name: name.value.trim(), p_reason: reason.value.trim(), p_monthly_qty: num(monthly.value) || null, p_price: price.value === '' ? null : num(price.value),
-          p_where: where.value.trim() || null, p_photo: photo, p_category: cat.value || null });
+        const r = await rpc('suggest_item', args);
         toast(r.status === 'with_gm' ? 'Sent to the GM for approval.' : 'Sent to the stock controller. You are told at each step.', { ms: 5000 });
         close(); location.hash = '#/stock/suggestions'; refresh();
       } catch (e) { err.textContent = e.message; }
@@ -256,6 +262,10 @@ export function reportDialog(item) {
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Send to the stock manager');
     const go = busy(b, async () => {
       if (!sel.value) throw new Error('Choose the item.');
+      if (offline.on || navigator.onLine === false) {   // no signal: kept on this phone, sent when the signal is back
+        await outboxAdd('rpc', { fn: 'report_stock', args: { p_item: sel.value, p_level: level, p_note: note.value }, what: 'Stock report' });
+        toast('No signal: the report is kept on this phone and sent to the stock manager when the signal is back.', { ms: 6000 }); close(); return;
+      }
       await rpc('report_stock', { p_item: sel.value, p_level: level, p_note: note.value });
       toast('Reported – the stock manager has been told.'); close(); refresh();
     });

@@ -1,0 +1,4 @@
+{
+ "requester": [ { "at": "#/home", "css": "#tab-new", "text": "", "say": "No signal? Tap here as usual: a request, claim, receipt or stock report you start is kept on your phone and sent when the signal is back." } ],
+ "finance": [ { "at": "#/home", "css": "#tab-new", "text": "", "say": "No signal? Tap here as usual: what you start is kept on your phone and sent when the signal is back. Paying needs a connection." } ]
+}

@@ -6,6 +6,7 @@ import { sb, state, unwrap, rpc, readReceipt, uploadToInbox, fileInboxReceipt, f
 import { guessCategory } from './requests.js';
 import { h, mount, money, fmtDate, toast, busy, emptyState, today, isoDate, num, confirmDialog } from '../ui.js';
 import { takeSharedFile } from '../share.js';
+import { offline, outboxAdd, isNetworkError } from '../offline.js';
 
 const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !['from', 'with', 'this', 'that', 'the', 'and', 'for'].includes(w));
 
@@ -85,10 +86,17 @@ export async function snapPage() {
     const scan = await scanReceipt(file).catch((e) => ({ ok: false, problems: [e.message] }));
     if (!scan.ok) { refused(scan.problems.join(' ')); return; }
     file = scan.file;
+    // no signal: the scan is kept on this phone and lands in "Unfiled receipts" when the signal is back
+    const keep = async () => {
+      await outboxAdd('inbox', {}, [file]);
+      mount(stage, h('div', { class: 'banner banner-amber', id: 'snap-kept' }, h('strong', {}, 'Kept on this phone'),
+        'There is no signal. The receipt is sent when the signal is back and waits for you here under “Unfiled receipts” – then choose what it is for.'));
+    };
+    if (offline.on || navigator.onLine === false) { await keep(); return; }
     mount(stage, h('div', { class: 'loading' }, 'Uploading…'));
     let ib;
     try { ib = await uploadToInbox(file); }
-    catch (e) { toast(e.message, { error: true }); drawStart(); return; }
+    catch (e) { if (isNetworkError(e)) { await keep(); return; } toast(e.message, { error: true }); drawStart(); return; }
     if (ib.used_on) toast(`This photo is already on #${ib.used_on}. If it is a different purchase, take a new photo; otherwise finance will ask about it.`, { error: true, ms: 7000 });
     await resume(ib);
   }

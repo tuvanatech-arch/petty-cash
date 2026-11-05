@@ -102,6 +102,10 @@ web/js/tabbar.js: three screens per role (`ORDER`: requester Home·Requests·Sto
 
 Every alert carries its page (`notifications.link`). sw.js `notificationclick`: an open Petti window is told the page (`postMessage {type:'open', hash}`, app.js `openFromAlert`) and focused, since many phones and laptop tabs ignore `navigate()`; with no window it opens the page, and always leaves a note in the `petti-open` cache that app.js reads on start-up (`pendingAlertLink`, within 2 minutes, once) for phones that open the start page instead. Test: test/alert-open-ui.mjs (the real worker on the preview).
 
+## Offline mode (Nov 2026)
+
+web/js/offline.js wraps the database client (`offlineClient` in api.js): every read that succeeds is copied to the phone (Cache Storage `petti-offline-data`, a second key ignores timestamps); without signal, or when the network fails, the copy answers and an amber "Offline – as of HH:MM" banner shows (app.js `drawOffline`). Writes offline answer "Needs a connection" (approving, paying, confirming cash, counts sign-off); only server functions in `READ_RPC` are answered from the copy, so add new read-only ones there. New requests and claims (with receipt photos), Snap receipts, stock reports and suggestions are kept in the outbox (`outboxAdd`, files in `petti-outbox-files`) and sent when the signal is back (offline-send.js `sendKept`): requests and claims become drafts for the person to check and send. Once per visit with signal Requests, Stock and Petty cash are copied in the background. Signing out wipes it all (`wipeOffline`). Tests: test/offline-ui.mjs.
+
 ## Open items (as of 1 Nov 2026)
 
 - MGP has no plan set yet: the owner decides (Business, or the founding price) before it is set and announced to the GM.

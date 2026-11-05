@@ -21,6 +21,8 @@ import { startDiagnostics, bootFinished, startPullToRefresh, log, BUILD } from '
 import { howPage } from './learn.js';
 import { startVersionCheck } from './version.js';
 import { tabBar, tabItems, setCounts, moreRows, icon, iconFor, sideBadge } from './tabbar.js';
+import { offline, onOfflineChange, outboxCount, markOffline, wipeOffline } from './offline.js';
+import { sendKept } from './offline-send.js';
 
 startDiagnostics();
 
@@ -107,6 +109,38 @@ function branchSwitcher(cls) {
   return sel;
 }
 
+/* ---------- offline mode: the banner, sending what was kept, a copy of the main lists ---------- */
+const asOfText = (t) => { if (!t) return ''; const d = new Date(t); const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); return d.toDateString() === new Date().toDateString() ? hm : `${fmtDate(d.toISOString().slice(0, 10))}, ${hm}`; };
+function drawOffline(slot = document.getElementById('offline-slot')) {
+  if (!slot) return;
+  const kept = outboxCount() + offlineQueueLength();
+  if (offline.on) mount(slot, h('div', { class: 'banner banner-amber offline-banner', id: 'offline-banner', role: 'status' },
+    h('strong', {}, `Offline${offline.asOf ? ` – as of ${asOfText(offline.asOf)}` : ''}`),
+    'What you see is from the last time this phone was online. New requests, claims, receipts and stock reports are kept here and sent when the signal is back. Approving and paying need a connection.',
+    kept ? h('span', { class: 'offline-kept' }, ` Waiting to send: ${kept}.`) : null));
+  else if (outboxCount()) mount(slot, h('div', { class: 'banner banner-amber', id: 'offline-banner', role: 'status' }, h('strong', {}, `${outboxCount()} kept on this phone, waiting to send`), 'Sent as soon as the connection works.'));
+  else mount(slot, null);
+}
+function offlineSlot() { const slot = h('div', { id: 'offline-slot' }); drawOffline(slot); return slot; }
+onOfflineChange(() => drawOffline());
+window.addEventListener('offline', () => markOffline(null));
+async function backOnline() {
+  if (!state.me) return;
+  await sendKept({ toast });
+  await syncQueue();
+  render();
+}
+window.addEventListener('online', () => { backOnline().catch(() => {}); });
+// once per visit, with signal: keep a copy of the main lists too, so they open offline even if not visited today
+let copied = false;
+function copyMainLists() {
+  if (copied || !navigator.onLine || !state.me || window.__demoChange) return; copied = true;   // (not in the sample-data preview)
+  setTimeout(() => {
+    const jobs = [requestsPage(), stockPage()]; if (can('finance')) jobs.push(cashPage());
+    Promise.allSettled(jobs).catch(() => {});
+  }, 4000);
+}
+
 let renderToken = 0;
 let shown = null;   // the screen on display: { el, path, route, match, token }
 
@@ -169,7 +203,7 @@ export async function render() {
         branchSwitcher('side-branch'),
         h('nav', { class: 'nav' }, items.map(navLink)),
         h('div', { class: 'me' }, h('strong', {}, me.full_name || me.email), h('span', {}, ROLE_LABEL[me.role]))),
-      h('main', { class: 'main' }, topbar, banner, page)),
+      h('main', { class: 'main' }, topbar, offlineSlot(), banner, page)),
     tabBar(items, activeKey));
   window.scrollTo(0, 0);
 
@@ -190,6 +224,7 @@ export async function render() {
   } finally { progress.done(); }
   syncUpdateBadge();
   if (!liveStarted) { liveStarted = true; startLive(quietRefresh); }
+  if (navigator.onLine && !offline.on) { if (outboxCount()) sendKept({ toast }).then((d) => { if (d.length) drawOffline(); }).catch(() => {}); copyMainLists(); }
   if (!updatesChecked) { updatesChecked = true; myUpdates().then(() => { syncUpdateBadge(); showUnseenUpdate(); }).catch(() => {}); }
 }
 let updatesChecked = false;
@@ -265,7 +300,7 @@ sb.auth.onAuthStateChange((event, session) => {
         // a sign-out nobody pressed here: the sign-in was ended from another device, by the administrator, or expired
         if (event === 'SIGNED_OUT' && state.me) { try { if (!sessionStorage.getItem('pcs_out')) sessionStorage.setItem('pcs_out', 'elsewhere'); } catch {} }
         await loadSessionContext();
-        if (event === 'SIGNED_OUT') location.hash = '#/home';
+        if (event === 'SIGNED_OUT') { await wipeOffline(); location.hash = '#/home'; }
         render();
       }
     } catch (e) { log('error', `Auth event ${event} failed: ${e.message}`, e.stack); }
@@ -279,7 +314,6 @@ async function syncQueue() {
     if (n) { toast(`${n} saved count${n === 1 ? '' : 's'} sent to the server.`); render(); }
   } catch { /* try again next time */ }
 }
-window.addEventListener('online', syncQueue);
 
 // installable on a phone; the shell works offline
 startAdapting();

@@ -1,6 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm';
 import { SUPABASE_URL, SUPABASE_KEY, FUNCTIONS_URL } from './config.js';
 import { thisDeviceLabel, isStandaloneApp } from './device-label.js';
+import { offlineClient, wipeOffline } from './offline.js';
 
 // A request that never answers (a phone waking up with a dead socket) must fail, not hang the page:
 // 20 s for ordinary calls, longer for uploads, which can legitimately be slow.
@@ -26,7 +27,8 @@ function noticeSignedOut(res, input) {
 
 // No cross-tab lock around auth: on iPhone home-screen apps the system lock can be left held after a suspend and
 // getSession() then waits forever. This app is one person on one device at a time, so the lock buys nothing.
-export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { lock: async (_name, _timeout, fn) => fn(), persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }, global: { fetch: fetchWithTimeout } });
+// reads are copied to this phone and answer offline (offline.js)
+export const sb = offlineClient(createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { lock: async (_name, _timeout, fn) => fn(), persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }, global: { fetch: fetchWithTimeout } }));
 
 export const state = {
   session: null,
@@ -120,6 +122,7 @@ export function cleanError(error) {
   if (/session_revoked/.test(m)) m = 'This device was signed out from another device. Sign in again.';
   if (/Could not find the function/i.test(m)) m = 'This part of the app is still being switched on. Try again in a few minutes.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) m = 'No connection. Check your internet and try again.';
+  if (error?.code === 'offline') return m;   // offline mode says it plainly already
   if (/abort|timed out/i.test(m) || error?.name === 'AbortError') m = 'The server did not answer in time. Pull down to refresh and try again.';
   return m;
 }
@@ -215,6 +218,7 @@ async function relinkPush(sid) {
 /** Sign out on this device only (the default in the auth library would sign out every device). */
 export async function signOutHere() {
   try { sessionStorage.setItem('pcs_out', 'self'); } catch {}
+  await wipeOffline();   // nothing of the company's stays on this phone
   await sb.auth.signOut({ scope: 'local' });
 }
 

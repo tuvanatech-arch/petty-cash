@@ -5,6 +5,7 @@ import { outlookBox } from './cash.js';
 import { approvalLevelFor } from '../schedule-meta.js';
 import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } from '../proofs.js';
 import { keepForm, keepRead, keepDrop, whenText } from '../keep.js';
+import { offline, outboxAdd } from '../offline.js';
 import { myHistory, forgetHistory, repeats, matching, amountOf, myTopItems, myTopPayees } from '../usage.js';
 
 export function expenseOf(q) { return Array.isArray(q.expense) ? q.expense[0] : q.expense; }
@@ -243,8 +244,26 @@ export async function newRequestPage(editId, presetType) {
     }))));
     return id;
   }
+  // offline (no signal): a new request or claim is kept on this phone with its receipt photos, and becomes a draft
+  // when the signal is back – the person then checks and sends it
+  let offlineReceipts = [];
+  const noSignalNow = () => offline.on || navigator.onLine === false;
+  async function keepOffline() {
+    if (!purpose.value.trim()) throw new Error(type === 'claim' ? 'Say what the claim is for.' : 'Say what the request is for.');
+    if (urgentTick.checked && urgentWhy.value.trim().length < 3) { urgentWhy.focus(); throw new Error('Say why it is urgent, or untick “Urgent”.'); }
+    if (type === 'cash' && simpleCash) lines = [{ item_id: '', description: purpose.value.trim(), qty: 1, est_unit_price: num(amountIn.value) }];
+    const clean = lines.filter((l) => (type === 'stock' ? l.item_id : l.description.trim()))
+      .map((l) => ({ item_id: l.item_id || null, description: l.description || items.find((x) => x.id === l.item_id)?.name || '', qty: num(l.qty), est_unit_price: num(l.est_unit_price) }));
+    const d = { type, purpose: purpose.value.trim(), needed_by: needed.value || null, category_id: type !== 'stock' ? (category.value || null) : null, not_stock: type === 'cash' && notStock,
+      branch_id: myBranch(), lines: clean, urgent: urgentTick.checked, urgent_reason: urgentWhy.value.trim() || null, spent_at: spentAt.value, supplier: supplier.value.trim(), notes: notes.value.trim() };
+    await outboxAdd(type === 'claim' ? 'claim' : 'request', d, type === 'claim' ? offlineReceipts : []);
+    toast('No signal: kept on this phone. When the signal is back it becomes a draft – then check it and send.', { ms: 7000 });
+    formKeep?.done(); forgetHistory();
+    location.hash = '#/requests';
+  }
   async function save(submit) {
     err.textContent = '';
+    if (!existing && !forStore && noSignalNow()) return keepOffline();
     if (urgentTick.checked && urgentWhy.value.trim().length < 3) { urgentWhy.focus(); throw new Error('Say why it is urgent, or untick “Urgent”.'); }
     if (submit && type === 'cash' && simpleCash && num(amountIn.value) <= 0) throw new Error('Enter the amount.');
     if (submit && type === 'cash' && !forStore && !quoteDocs.length && !noQuote) { quoteBox.scrollIntoView?.({ block: 'center' }); throw new Error('Attach the quote or invoice, or tick “No quote”.'); }
@@ -277,13 +296,15 @@ export async function newRequestPage(editId, presetType) {
       mount(receiptBox, h('div', { class: 'field' }, h('span', { class: 'label' }, 'Receipt'),
         h('label', { class: 'upload' }, h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true, onchange: async (e) => {
           const files = Array.from(e.target.files || []); if (!files.length) return;
+          if (noSignalNow()) { offlineReceipts.push(...files); drawReceipts(); return; }   // read and attached once the signal is back
           // the receipt can come first: a placeholder purpose until the receipt has been read (052)
           if (!purpose.value.trim()) { purpose.value = 'Receipt I paid myself'; autoPurpose = true; }
           try { await saveHead(false); const kept = await addProofFiles(files, { requestId: existing.id, expenseId: expense.id, onExtract: applyExtract }); expense.proofs = [...(expense.proofs || []), ...kept]; }
           catch (ex) { toast(ex.message, { error: true }); }
           drawReceipts();
         } }), '📷 Scan the receipt or upload it'),
-        h('span', { class: 'hint' }, 'Hold the slip flat in good light – Petti straightens and cleans it up. A PDF or e-receipt works too.'),
+        offlineReceipts.length ? h('span', { class: 'hint offline-kept', id: 'offline-receipts' }, `📷 ${offlineReceipts.length} photo${offlineReceipts.length === 1 ? '' : 's'} kept on this phone – read and attached when the signal is back.`)
+          : h('span', { class: 'hint' }, 'Hold the slip flat in good light – Petti straightens and cleans it up. A PDF or e-receipt works too.'),
         noneBtn));
       return;
     }
