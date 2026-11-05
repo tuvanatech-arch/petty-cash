@@ -1,0 +1,23 @@
+// Account → Appearance: Automatic (like the phone), Light, Dark; the choice stays after a reload, and Automatic follows the phone again.
+import { chromium } from '/opt/npm-tools/node_modules/playwright/index.mjs';
+import http from 'node:http'; import { readFileSync, existsSync } from 'node:fs'; import path from 'node:path';
+const root = path.resolve('demo');
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const server = http.createServer((req, res) => { let p = path.join(root, decodeURIComponent(req.url.split('?')[0])); if (p.endsWith('/')) p += 'index.html'; if (!existsSync(p)) { res.statusCode = 404; return res.end(); } res.setHeader('Content-Type', types[path.extname(p)] || 'application/octet-stream'); res.end(readFileSync(p)); });
+await new Promise((r) => server.listen(0, r)); const base = `http://127.0.0.1:${server.address().port}/`;
+const fails = []; const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if (!ok) fails.push(what); };
+const b = await chromium.launch(); const page = await (await b.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light' })).newPage();
+await page.goto(base + '#/home'); await page.evaluate(() => { localStorage.setItem('demo_role', 'finance'); localStorage.setItem('pcs_push_asked', 'later'); localStorage.setItem('demo_updates_unseen', '0'); });
+await page.goto(base + '#/account'); await page.reload(); await page.waitForTimeout(1500);
+const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+const light = await bg();
+check(await page.locator('#appearance .appear-opt').count() === 3 && (await page.locator('#appearance .appear-opt.on').innerText()).startsWith('Automatic'), 'three choices, Automatic chosen');
+await page.locator('#appearance .appear-opt', { hasText: 'Dark' }).click(); await page.waitForTimeout(300);
+const dark = await bg();
+check(dark !== light && (await page.evaluate(() => document.documentElement.dataset.theme)) === 'dark', `Dark turns Petti dark (${light} → ${dark})`);
+await page.reload(); await page.waitForTimeout(1500);
+check(await bg() === dark, 'it stays dark after opening Petti again');
+await page.locator('#appearance .appear-opt', { hasText: 'Automatic' }).click(); await page.waitForTimeout(300);
+check(await bg() === light && !(await page.evaluate(() => document.documentElement.hasAttribute('data-theme'))), 'Automatic follows the phone again');
+await b.close(); server.close();
+console.log(fails.length ? `APPEARANCE UI: FAIL (${fails.length})` : 'APPEARANCE UI: PASS'); process.exit(fails.length ? 1 : 0);

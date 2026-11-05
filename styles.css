@@ -949,3 +949,13 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .wo-stuck .wo-ic { background: var(--amber); color: var(--on-amber); }
 .wo-stuck .wo-n { color: var(--amber); }
 @media (max-width: 420px) { .waiting-others .wo-grid { grid-template-columns: 1fr 1fr; gap: 8px; } .wo-tile { padding: 10px; column-gap: 8px; } .wo-ic { width: 34px; height: 34px; } }
+
+/* Account → Appearance */
+.appearance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.appear-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px; border-radius: 12px; border: 2px solid var(--rule); background: var(--sheet); color: var(--ink); font: inherit; text-align: left; cursor: pointer; min-height: 44px; }
+.appear-opt span:last-child { font-size: .8rem; color: var(--ink-3); line-height: 1.25; }
+.appear-opt.on { border-color: var(--green); background: var(--green-tint); }
+.appear-swatch { width: 100%; height: 34px; border-radius: 8px; margin-bottom: 6px; border: 1px solid var(--rule-strong); }
+.appear-light .appear-swatch { background: linear-gradient(135deg, #eef1ec 60%, #1b5e4b 60%); }
+.appear-dark .appear-swatch { background: linear-gradient(135deg, #161d1a 60%, #25735c 60%); }
+.appear-auto .appear-swatch { background: linear-gradient(90deg, #eef1ec 50%, #161d1a 50%); }

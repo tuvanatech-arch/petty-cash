@@ -97,6 +97,7 @@ export async function accountPage() {
     h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Alerts')),
       pushBox,
       h('label', { class: 'check', style: { marginTop: '12px' } }, emailToggle, 'Also email me (bundled – one message, not ten)')),
+    appearanceSheet(),
     twoStepSheet(),
     devicesSheet,
     standinSheet,
@@ -115,4 +116,24 @@ function rulesSheet() {
     h('ul', { class: 'ledger-list' },
       s.policy_url ? h('li', { class: 'click', onclick: () => window.open(s.policy_url, '_blank', 'noopener') }, h('div', { class: 'what' }, h('strong', {}, 'Petty cash policy'), h('span', {}, `${s.policy_ref} · opens the current version`)), h('span', { class: 'amt' }, '↗')) : null,
       can('schedule') ? h('li', { class: 'click', onclick: () => { location.hash = can('admin') ? '#/admin/schedule' : '#/schedule'; } }, h('div', { class: 'what' }, h('strong', {}, 'Authority schedule'), h('span', {}, `${s.schedule_ref} · limits, the float, budgets and who approves what`)), h('span', { class: 'amt' }, '→')) : null));
+}
+
+/** Appearance: follow the phone (default), or always light or always dark – on this device. */
+function appearanceSheet() {
+  let now = 'auto'; try { now = localStorage.getItem('pcs_theme') || 'auto'; } catch {}
+  const opts = [['auto', 'Automatic', 'Like your phone'], ['light', 'Light', 'Easier in bright light'], ['dark', 'Dark', 'Easier on the eyes at night']];
+  const row = h('div', { class: 'appearance', role: 'radiogroup', 'aria-label': 'Appearance' });
+  const draw = () => mount(row, opts.map(([k, l, sub]) => {
+    const b = h('button', { type: 'button', class: `appear-opt appear-${k}${now === k ? ' on' : ''}`, role: 'radio', 'aria-checked': now === k ? 'true' : 'false' },
+      h('span', { class: 'appear-swatch', 'aria-hidden': 'true' }), h('strong', {}, l), h('span', {}, sub));
+    b.onclick = () => {
+      now = k;
+      try { if (k === 'auto') localStorage.removeItem('pcs_theme'); else localStorage.setItem('pcs_theme', k); } catch {}
+      if (k === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', k);
+      draw();
+    };
+    return b;
+  }));
+  draw();
+  return h('div', { class: 'sheet', id: 'appearance' }, h('div', { class: 'sheet-head' }, h('h2', {}, 'Appearance'), h('span', { class: 'sub' }, 'This device')), row);
 }
