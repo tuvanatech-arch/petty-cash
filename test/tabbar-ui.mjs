@@ -141,6 +141,25 @@ for (const [role, want] of Object.entries(EXPECT)) {
   await ctx.close();
 }
 
+/* iPhone after the keyboard: the page's frame stays short, the visible screen is taller – the bar follows the visible screen */
+{
+  const ctx = await b.newContext({ viewport: { width: 390, height: 520 }, hasTouch: true, isMobile: true });
+  await ctx.addInitScript(() => {
+    const t = new EventTarget(); const vv = Object.assign(t, { height: 844, offsetTop: 0, width: 390, scale: 1, pageTop: 0, pageLeft: 0, offsetLeft: 0 });
+    Object.defineProperty(window, 'visualViewport', { get: () => vv, configurable: true }); window.__vv = vv;
+  });
+  const page = await ctx.newPage();
+  await page.goto(base + '#/home');
+  await page.evaluate(() => { localStorage.setItem('demo_role', 'finance'); localStorage.setItem('pcs_push_asked', 'later'); localStorage.setItem('demo_updates_unseen', '0'); sessionStorage.setItem('pcs_update_shown', '1'); });
+  await page.reload(); await page.waitForTimeout(1500);
+  const r1 = await page.evaluate(() => Math.round(document.querySelector('.tabbar').getBoundingClientRect().bottom));
+  check(r1 === 844, `the frame is short (520) but the screen shows 844: the bar sits at the bottom of the screen (${r1})`);
+  await page.evaluate(() => { window.__vv.height = 520; window.__vv.dispatchEvent(new Event('resize')); }); await page.waitForTimeout(200);
+  const r2 = await page.evaluate(() => Math.round(document.querySelector('.tabbar').getBoundingClientRect().bottom));
+  check(r2 === 520, `back to normal: the bar at the bottom (${r2})`);
+  await ctx.close();
+}
+
 await b.close(); server.close();
 console.log(fails.length ? `FAIL tabbar-ui (${fails.length})` : 'PASS tabbar-ui');
 process.exit(fails.length ? 1 : 0);

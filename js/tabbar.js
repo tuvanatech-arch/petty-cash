@@ -200,3 +200,26 @@ document.addEventListener('focusout', () => setTimeout(() => {
     const open = document.querySelector('.picker.open .picker-panel'); if (open) import('./ui.js').then((u) => u.fitAbove(open));
   }
 }, 120));
+
+/* iPhone: after the keyboard closes the phone sometimes leaves the page's frame short or shifted, so the bottom bar
+   floats mid-screen and the strip behind the clock slides away. The bar and the strip follow what is actually visible. */
+(function followVisibleScreen() {
+  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+  if (!vv || !matchMedia('(pointer: coarse)').matches) return;
+  const root = document.documentElement; root.classList.add('vv-fix');
+  let raf = 0;
+  const place = () => { raf = 0; root.style.setProperty('--vv-top', `${Math.max(0, vv.offsetTop)}px`); root.style.setProperty('--vv-h', `${vv.height}px`); };
+  const soon = () => { if (!raf) raf = requestAnimationFrame(place); };
+  vv.addEventListener('resize', soon); vv.addEventListener('scroll', soon);
+  window.addEventListener('orientationchange', () => setTimeout(place, 300));
+  window.addEventListener('pageshow', place);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(place, 50); });
+  // keyboard closed: nudge the page so the phone puts its frame back, then place the bar again
+  document.addEventListener('focusout', () => setTimeout(() => {
+    const a = document.activeElement;
+    if (a && a.matches?.('input, textarea, select')) return;
+    if (Math.abs(vv.height + vv.offsetTop - window.innerHeight) > 2) window.scrollTo(window.scrollX, window.scrollY);   // only when the frame is off (it would stop a scroll in progress)
+    place(); setTimeout(place, 350);
+  }, 150));
+  place();
+})();

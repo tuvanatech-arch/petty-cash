@@ -974,3 +974,13 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .share-caption { margin: 4px 0 0; font-size: .8rem; }
 .pay-together { margin: 6px 0 12px; }
 .together-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+
+/* the bar and the clock strip follow the visible screen on phones (tabbar.js followVisibleScreen) */
+@media (max-width: 860px) {
+  html.vv-fix .tabbar { bottom: auto; top: calc(var(--vv-top, 0px) + var(--vv-h, 100vh)); transform: translateY(-100%); }
+  html.vv-fix.typing .tabbar { transform: translateY(0); }
+}
+html.vv-fix body::before { top: var(--vv-top, 0px); }
+@media (max-width: 1023px) and (orientation: landscape) and (max-height: 520px) {
+  html.vv-fix .tabbar { top: 0; bottom: 0; transform: none; }
+}
