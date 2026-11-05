@@ -201,25 +201,27 @@ document.addEventListener('focusout', () => setTimeout(() => {
   }
 }, 120));
 
-/* iPhone: after the keyboard closes the phone sometimes leaves the page's frame short or shifted, so the bottom bar
-   floats mid-screen and the strip behind the clock slides away. The bar and the strip follow what is actually visible. */
-(function followVisibleScreen() {
+/* iPhone: after the keyboard closes the phone sometimes leaves the page out of place (the frame shorter than the screen),
+   so the bar would float mid-screen. The bar stays pinned to the bottom; only then, with no text box in use, it is moved
+   by exactly the gap, and put back as soon as the phone corrects itself. Scrolling never moves it. */
+(function keepBarAtBottom() {
   const vv = typeof window !== 'undefined' ? window.visualViewport : null;
   if (!vv || !matchMedia('(pointer: coarse)').matches) return;
-  const root = document.documentElement; root.classList.add('vv-fix');
-  let raf = 0;
-  const place = () => { raf = 0; root.style.setProperty('--vv-top', `${Math.max(0, vv.offsetTop)}px`); root.style.setProperty('--vv-h', `${vv.height}px`); };
-  const soon = () => { if (!raf) raf = requestAnimationFrame(place); };
-  vv.addEventListener('resize', soon); vv.addEventListener('scroll', soon);
-  window.addEventListener('orientationchange', () => setTimeout(place, 300));
-  window.addEventListener('pageshow', place);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(place, 50); });
-  // keyboard closed: nudge the page so the phone puts its frame back, then place the bar again
+  const root = document.documentElement;
+  const typingNow = () => { const a = document.activeElement; return !!(a && a.matches?.('input, textarea, select')); };
+  const check = () => {
+    const gap = Math.round(window.innerHeight - (vv.offsetTop + vv.height));   // < 0: the screen shows more than the frame
+    if (!typingNow() && Math.abs(gap) > 40 && vv.scale <= 1.01) {
+      root.classList.add('vv-off'); root.style.setProperty('--vv-gap', `${gap}px`); root.style.setProperty('--vv-top', `${Math.max(0, vv.offsetTop)}px`);
+    } else if (root.classList.contains('vv-off')) { root.classList.remove('vv-off'); root.style.removeProperty('--vv-gap'); root.style.removeProperty('--vv-top'); }
+  };
+  vv.addEventListener('resize', () => setTimeout(check, 60));
+  window.addEventListener('pageshow', check);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(check, 80); });
   document.addEventListener('focusout', () => setTimeout(() => {
-    const a = document.activeElement;
-    if (a && a.matches?.('input, textarea, select')) return;
-    if (Math.abs(vv.height + vv.offsetTop - window.innerHeight) > 2) window.scrollTo(window.scrollX, window.scrollY);   // only when the frame is off (it would stop a scroll in progress)
-    place(); setTimeout(place, 350);
+    if (typingNow()) return;
+    if (Math.abs(window.innerHeight - (vv.offsetTop + vv.height)) > 40) window.scrollTo(window.scrollX, window.scrollY);   // ask the phone to put the page back
+    setTimeout(check, 350);
   }, 150));
-  place();
+  check();
 })();

@@ -157,6 +157,11 @@ for (const [role, want] of Object.entries(EXPECT)) {
   await page.evaluate(() => { window.__vv.height = 520; window.__vv.dispatchEvent(new Event('resize')); }); await page.waitForTimeout(200);
   const r2 = await page.evaluate(() => Math.round(document.querySelector('.tabbar').getBoundingClientRect().bottom));
   check(r2 === 520, `back to normal: the bar at the bottom (${r2})`);
+  await page.evaluate(() => window.scrollTo(0, 600)); await page.waitForTimeout(300);
+  const r3 = await page.evaluate(() => Math.round(document.querySelector('.tabbar').getBoundingClientRect().bottom));
+  await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(300);
+  const r4 = await page.evaluate(() => Math.round(document.querySelector('.tabbar').getBoundingClientRect().bottom));
+  check(r3 === 520 && r4 === 520, `scrolling down and up: the bar stays pinned to the bottom (${r3}, ${r4})`);
   await ctx.close();
 }
 
