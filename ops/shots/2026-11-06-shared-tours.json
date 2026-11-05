@@ -1,0 +1,6 @@
+{
+ "requester": [ { "at": "#/requests", "css": "main h1", "text": "Requests", "say": "Open a request with a receipt: under the receipt, “What is on this receipt” shows each line and where it goes. A question “Is this yours?” shows at the top of your request." } ],
+ "stock_manager": [ { "at": "#/requests", "css": "main h1", "text": "Requests", "say": "Open a request with a receipt: under the receipt, “What is on this receipt” shows each line and where it goes." } ],
+ "approver": [ { "at": "#/requests", "css": "main h1", "text": "Requests", "say": "On a request with a shared receipt, each request is checked against its own share." } ],
+ "finance": [ { "at": "#/requests", "css": "main h1", "text": "Requests", "say": "Paying by bank transfer? Under the transfer, “Same supplier: pay these together?” lists other approved requests to that supplier." } ]
+}
