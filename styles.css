@@ -959,3 +959,18 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .appear-light .appear-swatch { background: linear-gradient(135deg, #eef1ec 60%, #1b5e4b 60%); }
 .appear-dark .appear-swatch { background: linear-gradient(135deg, #161d1a 60%, #25735c 60%); }
 .appear-auto .appear-swatch { background: linear-gradient(90deg, #eef1ec 50%, #161d1a 50%); }
+
+/* one receipt, several requests (056): where each line of a receipt goes */
+.placement { margin-top: 14px; padding: 12px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); }
+.placement .sheet-head { margin-bottom: 8px; }
+.placement h3 { margin: 0; font-size: 1rem; }
+.pl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pl-row { display: grid; gap: 6px; padding: 10px; border-radius: 10px; background: var(--sheet); border: 1px solid var(--rule); }
+.pl-line { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.pl-line .num { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.pl-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pl-cand { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; }
+.pl-cand .hint { margin: 0; }
+.share-caption { margin: 4px 0 0; font-size: .8rem; }
+.pay-together { margin: 6px 0 12px; }
+.together-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }

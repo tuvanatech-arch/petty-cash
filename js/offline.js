@@ -18,7 +18,7 @@ const READ_RPC = new Set(['budget_status', 'plan_status', 'claims_summary', 'cas
   'next_working_morning', 'management_summary', 'item_usage_stats', 'expense_checks', 'exceptions_open', 'exceptions_log', 'branch_outlooks',
   'setup_status', 'sign_in_log', 'pack_register', 'no_proof_list', 'my_updates', 'my_two_step', 'my_roles', 'my_branch_list', 'journal',
   'item_open_orders', 'float_outlook', 'outlook_for', 'devices', 'device_counts', 'cash_actions', 'access_review_status', 'access_list', 'proof_used',
-  'approval_level_for', 'update_feedback']);
+  'approval_level_for', 'update_feedback', 'receipt_line_matches', 'receipt_shares_info', 'proof_amount']);
 const WRITE_METHODS = new Set(['insert', 'update', 'upsert', 'delete']);
 
 /* ---------- offline or not, and since when ---------- */

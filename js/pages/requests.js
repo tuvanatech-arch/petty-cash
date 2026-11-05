@@ -6,6 +6,7 @@ import { approvalLevelFor } from '../schedule-meta.js';
 import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } from '../proofs.js';
 import { keepForm, keepRead, keepDrop, whenText } from '../keep.js';
 import { offline, outboxAdd } from '../offline.js';
+import { receiptPlacement, shareOffers, shareCaption } from '../sharing.js';
 import { myHistory, forgetHistory, repeats, matching, amountOf, myTopItems, myTopPayees } from '../usage.js';
 import { thisDevice } from '../device-label.js';
 
@@ -745,7 +746,8 @@ export async function requestDetailPage(id) {
   const requestedSheet = finished && expenseSheet
     ? h('div', { class: 'sheet flat' }, more(isClaim ? 'What was claimed, and who signed it off' : 'What was asked for, and who signed it off', ...requestedBody))
     : h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'Claimed' : 'Requested')), ...requestedBody);
-  return h('div', {}, head, urgentPanel, cashQuestion(q, reload), stage, reviewPanel,
+  const offers = await shareOffers(q, reload).catch(() => null);   // "Is this yours?" – part of someone's receipt (056)
+  return h('div', {}, head, urgentPanel, offers, cashQuestion(q, reload), stage, reviewPanel,
     h('div', { class: 'grid-2' },
       h('div', {}, finished ? [expenseSheet, requestedSheet] : [requestedSheet, expenseSheet]),
       h('div', {}, messagesSheet, record)));
@@ -994,6 +996,34 @@ function disbursePanel(q, reload) {
   const tWarn = h('div', { class: 'hint' });
   const tInfo = h('p', { class: 'hint', id: 'transfer-info' });
   tAmount.oninput = () => showLimit(tWarn, num(tAmount.value)); showLimit(tWarn, num(tAmount.value));
+  // "Pay these together" (056): other approved payment requests to the same supplier, paid in the same transfer
+  const together = h('div', { class: 'pay-together', id: 'pay-together' });
+  const picked = new Map();
+  const supWords = (t) => String(t || '').toLowerCase().replace(/\(pty\)|ltd|cc|namibia|the/g, ' ').split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  const mySup = supWords((quoted || docs[0])?.extracted?.supplier);
+  const drawTogether = (rows) => {
+    if (!rows.length) { mount(together, null); return; }
+    const sumLine = h('p', { class: 'hint', id: 'together-total' });
+    const sumUp = () => { const extra = [...picked.values()].reduce((t, x) => t + x.amount, 0); sumLine.textContent = picked.size ? `One transfer of ${money(num(tAmount.value) + extra)} for ${picked.size + 1} requests. Each is recorded with its own amount and the same proof of payment.` : ''; };
+    tAmount.addEventListener('input', sumUp);
+    mount(together, h('div', { class: 'banner banner-green' }, h('strong', {}, `Same supplier: pay ${rows.length === 1 ? 'this one' : 'these'} together?`),
+      h('ul', { class: 'together-list' }, rows.map((r) => {
+        const cb = h('input', { type: 'checkbox', 'data-request': r.id });
+        cb.onchange = () => { if (cb.checked) picked.set(r.id, r); else picked.delete(r.id); sumUp(); };
+        return h('li', {}, h('label', { class: 'check' }, cb, `#${r.request_no} ${r.purpose} – ${personName(r.requester_id)} – ${money(r.amount)}${r.invoice ? ' (invoice)' : ''}`));
+      })), sumLine));
+  };
+  if (canTransfer && mySup.length) (async () => {
+    const { data: others } = await sb.from('requests').select('id, request_no, purpose, requester_id, estimated_total, approved_by, review_reason').eq('status', 'awaiting_disbursement').eq('type', 'cash').neq('id', q.id).eq('branch_id', q.branch_id);
+    if (!others?.length) return;
+    const { data: odocs } = await sb.from('request_documents').select('request_id, kind, extracted').in('request_id', others.map((o) => o.id));
+    const rows = others.map((o) => {
+      const ds = (odocs || []).filter((d) => d.request_id === o.id); const d = ds.filter((x) => Number(x.extracted?.total) > 0).slice(-1)[0] || ds[0];
+      if (!d || !supWords(d.extracted?.supplier).some((w) => mySup.includes(w))) return null;
+      return { ...o, amount: Number(d.extracted?.total) > 0 ? Number(d.extracted.total) : Number(o.estimated_total), invoice: d.kind === 'invoice' };
+    }).filter(Boolean);
+    drawTogether(rows);
+  })().catch(() => {});
   let popPath = null;   // kept if the first attempt is refused, so a retry does not upload it again
   const tPay = h('button', { class: 'btn btn-primary', id: 'record-transfer' }, 'Record bank transfer');
   tPay.onclick = busy(tPay, async () => {
@@ -1017,7 +1047,23 @@ function disbursePanel(q, reload) {
       if (!why) return;
       await rpc('pay_by_transfer', { ...args, p_note: why });
     }
-    toast(`Recorded: ${money(num(tAmount.value))} paid by bank transfer. ${personName(q.requester_id)} gets the proof of payment.`, { ms: 5000 }); reload();
+    // the same transfer pays the requests ticked under "Pay these together", each with its own amount
+    const done = []; const failed = [];
+    for (const r of picked.values()) {
+      try {
+        let path = null;
+        if (file) {
+          path = `${r.id}/pop-${crypto.randomUUID()}-${file.name.replace(/[^\w.\-]+/g, '_').slice(-60)}`;
+          const { error } = await sb.storage.from('proofs').upload(path, file, { contentType: file.type || 'application/octet-stream' });
+          if (error) throw new Error(cleanError(error));
+        }
+        await rpc('pay_by_transfer', { ...args, p_request: r.id, p_amount: r.amount, p_pop_path: path || popPath, p_note: `Paid together with #${q.request_no} in one transfer (ref ${args.p_reference}).` });
+        done.push(r.request_no);
+      } catch (e) { failed.push(`#${r.request_no}: ${e.message}`); }
+    }
+    if (failed.length) toast(`Recorded #${q.request_no}${done.length ? ` and #${done.join(', #')}` : ''}. Not recorded: ${failed.join(' · ')}`, { error: true, ms: 10000 });
+    else toast(`Recorded: ${money(num(tAmount.value))} paid by bank transfer${done.length ? `, together with #${done.join(', #')}` : ''}. ${personName(q.requester_id)} gets the proof of payment.`, { ms: 6000 });
+    reload();
   });
   const active = () => num((how === 'cash' ? amount : tAmount).value);
   const esc = h('button', { class: 'btn' }, 'Send for approval');
@@ -1051,7 +1097,7 @@ function disbursePanel(q, reload) {
       ? [tInfo, payeeBank(docs),
         h('div', { class: 'row' }, field('Amount paid', tAmount, tWarn), field('Date of the transfer', tDate), field('Bank reference', tRef)),
         field('Proof of payment', h('label', { class: 'upload', id: 'transfer-pop-box' }, tPop, tPopName)),
-        field('Note', tNote),
+        field('Note', tNote), together,
         h('div', { class: 'form-actions' }, rej, esc, tPay)]
       : [invNote,
         h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', toPick), field('Note', note)),
@@ -1323,7 +1369,7 @@ async function proofGallery(expense, q, canEdit, reload, redraw, { onExtract = n
   const cards = await Promise.all(proofs.map(async (p) => {
     const url = await proofUrl(p.storage_path);
     const isImg = /^image\//.test(p.mime || '');
-    const del = canEdit && p.uploaded_by === state.me.id && ['pending', 'returned'].includes(expense.proof_status)
+    const del = canEdit && p.uploaded_by === state.me.id && !p.shared_from && ['pending', 'returned'].includes(expense.proof_status)
       ? h('button', { type: 'button', onclick: async () => { if (!(await confirmDialog('Remove this file?', p.file_name, { ok: 'Remove', danger: true }))) return; try { await removeProof(p); expense.proofs = expense.proofs.filter((x) => x.id !== p.id); redraw ? redraw() : reload(); } catch (e) { toast(e.message, { error: true }); } } }, 'Remove') : null;
     let read = null;
     if (canEdit && onExtract) {
@@ -1331,8 +1377,10 @@ async function proofGallery(expense, q, canEdit, reload, redraw, { onExtract = n
       read.onclick = busy(read, async () => { const x = p.extracted && !p.extracted.error ? p.extracted : await readReceipt(p.id); p.extracted = x; onExtract(x); });
     }
     return h('div', { class: 'proof' }, h('a', { href: url || '#', target: '_blank', rel: 'noopener' },
-      h('div', { class: 'thumb' }, isImg && url ? h('img', { src: url, alt: p.file_name, loading: 'lazy' }) : 'PDF'), h('div', { class: 'name', title: p.file_name }, p.file_name)), read, del);
+      h('div', { class: 'thumb' }, isImg && url ? h('img', { src: url, alt: p.file_name, loading: 'lazy' }) : 'PDF'), h('div', { class: 'name', title: p.file_name }, p.file_name)), shareCaption(p), read, del);
   }));
+  // one receipt, several requests (056): where each line of a scanned receipt goes
+  const placements = q ? proofs.map((p) => receiptPlacement(p, q, () => (redraw ? redraw() : reload()))).filter(Boolean) : [];
   let uploader = null;
   if (canEdit && expense) {
     const input = h('input', { type: 'file', accept: 'image/*,application/pdf', multiple: true });
@@ -1348,7 +1396,7 @@ async function proofGallery(expense, q, canEdit, reload, redraw, { onExtract = n
     };
     uploader = label;
   }
-  return h('div', {}, cards.length ? h('div', { class: 'proofs', style: { marginBottom: uploader ? '10px' : 0 } }, cards) : (!uploader ? h('span', { class: 'muted' }, 'No scanned proof uploaded.') : null), uploader);
+  return h('div', {}, cards.length ? h('div', { class: 'proofs', style: { marginBottom: uploader ? '10px' : 0 } }, cards) : (!uploader ? h('span', { class: 'muted' }, 'No scanned proof uploaded.') : null), uploader, placements);
 }
 
 /* ---- finance: review proof ---- */

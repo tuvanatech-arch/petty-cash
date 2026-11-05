@@ -45,6 +45,7 @@ node site-test.mjs | tail -1
 (cd .. && node test/alert-open-ui.mjs | tail -1)
 (cd .. && node test/appearance-ui.mjs | tail -1)
 (cd .. && node test/offline-ui.mjs | tail -1)
+(cd .. && node test/shared-receipts-ui.mjs | tail -1)
 node export-all-test.mjs 2>/dev/null | tail -1
 # the offline copy-keeper on a weak signal, on a copy stamped the way the deploy stamps it
 SWT=$(mktemp -d); cp -r ../demo/. "$SWT/"; cp ../web/sw.js "$SWT/sw.js"
