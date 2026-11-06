@@ -201,27 +201,5 @@ document.addEventListener('focusout', () => setTimeout(() => {
   }
 }, 120));
 
-/* iPhone: after the keyboard closes the phone sometimes leaves the page out of place (the frame shorter than the screen),
-   so the bar would float mid-screen. The bar stays pinned to the bottom; only then, with no text box in use, it is moved
-   by exactly the gap, and put back as soon as the phone corrects itself. Scrolling never moves it. */
-(function keepBarAtBottom() {
-  const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-  if (!vv || !matchMedia('(pointer: coarse)').matches) return;
-  const root = document.documentElement;
-  const typingNow = () => { const a = document.activeElement; return !!(a && a.matches?.('input, textarea, select')); };
-  const check = () => {
-    const gap = Math.round(window.innerHeight - (vv.offsetTop + vv.height));   // < 0: the screen shows more than the frame
-    if (!typingNow() && Math.abs(gap) > 40 && vv.scale <= 1.01) {
-      root.classList.add('vv-off'); root.style.setProperty('--vv-gap', `${gap}px`); root.style.setProperty('--vv-top', `${Math.max(0, vv.offsetTop)}px`);
-    } else if (root.classList.contains('vv-off')) { root.classList.remove('vv-off'); root.style.removeProperty('--vv-gap'); root.style.removeProperty('--vv-top'); }
-  };
-  vv.addEventListener('resize', () => setTimeout(check, 60));
-  window.addEventListener('pageshow', check);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(check, 80); });
-  document.addEventListener('focusout', () => setTimeout(() => {
-    if (typingNow()) return;
-    if (Math.abs(window.innerHeight - (vv.offsetTop + vv.height)) > 40) window.scrollTo(window.scrollX, window.scrollY);   // ask the phone to put the page back
-    setTimeout(check, 350);
-  }, 150));
-  check();
-})();
+/* The bar is pinned to the bottom of the screen, always; it only slides away while someone types (styles.css html.typing). */
+

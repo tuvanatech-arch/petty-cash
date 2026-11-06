@@ -141,7 +141,7 @@ for (const [role, want] of Object.entries(EXPECT)) {
   await ctx.close();
 }
 
-/* iPhone after the keyboard: the page's frame stays short, the visible screen is taller – the bar follows the visible screen */
+/* The bar is pinned to the bottom (it moves only while typing): a stray screen-size report does not move it */
 {
   const ctx = await b.newContext({ viewport: { width: 390, height: 520 }, hasTouch: true, isMobile: true });
   await ctx.addInitScript(() => {
@@ -152,11 +152,8 @@ for (const [role, want] of Object.entries(EXPECT)) {
   await page.goto(base + '#/home');
   await page.evaluate(() => { localStorage.setItem('demo_role', 'finance'); localStorage.setItem('pcs_push_asked', 'later'); localStorage.setItem('demo_updates_unseen', '0'); sessionStorage.setItem('pcs_update_shown', '1'); });
   await page.reload(); await page.waitForTimeout(1500);
-  const r1 = await page.evaluate(() => Math.round(document.querySelector('.tabbar').getBoundingClientRect().bottom));
-  check(r1 === 844, `the frame is short (520) but the screen shows 844: the bar sits at the bottom of the screen (${r1})`);
-  await page.evaluate(() => { window.__vv.height = 520; window.__vv.dispatchEvent(new Event('resize')); }); await page.waitForTimeout(200);
   const r2 = await page.evaluate(() => Math.round(document.querySelector('.tabbar').getBoundingClientRect().bottom));
-  check(r2 === 520, `back to normal: the bar at the bottom (${r2})`);
+  check(r2 === 520, `pinned: the bar sits at the bottom of the page frame and does not move (${r2})`);
   await page.evaluate(() => window.scrollTo(0, 600)); await page.waitForTimeout(300);
   const r3 = await page.evaluate(() => Math.round(document.querySelector('.tabbar').getBoundingClientRect().bottom));
   await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(300);

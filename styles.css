@@ -975,12 +975,3 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .pay-together { margin: 6px 0 12px; }
 .together-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
 
-/* the bar and the clock strip follow the visible screen on phones (tabbar.js followVisibleScreen) */
-@media (max-width: 860px) {
-  /* pinned to the bottom; only when the phone left the page out of place (--vv-gap set) is it moved by that much */
-  html.vv-off .tabbar { bottom: var(--vv-gap, 0px); }
-}
-html.vv-off body::before { top: var(--vv-top, 0px); }
-@media (max-width: 1023px) and (orientation: landscape) and (max-height: 520px) {
-  html.vv-off .tabbar { bottom: 0; }
-}
