@@ -343,3 +343,33 @@ main > section { padding: 96px 0; }
   .doc-sections section { padding: 22px 18px; }
   .svc tbody th { white-space: normal; }
 }
+
+/* ---------- the short pages (Nov 2026): home overview, feature cards, "more than advances", contact ---------- */
+.overview { background: var(--white); }
+.overview-steps { list-style: none; margin: 0 0 32px; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.overview-steps li { border-top: 3px solid var(--bottle); padding-top: 18px; display: grid; gap: 8px; align-content: start; }
+.overview-steps span { font: 600 .85rem/1 var(--mono); color: var(--green-ink); }
+.overview-steps p { color: var(--body); }
+.feature-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.feature-grid li, .more-grid article { background: var(--white); border: 1px solid var(--rule); border-radius: var(--radius); padding: 24px; display: grid; gap: 10px; align-content: start; }
+.feature-grid p, .more-grid p { color: var(--body); }
+.feature-grid h3 a { color: inherit; text-decoration-color: var(--sand); text-underline-offset: 4px; }
+.feature-grid h3 a:hover { color: var(--green-ink); }
+.more { background: var(--paper); }
+.more-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.more-grid article { scroll-margin-top: 90px; }
+.pricing-short .plans { margin-bottom: 28px; }
+.trust a.on-dark { color: var(--white); }
+.about-inner { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px 56px; align-items: start; }
+.about-inner p { margin-top: 14px; color: var(--body); font-size: 1.1rem; }
+.contact-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.contact-list li { display: flex; justify-content: space-between; align-items: center; gap: 16px; background: var(--white); border: 1px solid var(--rule); border-radius: var(--radius); padding: 16px 20px; }
+.contact-list span { color: var(--body); }
+.contact-list a { font-weight: 600; color: var(--green-ink); min-height: 44px; display: inline-flex; align-items: center; }
+@media (max-width: 960px) {
+  .overview-steps { grid-template-columns: repeat(2, 1fr); }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .overview-steps, .feature-grid, .more-grid, .about-inner { grid-template-columns: 1fr; }
+}

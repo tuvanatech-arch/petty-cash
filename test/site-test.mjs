@@ -23,7 +23,8 @@ const open = async (url, w, extra = {}) => {
 };
 
 /* 1. every page at three widths */
-for (const pg of ['', 'security', 'thanks']) for (const w of [390, 820, 1440]) {
+const PAGES = ['', 'how-it-works', 'supplies', 'pricing', 'contact', 'security', 'thanks', '404'];
+for (const pg of PAGES) for (const w of [390, 820, 1440]) {
   const { ctx, page, errs } = await open(pg, w);
   await page.evaluate(async () => { document.querySelectorAll('img[loading=lazy]').forEach((i) => { i.loading = 'eager'; }); await Promise.all([...document.images].map((i) => (i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })))); });
   const r = await page.evaluate(() => ({
@@ -46,10 +47,17 @@ for (const pg of ['', 'security', 'thanks']) for (const w of [390, 820, 1440]) {
 
 /* 2. links to other pages go somewhere real */
 {
-  const { ctx, page } = await open('', 1440);
-  const hrefs = await page.evaluate(() => [...new Set([...document.querySelectorAll('a[href]')].map((a) => a.getAttribute('href')))]);
-  const sec = await (await open('security', 1440)).page.evaluate(() => [...new Set([...document.querySelectorAll('a[href]')].map((a) => a.getAttribute('href')))]);
-  const all = [...new Set([...hrefs, ...sec])];
+  const { ctx } = await open('', 1440);
+  let all = [];
+  for (const pg of PAGES) all.push(...await (await open(pg, 1440)).page.evaluate(() => [...document.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'))));
+  all = [...new Set(all)];
+  const anchorsOk = [];
+  for (const h of all.filter((x) => /^\/[a-z-]*#/.test(x))) { const [pg, id] = h.slice(1).split('#'); const f = readFileSync(path.join(root, (pg || 'index') + '.html'), 'utf8'); if (!f.includes(`id="${id}"`)) anchorsOk.push(h); }
+  check(!anchorsOk.length, `links to a section of another page find it ${anchorsOk.join(' ')}`);
+  const bits = (f) => { const t = readFileSync(path.join(root, f), 'utf8'); return [t.match(/<nav class="nav wrap"[\s\S]*?<\/nav>/)[0].replace(/ aria-current="page"/g, ''), t.match(/<footer class="foot">[\s\S]*?<\/footer>/)[0]]; };
+  const [n0, f0] = bits('index.html');
+  const odd = ['how-it-works.html', 'supplies.html', 'pricing.html', 'contact.html', 'security.html'].filter((f) => { const [n, ft] = bits(f); return n !== n0 || ft !== f0; });
+  check(!odd.length, `every page has the same menu and footer ${odd.join(' ')}`);
   const local = all.filter((h) => h.startsWith('/')).map((h) => h.split('#')[0]).filter(Boolean);
   const missing = local.filter((h) => { const p = path.join(root, h); return !(existsSync(p + '.html') || existsSync(p) || existsSync(path.join(p, 'index.html'))); });
   check(!missing.length, `links to pages on the site all exist ${missing.join(' ')}`);
@@ -60,7 +68,7 @@ for (const pg of ['', 'security', 'thanks']) for (const w of [390, 820, 1440]) {
 
 /* 3. words and figures: prices as approved, no placeholders, no promises the product cannot keep */
 {
-  const text = [readFileSync(path.join(root, 'index.html'), 'utf8'), readFileSync(path.join(root, 'security.html'), 'utf8'), readFileSync(path.join(root, 'thanks.html'), 'utf8')].join('\n');
+  const text = ['index', 'how-it-works', 'supplies', 'pricing', 'contact', 'security', 'thanks', '404'].map((f) => readFileSync(path.join(root, f + '.html'), 'utf8')).join('\n');
   check(/N\$<\/span>750/.test(text) && /N\$<\/span>1,500/.test(text) && /N\$<\/span>3,000/.test(text) && /N\$2,500/.test(text) && /two months free/.test(text), 'prices: N$750, N$1,500, from N$3,000, setup N$2,500, two months free a year');
   const banned = text.match(/revolutionis|unlock|seamless|game-changing|powerhouse|always balances|lorem|TODO|TBD|\[\[|placeholder text|trusted by|guarantee[sd]? (recovery|delivery)|immutable|compliant|certified/gi);
   check(!banned, `no banned or unsupported wording ${banned ? banned.join(', ') : ''}`);
@@ -77,7 +85,7 @@ for (const pg of ['', 'security', 'thanks']) for (const w of [390, 820, 1440]) {
   await page.keyboard.press('Escape');
   check(await btn.getAttribute('aria-expanded') === 'false' && await page.locator('#nav-links').isHidden(), 'Escape closes it again');
   await btn.click(); await page.locator('#nav-links a', { hasText: 'Pricing' }).click(); await page.waitForTimeout(1500);
-  check(await page.locator('#nav-links').isHidden() && await page.evaluate(() => Math.abs(document.getElementById('pricing').getBoundingClientRect().top) < 80), 'a link in the menu goes to the section and closes the menu');
+  check(/\/pricing$/.test(new URL(page.url()).pathname) && await page.locator('#nav-links').isHidden() && await page.locator('h1', { hasText: 'Pricing' }).isVisible(), 'a link in the menu opens that page, with the menu closed');
   await ctx.close();
   const k = await open('', 1440);
   await k.page.keyboard.press('Tab');
@@ -85,7 +93,7 @@ for (const pg of ['', 'security', 'thanks']) for (const w of [390, 820, 1440]) {
   await k.page.keyboard.press('Tab');
   const outline = await k.page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
   check(outline && outline !== 'none', 'keyboard: the focused control is outlined');
-  await k.page.locator('summary', { hasText: 'Is there a setup fee?' }).focus(); await k.page.keyboard.press('Enter');
+  await k.page.goto(base + 'pricing'); await k.page.locator('summary', { hasText: 'Is there a setup fee?' }).focus(); await k.page.keyboard.press('Enter');
   check(await k.page.locator('details:has(summary:has-text("Is there a setup fee?"))').evaluate((d) => d.open), 'keyboard: a question opens with Enter');
   await k.ctx.close();
   const nojs = await open('', 390, { javaScriptEnabled: false });
@@ -95,7 +103,7 @@ for (const pg of ['', 'security', 'thanks']) for (const w of [390, 820, 1440]) {
 
 /* 5. the trial form */
 {
-  const { ctx, page, errs } = await open('#trial', 390);
+  const { ctx, page, errs } = await open('contact', 390);
   const form = page.locator('#trial-form');
   await form.locator('button[type=submit]').click(); await page.waitForTimeout(200);
   check((await Promise.all(['name', 'company', 'registration', 'phone', 'email'].map((f) => page.locator(`#f-${f}-err`).isVisible()))).every(Boolean), 'empty: each required field says what is missing');
@@ -122,7 +130,7 @@ for (const pg of ['', 'security', 'thanks']) for (const w of [390, 820, 1440]) {
   check(!errs.filter((e) => !/500/.test(e)).length, `form: no errors ${errs.join(' | ')}`);
   await ctx.close();
   // without scripts the form still posts to the thank-you page
-  const nojs = await open('#trial', 390, { javaScriptEnabled: false });
+  const nojs = await open('contact', 390, { javaScriptEnabled: false });
   check(await nojs.page.locator('#trial-form').getAttribute('action') === '/thanks.html' && await nojs.page.locator('#trial-form').getAttribute('data-netlify') === 'true', 'without scripts: a normal Netlify form post to /thanks.html');
   await nojs.ctx.close();
 }

@@ -1,13 +1,11 @@
-# short links to the sections of the one page (and common guesses)
-/pricing        /#pricing   301
-/price          /#pricing   301
-/prices         /#pricing   301
-/trial          /#trial     301
-/contact        /#trial     301
-/how-it-works   /#workflow  301
-/supplies       /#supplies  301
-/questions      /#faq       301
-/faq            /#faq       301
+# short links and common guesses (the pages themselves are /how-it-works, /supplies, /pricing, /security, /contact)
+/trial          /contact        301
+/price          /pricing        301
+/prices         /pricing        301
+/about          /contact        301
+/workflow       /how-it-works   301
+/faq            /how-it-works#faq  301
+/questions      /how-it-works#faq  301
 /login          https://app.usepetti.com/  301
 /signin         https://app.usepetti.com/  301
 /app            https://app.usepetti.com/  301
