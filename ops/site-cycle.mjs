@@ -1,5 +1,6 @@
 // Frames for the website hero's button cycle (site/img/cycle), from the preview (demo/) as finance, the clock and "Demo Company" as
 // in ops/site-shots.mjs. Writes <out>/<size>-<step>.jpg, the month-end pack PDF, and boxes.json (each button's box).
+// Then run python3 ops/webp.py site/img/cycle/*.jpg: the page shows the .webp copies.
 //   cd petty-cash-stock && node ops/site-cycle.mjs <out>, then save each jpg to site/img/cycle (desk 1600x900 q76, phone q72).
 // The month-end pack downloads as a PDF: its frame is the pack's first page (test/pack-test.mjs on the same fixed clock,
 // pdftoppm -r 110) on a PDF viewer's grey, desk 1180px wide at the top, phone 740px.

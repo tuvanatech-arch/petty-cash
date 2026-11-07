@@ -1,7 +1,7 @@
 /* Petti – usepetti.com. Petti's own colours: bottle green, the sand full stop, cool sage paper.
    The product is the picture: real screens from the demonstration company, each with a plain caption. */
 /* fonts are served with the site: quick on a weak signal, no outside service */
-@font-face { font-family: 'Bricolage Grotesque'; src: url(fonts/bricolage.woff2) format('woff2'); font-weight: 200 800; font-stretch: 75% 100%; font-display: swap; }
+@font-face { font-family: 'Bricolage Grotesque'; src: url(fonts/bricolage.woff2) format('woff2'); font-weight: 600 800; font-display: swap; }
 @font-face { font-family: 'Public Sans'; src: url(fonts/public-sans-400.woff2) format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Public Sans'; src: url(fonts/public-sans-500.woff2) format('woff2'); font-weight: 500; font-display: swap; }
 @font-face { font-family: 'Public Sans'; src: url(fonts/public-sans-600.woff2) format('woff2'); font-weight: 600; font-display: swap; }

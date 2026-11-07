@@ -85,6 +85,8 @@
 (() => {
   const box = document.getElementById('cycle');
   if (!box || !('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // phones keep the still picture: the moving version costs about 700 KB of mobile data
+  if (window.matchMedia('(max-width: 640px)').matches) return;
   const url = document.getElementById('hero-url'); const home = url ? url.textContent : '';
   const cursor = box.querySelector('.cycle-cursor'), tap = box.querySelector('.cycle-tap');
   const phone = window.matchMedia('(max-width: 640px)');
@@ -100,7 +102,7 @@
     const key = `${size()}-${k}`;
     if (!frames[key]) {
       const img = new Image(); img.className = 'cycle-frame'; img.alt = ''; img.setAttribute('aria-hidden', 'true'); img.decoding = 'async';
-      img.src = `img/cycle/${key}.jpg`; box.insertBefore(img, tap); frames[key] = img;
+      img.src = `img/cycle/${key}.webp`; box.insertBefore(img, tap); frames[key] = img;
     }
     return frames[key];
   };
@@ -109,7 +111,7 @@
   async function step() {
     if (!visible || document.hidden) { timer = null; return; }
     const k = ORDER[i % ORDER.length], b = BOXES[size()][k], img = frame(k);
-    ORDER.forEach((o) => frame(o));                       // load the rest quietly
+    frame(ORDER[(i + 1) % ORDER.length]);                 // load only the next one, ready for its turn
     box.classList.add('running');
     cursor.style.left = `${b[0] + b[2] / 2}%`; cursor.style.top = `${b[1] + b[3] * .6}%`;
     await wait(1000);

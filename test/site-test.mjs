@@ -53,8 +53,8 @@ for (const pg of ['', 'security', 'thanks']) for (const w of [390, 820, 1440]) {
   const local = all.filter((h) => h.startsWith('/')).map((h) => h.split('#')[0]).filter(Boolean);
   const missing = local.filter((h) => { const p = path.join(root, h); return !(existsSync(p + '.html') || existsSync(p) || existsSync(path.join(p, 'index.html'))); });
   check(!missing.length, `links to pages on the site all exist ${missing.join(' ')}`);
-  const outside = all.filter((h) => /^https?:/.test(h)).filter((h) => !/^https:\/\/(app\.usepetti\.com\/|supabase\.com\/|privacy\.claude\.com\/)/.test(h));
-  check(!outside.length, `outside links are only the app, Supabase and Anthropic's privacy page ${outside.join(' ')}`);
+  const outside = all.filter((h) => /^https?:/.test(h)).filter((h) => !/^https:\/\/(app\.usepetti\.com\/|supabase\.com\/|privacy\.claude\.com\/|wa\.me\/264814950605)/.test(h));
+  check(!outside.length, `outside links are only the app, Supabase, Anthropic's privacy page and our WhatsApp ${outside.join(' ')}`);
   await ctx.close();
 }
 

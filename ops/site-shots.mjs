@@ -4,6 +4,7 @@
 // called "Demo Company" so nobody mistakes the sample for a real client.
 //
 //   node ops/site-shots.mjs ops/shots/site.json [outDir]      default outDir: site/img
+//   then: python3 ops/webp.py site/img/*.jpg site/img/*.png   (the page shows the .webp copies)
 //
 // Each entry: { "name": "cash", "role": "finance", "at": "#/cash", "width": 390, "height": 844, "scroll": "css or text",
 //               "full": false, "hide": ["css", ...] }
