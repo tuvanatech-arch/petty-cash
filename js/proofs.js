@@ -1,5 +1,5 @@
 // Proof of payment, the same everywhere a receipt is added: scan it, upload it, and keep it only if Petti can read it.
-import { rpc, uploadProof, removeProof, readReceipt } from './api.js';
+import { sb, rpc, uploadProof, removeProof, readReceipt } from './api.js';
 import { h, toast, showIf, retext, adapted } from './ui.js';
 import { scanReceipt, unreadable } from './scan.js';
 
@@ -19,6 +19,8 @@ export async function addProofFiles(files, { requestId, expenseId, onExtract = n
     const why = unreadable(reading);
     if (why) { await removeProof(row).catch(() => {}); toast(`Not accepted: ${why}`, { error: true, ms: 9000 }); continue; }
     row.extracted = reading || row.extracted;
+    // the same receipt twice on this request (the same file, or the same slip scanned again): keep one copy
+    if (await sameOnThisRequest(expenseId, row)) { await removeProof(row).catch(() => {}); toast('This receipt is already on this request – kept one copy.', { ms: 6000 }); continue; }
     dup = dup || row.used_on;
     kept.push(row);
     if (reading && onExtract) onExtract(reading);
@@ -110,4 +112,12 @@ export function noReceiptBox(requestId, current, onChange = () => {}, { open = f
   box.onchange = () => { showIf(wrap, box.checked); if (!box.checked) save(); else why.focus(); };
   why.onchange = save;
   return h('div', { class: 'field' }, h('label', { class: 'check' }, box, 'I have no receipt for this'), wrap, h('span', { class: 'hint' }, 'Finance decides whether it can be paid without one.'));
+}
+
+/** Is this receipt already on the expense (same file, or same shop, total, date and slip number)? */
+async function sameOnThisRequest(expenseId, row) {
+  const { data } = await sb.from('expense_proofs').select('id, sha256, extracted').eq('expense_id', expenseId).neq('id', row.id);
+  const x = row.extracted || {};
+  const key = (e) => [String(e?.supplier || '').toLowerCase().replace(/[^a-z0-9]/g, ''), Number(e?.total || 0).toFixed(2), e?.date || '', String(e?.reference || '')].join('|');
+  return (data || []).some((p) => (row.sha256 && p.sha256 === row.sha256) || (x.total != null && x.reference && key(p.extracted) === key(x)));
 }

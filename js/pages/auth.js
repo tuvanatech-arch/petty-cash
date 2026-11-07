@@ -2,6 +2,7 @@ import { sb, adminUsers, accountMail, cleanError, state, loadSessionContext, sig
 import { h, field, busy, toast } from '../ui.js';
 import { rate, revealable, newPasswordField } from '../password.js';
 import { installLabel } from './install.js';
+import { keepDefault, rememberChoice, stayNote } from '../stay.js';
 
 const brand = () => h('div', { class: 'brand' }, h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, h('span', {}, 'P', h('span', { class: 'dot' }, '.'))),
   h('div', { class: 'brand-name' }, 'Petti', h('span', { class: 'dot' }, '.'), h('small', {}, 'Petty cash & stock · by Tuvana Tech')));
@@ -12,7 +13,8 @@ export async function authPage() {
   let why = null;
   try { why = sessionStorage.getItem('pcs_out'); sessionStorage.removeItem('pcs_out'); } catch {}
   const note = why === 'elsewhere' ? h('div', { class: 'banner banner-amber', style: { marginBottom: '14px' } }, h('strong', {}, 'You were signed out on this device'),
-    'It was signed out from another device or by the administrator. Sign in again if that was meant – if it was not you, change your password after signing in.') : null;
+    'It was signed out from another device or by the administrator. Sign in again if that was meant – if it was not you, change your password after signing in.')
+    : stayNote(why) ? h('div', { class: 'banner', id: 'stay-note', style: { marginBottom: '14px' } }, stayNote(why)) : null;
   return h('div', { class: 'auth' }, h('div', { class: 'card' }, brand(), note, needsBootstrap ? bootstrapForm() : loginForm()));
 }
 
@@ -21,10 +23,13 @@ function loginForm() {
   const pass = h('input', { class: 'input', type: 'password', autocomplete: 'current-password', required: true });
   const err = h('div', { class: 'error' });
   const btn = h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, 'Sign in');
+  // "Keep me signed in": ticked in the phone app, not in a browser (a computer may be shared)
+  const keep = h('input', { type: 'checkbox', id: 'keep-signed-in', checked: keepDefault() });
+  const keepRow = h('label', { class: 'check', style: { margin: '4px 0 12px' } }, keep, h('span', {}, 'Keep me signed in on this device', h('span', { class: 'hint', style: { display: 'block' } }, 'For 30 days. Leave it off on a shared computer: you are signed out when the browser closes or after 30 minutes without use.')));
   const form = h('form', { onsubmit: (e) => { e.preventDefault(); submit(); } },
     h('h1', {}, 'Sign in'),
     h('p', { class: 'lead' }, 'Requests, approvals and receipts for the petty cash float.'),
-    field('Email', email), field('Password', revealable(pass)), err, btn,
+    field('Email', email), field('Password', revealable(pass)), keepRow, err, btn,
     linkBtn,
     h('div', { class: 'links' },
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); forgot(email.value); } }, 'Forgot password?'),
@@ -34,6 +39,7 @@ function loginForm() {
     err.textContent = '';
     // a weak password is noticed here, the only moment Petti sees it: a stronger one is asked for straight after
     try { if (!rate(pass.value, { email: email.value }).ok) sessionStorage.setItem('pcs_pw_weak', '1'); else sessionStorage.removeItem('pcs_pw_weak'); } catch {}
+    rememberChoice(keep.checked);
     const { error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pass.value });
     if (error) { try { sessionStorage.removeItem('pcs_pw_weak'); } catch {} err.textContent = /invalid/i.test(error.message) ? 'Email or password is wrong.' : cleanError(error); }
   });

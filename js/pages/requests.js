@@ -7,6 +7,7 @@ import { addProofFiles, paperSlipQuestion, proofChoice, noReceiptBox, noteFor } 
 import { keepForm, keepRead, keepDrop, whenText } from '../keep.js';
 import { offline, outboxAdd } from '../offline.js';
 import { receiptPlacement, shareOffers, shareCaption } from '../sharing.js';
+import { cashExtras, paybackBox } from '../cashflow.js';
 import { myHistory, forgetHistory, repeats, matching, amountOf, myTopItems, myTopPayees } from '../usage.js';
 import { thisDevice } from '../device-label.js';
 
@@ -121,6 +122,16 @@ export async function newRequestPage(editId, presetType) {
   const purpose = h('input', { class: 'input', value: existing?.purpose || '', placeholder: placeholders[type], maxlength: 140 });
   // a cash request is usually one thing: purpose + amount; the line table unfolds only on request
   let simpleCash = !existing || (existing.type === 'cash' && lines.length === 1 && Number(lines[0].qty) === 1 && !lines[0].item_id);
+  // the price: known (quote, invoice, fixed price) or a rough estimate – finance hands out a margin on top either way (057)
+  let priceKnown = !!existing?.price_known;
+  const priceBox = h('div', { class: 'field price-kind', id: 'price-kind' });
+  const drawPrice = () => {
+    const opt = (v, label, hint) => h('label', { class: `choice${priceKnown === v ? ' on' : ''}` },
+      h('input', { type: 'radio', name: 'price-known', checked: priceKnown === v, onchange: () => { priceKnown = v; formKeep?.save?.(); drawPrice(); } }), h('span', {}, h('strong', {}, label), h('span', { class: 'hint' }, hint)));
+    mount(priceBox, h('span', { class: 'label' }, 'The price'), h('div', { class: 'choices' },
+      opt(true, 'I know the price', 'A quote, an invoice or a fixed price'), opt(false, 'Rough estimate', 'Finance hands out a little more; the change comes back')));
+  };
+  drawPrice();
   const amountIn = h('input', { class: 'input num', type: 'number', min: '0.01', step: '0.01', inputmode: 'decimal', placeholder: '0.00', value: simpleCash && existing && lines[0] ? Number(lines[0].est_unit_price).toFixed(2) : '' });
   const amountBox = h('div', {});
   const guessed = h('span', { class: 'hint' });
@@ -163,6 +174,7 @@ export async function newRequestPage(editId, presetType) {
     if (!submitBtn.disabled) submitBtn.textContent = type === 'claim' ? 'Submit claim' : 'Submit request';
     if (!existing && !forStore) title.textContent = type === 'claim' ? 'Claim back' : type === 'cash' ? 'Request a payment' : 'New request';
     showIf(amountBox, type === 'cash' && simpleCash);
+    showIf(priceBox, type !== 'claim');
     if (linesBox.parentElement) showIf(linesBox.parentElement, !(type === 'cash' && simpleCash));
     const seen = (() => { try { return localStorage.getItem(`pcs_hint_newreq_${forStore ? 'store' : type}`); } catch { return null; } })();
     try { localStorage.setItem(`pcs_hint_newreq_${forStore ? 'store' : type}`, '1'); } catch {}
@@ -228,7 +240,7 @@ export async function newRequestPage(editId, presetType) {
       id = r.id;
       if (!existing) { existing = r; expense = (await sb.from('expenses').select('*, proofs:expense_proofs(*)').eq('request_id', id).maybeSingle()).data; }
     } else {
-      const head = { type, purpose: purpose.value.trim(), needed_by: needed.value || null, category_id: type === 'cash' ? (category.value || null) : null, not_stock: type === 'cash' && notStock };
+      const head = { type, purpose: purpose.value.trim(), needed_by: needed.value || null, category_id: type === 'cash' ? (category.value || null) : null, not_stock: type === 'cash' && notStock, price_known: type !== 'claim' && priceKnown };
       if (id) unwrap(await sb.from('requests').update(head).eq('id', id));
       else { const row = unwrap(await sb.from('requests').insert({ ...head, requester_id: state.me.id, for_store: forStore, branch_id: myBranch() }).select().single()); id = row.id; existing = row; }
     }
@@ -529,6 +541,7 @@ export async function newRequestPage(editId, presetType) {
         amountBox,
         h('div', { class: 'field' }, h('span', { class: 'label' }, 'Lines'), linesBox, budgetBox,
           linesHint),
+        priceBox,
         quoteBox,
         receiptBox),
       err,
@@ -747,7 +760,7 @@ export async function requestDetailPage(id) {
     ? h('div', { class: 'sheet flat' }, more(isClaim ? 'What was claimed, and who signed it off' : 'What was asked for, and who signed it off', ...requestedBody))
     : h('div', { class: 'sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, isClaim ? 'Claimed' : 'Requested')), ...requestedBody);
   const offers = await shareOffers(q, reload).catch(() => null);   // "Is this yours?" – part of someone's receipt (056)
-  return h('div', {}, head, urgentPanel, offers, cashQuestion(q, reload), stage, reviewPanel,
+  return h('div', {}, head, urgentPanel, offers, cashQuestion(q, reload), cashExtras(q, expense, reload), stage, reviewPanel,
     h('div', { class: 'grid-2' },
       h('div', {}, finished ? [expenseSheet, requestedSheet] : [requestedSheet, expenseSheet]),
       h('div', {}, messagesSheet, record)));
@@ -761,9 +774,20 @@ function payeeBank(docs) {
   const b = d.extracted.bank;
   const rows = [['Account name', b.account_name], ['Bank', b.bank], ['Account number', b.account_number], ['Branch code', b.branch_code], ['Their reference', b.reference || d.extracted.reference]].filter(([, v]) => v);
   const copy = (v) => h('button', { type: 'button', class: 'btn btn-sm btn-quiet', onclick: async () => { try { await navigator.clipboard.writeText(String(v)); toast('Copied.'); } catch { toast('Select it and copy.'); } } }, 'Copy');
+  // against the supplier book (057): different bank details from the ones on file are the classic invoice fraud
+  const check = h('div', { id: 'bank-check' });
+  if (d.id) rpc('supplier_bank_check', { p_doc: d.id }).then((c) => {
+    if (!c?.supplier) return;
+    const acct = (x) => String(x?.account_number || x?.account || '').replace(/\D/g, '');
+    if (c.differs) mount(check, h('div', { class: 'banner banner-red', id: 'bank-differs' }, h('strong', {}, `Different bank account from the one on file for ${c.supplier}`),
+      `On file: ${c.on_file?.bank || ''} …${acct(c.on_file).slice(-4)}. On this document: …${acct(b).slice(-4)}. Phone ${c.supplier} on a number you already have before paying – do not use the number on this document.`));
+    else if (c.first_time) mount(check, h('p', { class: 'hint', id: 'bank-first' }, `First time Petti sees bank details for ${c.supplier}: they are kept in the supplier book, so a change later is flagged.`));
+    else if (c.known) mount(check, h('p', { class: 'hint', id: 'bank-same', style: { color: 'var(--green-ink)' } }, `✓ Same bank account as on file for ${c.supplier}${c.confirmed ? '' : ' (not yet confirmed in the supplier book)'}.`));
+  }).catch(() => {});
   return h('div', { class: 'banner banner-blue payee-bank', id: 'payee-bank' },
     h('strong', {}, `Pay to – read from the ${d.kind === 'invoice' ? 'invoice' : 'quote'}${d.extracted.supplier ? ` from ${d.extracted.supplier}` : ''}`),
     h('dl', { class: 'kv' }, rows.map(([k, v]) => [h('dt', {}, k), h('dd', {}, String(v), ' ', copy(v))])),
+    check,
     h('span', { class: 'hint' }, 'Check these against the supplier’s details you already have before paying: fraudsters change bank details on invoices.'));
 }
 
@@ -836,7 +860,7 @@ async function stagePanel(q, lines, expense, reload, check = null, openOrders = 
       if (isClaim) {
         if (can('finance')) return claimPanel(q, expense, reload, check);   // the GM can still check the receipt; only finance reimburses
         if (q.requester_id !== me) return banner('amber', 'Waiting for finance to reimburse', `Finance checks the receipt and pays ${personName(q.requester_id)} back from petty cash.`);
-        return banner('amber', 'Waiting for finance to reimburse you', expense?.proof_status === 'physical_required' && !expense.physical_received_at ? `Finance needs the paper receipt first${expense.finance_note ? `: ${expense.finance_note}` : '.'}` : 'Finance checks the receipt and pays you from the float.');
+        return h('div', {}, paybackBox(q, reload), banner('amber', 'Waiting for finance to reimburse you', expense?.proof_status === 'physical_required' && !expense.physical_received_at ? `Finance needs the paper receipt first${expense.finance_note ? `: ${expense.finance_note}` : '.'}` : 'Finance checks the receipt and pays you from the float.'));
       }
       if (can('pay') && !(q.requester_id === me && (!q.approved_by || q.approved_by === me))) return disbursePanel(q, reload);
       if (can('pay')) return banner('amber', 'Waiting for finance', 'Someone else pays out your own request.');
@@ -1073,6 +1097,17 @@ function disbursePanel(q, reload) {
   });
   const rej = h('button', { class: 'btn btn-danger' }, 'Decline');
   rej.onclick = busy(rej, async () => { const n = await confirmDialog('Decline this request?', 'The requester will see your reason.', { ok: 'Decline', danger: true, note: { label: 'Reason', required: true } }); if (!n) return; await rpc('reject_request', { p_request: q.id, p_reason: n }); toast('Declined.'); reload(); });
+  // how much cash to hand out: the price plus a margin, from what this supplier's receipts came to before (057)
+  const suggestBox = h('div', { class: 'suggest-cash', id: 'suggest-cash' });
+  if (q.type !== 'claim') rpc('suggest_cash', { p_request: q.id }).then((sg) => {
+    if (!sg?.amount) return;
+    const use = h('button', { type: 'button', class: 'btn btn-sm btn-primary', id: 'use-suggested' }, `Hand out ${money(sg.amount)}`);
+    use.onclick = () => { amount.value = Number(sg.amount).toFixed(2); amount.dispatchEvent(new Event('input', { bubbles: true })); };
+    const extra = [sg.last_price ? `last paid ${money(sg.last_price)} for ${sg.last_item}` : null, sg.trend_pct ? `prices there ${sg.trend_pct > 0 ? 'up' : 'down'} ${Math.abs(sg.trend_pct)}% in 3 months` : null].filter(Boolean).join(' · ');
+    mount(suggestBox, h('div', { class: 'banner banner-green' }, h('strong', {}, `Suggested: ${money(sg.amount)}`),
+      h('span', {}, `${q.price_known ? 'Price known' : 'Estimate'} ${money(sg.estimate)} + ${sg.margin_pct}%, rounded up. ${sg.why}.${extra ? ` ${extra[0].toUpperCase()}${extra.slice(1)}.` : ''} The change comes back with the receipt.`),
+      h('div', { style: { marginTop: '6px' } }, use)));
+  }).catch(() => {});
   const title = h('h2', {}, 'Pay out from petty cash');
   const body = h('div', {});
   const ways = [['cash', 'Cash from the box'], bank ? ['petty', 'Petty cash account'] : null, ['company', 'Company account']].filter(Boolean);
@@ -1099,7 +1134,7 @@ function disbursePanel(q, reload) {
         field('Proof of payment', h('label', { class: 'upload', id: 'transfer-pop-box' }, tPop, tPopName)),
         field('Note', tNote), together,
         h('div', { class: 'form-actions' }, rej, esc, tPay)]
-      : [invNote,
+      : [invNote, suggestBox,
         h('div', { class: 'row' }, field('Amount', amount, warn), field('Hand the cash to', toPick), field('Note', note)),
         proof,
         owing,
@@ -1225,7 +1260,7 @@ async function claimPanel(q, expense, reload, check = null) {
     }
   }
   return h('div', { class: 'sheet', style: { borderColor: 'var(--amber)' } },
-    noProofBox,
+    noProofBox, paybackBox(q, reload),
     h('div', { class: 'sheet-head' }, h('h2', {}, 'Reimburse from petty cash'), h('span', { class: 'sub' }, `${money(expense?.total)} claimed by ${personName(q.requester_id)}${q.approved_by ? ` · approved by ${personName(q.approved_by)}` : ''}`)),
     q.over_budget && q.budget_note ? h('p', { class: 'hint', style: { color: 'var(--amber)' } }, q.budget_note) : null,
     check?.status === 'duplicate' ? checkLineFor(check) : null,
@@ -1295,7 +1330,11 @@ async function expensePanel(q, lines, expense, reload) {
   function total() {
     const t = exLines.reduce((s, l) => s + num(l.qty) * num(l.unit_price), 0);
     const diff = Number(q.disbursed_amount) - t;
-    mount(totalEl, money(t), h('div', { class: 'muted', style: { fontWeight: 400, fontSize: '.8rem' } }, diff >= 0 ? `change ${money(diff)}` : `over by ${money(-diff)}`));
+    mount(totalEl, money(t), h('div', { class: 'muted', id: 'change-line', style: { fontWeight: 400, fontSize: '.8rem', whiteSpace: 'normal' } },
+      // not the shop's change (paid with a bigger note): what goes back to the cash box, or what finance pays back
+      diff > 0.004 ? `${money(diff)} to return to the cash box (${money(q.disbursed_amount)} handed out − ${money(t)} spent)`
+        : diff < -0.004 ? `${money(-diff)} more than the ${money(q.disbursed_amount)} handed out: finance pays it back to you${-diff > Number(q.disbursed_amount) * 0.1 ? ' once the GM has checked it' : ''}`
+          : 'Exactly what was handed out: nothing to return'));
     if (receiptTotal != null) { const off = Math.abs(t - receiptTotal) > Math.max(0.5, receiptTotal * 0.01); mismatch.textContent = off ? `The receipt reads ${money(receiptTotal)} but the lines add up to ${money(t)}.` : `Matches the receipt total of ${money(receiptTotal)}.`; mismatch.style.color = off ? 'var(--amber)' : 'var(--green-ink)'; }
   }
   function applyExtract(x) {

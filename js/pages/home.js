@@ -2,6 +2,7 @@ import { sb, state, can, role, personName, unwrap, rpc, isStaff, pushSupport, en
 import { h, money, fmtDate, qty, toast, busy, confirmDialog, refresh, emptyState, onceHint, more, units } from '../ui.js';
 import { requestRow, expenseOf, urgentFirst } from './requests.js';
 import { icon } from '../tabbar.js';
+import { cashWithYouCard } from '../cashflow.js';
 import { boxShort, floatStrip, reviewCountDialog, answerCountDialog, decideTopUpDialog, receiveTopUpDialog } from './cash.js';
 import { reportDialog, confirmReceiptDialog, decideAdjustmentActions } from './stock.js';
 import { setupCard, welcomeStrip } from '../learn.js';
@@ -259,6 +260,7 @@ async function buildHome() {
     welcome,
     alertsAsk(),
     floatCard,
+    await cashWithYouCard().catch(() => null),   // cash you hold for errands, change to hand back, what you are owed (057)
     cards.map((c) => c.el),
     staff && !cards.length ? h('div', { class: 'sheet duty-empty' }, h('strong', {}, 'Nothing needs you right now'), 'You will get a buzz when something does.') : null,
     elsewhere,

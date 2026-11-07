@@ -6,6 +6,7 @@ import { proofChoice } from '../proofs.js';
 import { myTopPayees } from '../usage.js';
 import { h, mount, money, num, fmtDate, monthLabel, pill, emptyState, toast, busy, field, select, modal, refresh, isoDate, confirmDialog, titled, retext, picker } from '../ui.js';
 import { approvalLevelFor, quickLimit } from '../schedule-meta.js';
+import { cashWithPeopleSheet, denomsField } from '../cashflow.js';
 
 export function floatStrip(f) {
   const cell = (k, v, cls = '') => h('div', {}, h('span', { class: 'k' }, k), h('span', { class: `v ${cls}` }, money(v)));
@@ -128,6 +129,7 @@ export async function cashPage() {
       bank ? h('div', { class: 'sheet', id: 'bank-sheet' }, h('div', { class: 'sheet-head' }, h('h2', {}, `Bank account · ${bank}`), lastCountLine(floatCounts.find((c) => c.place === 'bank'), open, true)), bankStrip(open)) : null,
       !bank && (has('finance') || has('approver')) ? h('p', { class: 'hint', id: 'bank-setup' }, 'Part of the petty cash kept in a bank account? ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); bankSetupDialog(); } }, 'Add the petty cash bank account')) : null,
       topUpSheet(topUps.filter((t) => t.float_id === open.id).slice(0, 3), counts),
+      (() => { const slot = h('div', { id: 'cash-with-slot' }); cashWithPeopleSheet(() => refresh()).then((el) => mount(slot, el)).catch(() => {}); return slot; })(),
       countsSheet(floatCounts, open),
       ledgerSheet(ledger || [], open),
       bank ? ledgerSheet(bankRows || [], open, { bank }) : null,
@@ -507,16 +509,23 @@ function countField(f, label = 'Cash counted in the box') {
 function countDialog(f) {
   modal('Count the cash', (close) => {
     const { counted, el } = countField(f);
+    // count by notes and coins: Petti adds them up, and the GM sees what was counted (057)
+    const notes = denomsField({ onChange: (t) => { counted.value = t ? t.toFixed(2) : ''; counted.dispatchEvent(new Event('input')); } });
+    const withPeople = h('p', { class: 'hint', id: 'change-out' });
+    rpc('cash_with_people').then((ps) => { const ch = (ps || []).reduce((s, c) => s + Number(c.change || 0), 0); if (ch > 0) withPeople.textContent = `${money(ch)} of change is still with people (not handed back yet), so the box can be that much short: take it back first under “Cash with people”.`; }).catch(() => {});
     const note = h('textarea', { class: 'input', rows: 2, placeholder: 'Only needed if it does not match – what do you think caused it?' });
     const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Record the count');
     const go = busy(b, async () => {
       if (counted.value === '') throw new Error('Enter the cash counted.');
+      const d = notes.value();
+      if (d.list.length && Math.abs(d.total - num(counted.value)) > 0.004) throw new Error(`The notes and coins add up to ${money(d.total)}, not ${money(num(counted.value))}.`);
       const c = await rpc('count_cash', { p_counted: num(counted.value), p_note: note.value });
+      if (d.list.length) await rpc('set_count_denominations', { p_count: c.id, p_denoms: d.list }).catch(() => {});
       toast(Math.abs(Number(c.difference)) < 0.005 ? 'Counted – matches the book. The GM signs it off.' : `Counted – ${diffText(c.difference)}. The GM has been told.`); close(); refresh();
     });
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
-      h('p', { class: 'hint' }, 'Count every note and coin in the box. Cash out with people is already off the book balance, so do not add it.'),
-      el, field('Note', note),
+      h('p', { class: 'hint' }, 'Count every note and coin in the box: type how many of each, and Petti adds them up. Cash out with people is already off the book balance, so do not add it.'),
+      notes.el, withPeople, el, field('Note', note),
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }
@@ -543,6 +552,7 @@ export function reviewCountDialog(c) {
     return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
       h('dl', { class: 'kv' },
         h('dt', {}, isBank ? 'Bank statement' : 'Counted'), h('dd', {}, `${money(c.counted)} by ${personName(c.counted_by)}, ${fmtDate(c.counted_at, { time: true })}`),
+        c.denominations?.length ? [h('dt', {}, 'Notes and coins'), h('dd', { id: 'count-denoms' }, c.denominations.map((d) => `${d.count} × ${d.value >= 1 ? `N$${d.value}` : `${Math.round(d.value * 100)}c`}`).join(' · '))] : null,
         h('dt', {}, 'Book balance'), h('dd', {}, money(c.expected)),
         Number(c.outstanding) > 0 ? [h('dt', {}, 'Out with people'), h('dd', {}, `${money(c.outstanding)} (already off the book)`)] : null,
         h('dt', {}, 'Difference'), h('dd', {}, isBank ? bankDiffText(c.difference) : diffPill(c.difference, c.exception)),

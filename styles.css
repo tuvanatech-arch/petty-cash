@@ -975,3 +975,31 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .pay-together { margin: 6px 0 12px; }
 .together-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
 
+
+
+/* request form: the price known, or a rough estimate (057) */
+.price-kind .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.price-kind .choice { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--rule); border-radius: 10px; cursor: pointer; background: var(--sheet); }
+.price-kind .choice.on { border-color: var(--green); background: var(--green-tint); }
+.price-kind .choice strong { display: block; font-weight: 600; }
+.price-kind .choice .hint { display: block; margin: 2px 0 0; font-size: .8rem; }
+@media (max-width: 420px) { .price-kind .choices { grid-template-columns: 1fr; } }
+
+/* notes and coins, hand-outs, cash with people, supplier book (057) */
+.denoms { display: grid; gap: 10px; }
+.denom-group .label { margin-bottom: 4px; }
+.denom-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.denom { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--line, #ddd); border-radius: 10px; background: var(--card, #fff); }
+.denom .input { text-align: center; }
+.denom-face { font-weight: 600; font-variant-numeric: tabular-nums; }
+.denom-sum { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.handout-list { display: grid; gap: 6px; margin: 8px 0; }
+.handout-list .check { justify-content: space-between; }
+.cash-with .num, .supplier-list .num { font-variant-numeric: tabular-nums; }
+.suggest-cash { padding: 10px 12px; border-radius: 10px; background: var(--soft, rgba(0,0,0,.04)); margin: 8px 0; display: grid; gap: 6px; }
+.bank-fields { display: grid; gap: 8px; padding: 10px; border: 1px dashed var(--line, #ccc); border-radius: 10px; }
+.handout-list { list-style: none; padding: 0; }
+.handout-list li { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line, #eee); }
+.handout-list .check > span, .cash-with .what { display: flex; flex-direction: column; }
+.handout-list .hint { display: block; }
+.denom-n { text-align: center; font-variant-numeric: tabular-nums; }

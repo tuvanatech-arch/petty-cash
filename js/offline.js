@@ -14,7 +14,7 @@ export const NEEDS_CONNECTION = 'Needs a connection. This is done when the signa
 const NOT_SAVED = 'Not saved on this phone yet: open this page once with signal, then it works offline too.';
 
 // server functions that only read (safe to answer from the copy); every other one changes something
-const READ_RPC = new Set(['budget_status', 'plan_status', 'claims_summary', 'cash_ledger', 'bank_ledger', 'stock_actions', 'schedule_budget',
+const READ_RPC = new Set(['suggest_cash', 'cash_with', 'cash_with_people', 'supplier_bank_check', 'supplier_book', 'budget_status', 'plan_status', 'claims_summary', 'cash_ledger', 'bank_ledger', 'stock_actions', 'schedule_budget',
   'next_working_morning', 'management_summary', 'item_usage_stats', 'expense_checks', 'exceptions_open', 'exceptions_log', 'branch_outlooks',
   'setup_status', 'sign_in_log', 'pack_register', 'no_proof_list', 'my_updates', 'my_two_step', 'my_roles', 'my_branch_list', 'journal',
   'item_open_orders', 'float_outlook', 'outlook_for', 'devices', 'device_counts', 'cash_actions', 'access_review_status', 'access_list', 'proof_used',

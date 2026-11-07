@@ -23,6 +23,7 @@ import { startVersionCheck } from './version.js';
 import { tabBar, tabItems, setCounts, moreRows, icon, iconFor, sideBadge } from './tabbar.js';
 import { offline, onOfflineChange, outboxCount, markOffline, wipeOffline } from './offline.js';
 import { sendKept } from './offline-send.js';
+import { stayCheck } from './stay.js';
 import { thisDevice } from './device-label.js';
 
 startDiagnostics();
@@ -302,6 +303,7 @@ sb.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT' && state.me) { try { if (!sessionStorage.getItem('pcs_out')) sessionStorage.setItem('pcs_out', 'elsewhere'); } catch {} }
         await loadSessionContext();
         if (event === 'SIGNED_OUT') { await wipeOffline(); location.hash = '#/home'; }
+        if (event === 'SIGNED_IN' && state.me) await stayCheck();   // starts the 30-minute watch when "Keep me signed in" is off
         render();
       }
     } catch (e) { log('error', `Auth event ${event} failed: ${e.message}`, e.stack); }
@@ -359,6 +361,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     log('error', `Boot failed: ${e.message}`, e.stack);
     toast('Could not reach the server. Check your connection and pull down to refresh.', { error: true, ms: 8000 });
   }
+  // "Keep me signed in" off: signed out when the browser was closed or after 30 minutes; on: after 30 days
+  if (state.me) { try { if (await stayCheck()) { booting = false; return; } } catch {} }
   render();
   booting = false;
   bootFinished();

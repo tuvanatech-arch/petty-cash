@@ -1,4 +1,4 @@
-import { sb, state, can, personName, unwrap, rpc, queueOffline, scoped, multiBranch, myBranch, branchName } from '../api.js';
+import { sb, state, can, has, personName, unwrap, rpc, queueOffline, scoped, multiBranch, myBranch, branchName } from '../api.js';
 import { branchGate } from '../branch.js';
 import { offline, outboxAdd } from '../offline.js';
 import { myTopReported } from '../usage.js';
@@ -40,7 +40,7 @@ export async function stockPage(tab = 'items') {
   }
   if (manage && setup) {
     actions.push(h('a', { class: 'btn btn-quiet', href: '#/stock' }, '← Stock'));
-    if (tab === 'suppliers' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => supplierDialog(null, () => refresh()) }, 'Add supplier'));
+    // (the supplier book has its own "Add supplier")
     if (tab === 'categories' && can('catalogue')) actions.push(h('button', { class: 'btn btn-primary', onclick: () => categoryDialog(null, () => refresh()) }, 'Add category'));
   }
   mount(body, await ({ items: itemsTab, reports: reportsTab, suggestions: suggestionsTab, deliveries: deliveriesTab, adjustments: adjustmentsTab, usage: usageTab, movements: movementsTab, suppliers: suppliersTab, categories: categoriesTab }[tab] || itemsTab)(manage));
@@ -617,29 +617,64 @@ async function movementsTab() {
 }
 
 /* ---------------- suppliers ---------------- */
-async function suppliersTab(manage) {
-  const { data } = await sb.from('suppliers').select('*').order('name');
-  const rows = data || [];
-  return h('div', { class: 'sheet' }, rows.length ? h('table', { class: 'ledger' },
-    h('thead', {}, h('tr', {}, h('th', {}, 'Supplier'), h('th', {}, 'Contact'), h('th', {}, 'Notes'), manage ? h('th') : null)),
-    h('tbody', {}, rows.map((s) => h('tr', {}, h('td', {}, h('strong', {}, s.name), !s.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null), h('td', { class: 'muted' }, s.contact || ''), h('td', { class: 'muted' }, s.notes || ''),
-      manage && can('catalogue') ? h('td', { class: 'num' }, h('button', { class: 'btn btn-sm btn-quiet', onclick: () => supplierDialog(s, () => refresh()) }, 'Edit')) : null)))) : emptyState('No suppliers yet', 'Add the shops you buy from so prices can be compared.'));
+// The supplier book (057): it fills itself from receipts, quotes and invoices; finance, the GM or the stock controller
+// confirm new ones, keep their details and bank account, and merge two entries that are the same shop.
+const keeper = () => has('finance') || has('approver') || has('stock_manager');
+const last4 = (b) => String(b?.account_number || b?.account || '').replace(/\D/g, '').slice(-4);
+async function suppliersTab() {
+  const got = await rpc('supplier_book').catch(() => []); const rows = Array.isArray(got) ? got : [];
+  const toConfirm = rows.filter((s) => s.status === 'suggested').length;
+  const add = keeper() ? h('button', { class: 'btn btn-sm', onclick: () => supplierDialog(null, rows, () => refresh()) }, 'Add supplier') : null;
+  return h('div', { class: 'sheet', id: 'supplier-book' },
+    h('div', { class: 'sheet-head' }, h('h2', {}, 'Supplier book'), add),
+    h('p', { class: 'hint' }, 'Filled in by itself from receipts, quotes and invoices: Petti recognises the same shop under different spellings. A shop seen for the first time is marked “To confirm”.'),
+    toConfirm ? h('div', { class: 'banner banner-amber', id: 'suppliers-to-confirm' }, h('strong', {}, `${toConfirm} new supplier${toConfirm === 1 ? '' : 's'} to confirm`), 'Check the name and details, merge it with an existing one if it is the same shop.') : null,
+    rows.length ? h('ul', { class: 'ledger-list supplier-list' }, rows.map((s) => h('li', { class: keeper() ? 'click' : '', onclick: keeper() ? () => supplierDialog(s, rows, () => refresh()) : null },
+      h('div', { class: 'what' },
+        h('strong', {}, s.name, s.status === 'suggested' ? h('span', { class: 'pill pill-amber', style: { marginLeft: '6px' } }, 'To confirm') : null, !s.active ? h('span', { class: 'pill pill-grey', style: { marginLeft: '6px' } }, 'inactive') : null),
+        h('span', {}, [s.phone, s.email, s.vat_no ? `VAT ${s.vat_no}` : null, s.bank ? `Bank …${last4(s.bank)}${s.bank_confirmed ? ' ✓' : ' (not confirmed)'}` : null].filter(Boolean).join(' · ') || 'No details yet'),
+        h('span', { class: 'hint' }, s.receipts ? `${s.receipts} receipt${s.receipts === 1 ? '' : 's'} · last ${fmtDate(s.last_used)} · ${money(s.month)} this month · ${money(s.year)} this year${s.gap_pct != null ? ` · receipts ${Math.abs(s.gap_pct)}% ${s.gap_pct >= 0 ? 'above' : 'below'} estimates on average` : ''}` : 'Not bought from yet'))))) : emptyState('No suppliers yet', 'They appear here by themselves as receipts and invoices are scanned.'));
 }
-function supplierDialog(s, done) {
-  modal(s ? `Edit ${s.name}` : 'New supplier', (close) => {
-    const name = h('input', { class: 'input', value: s?.name || '', required: true });
-    const contact = h('input', { class: 'input', value: s?.contact || '', placeholder: 'Phone, branch, account number' });
-    const notes = h('input', { class: 'input', value: s?.notes || '' });
-    const active = h('input', { type: 'checkbox', checked: s ? !!s.active : true });
-    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, s ? 'Save' : 'Add supplier');
+function supplierDialog(s, all, done) {
+  modal(s ? s.name : 'New supplier', (close) => {
+    const v = (x) => x || '';
+    const name = h('input', { class: 'input', value: v(s?.name), required: true });
+    const phone = h('input', { class: 'input', value: v(s?.phone), inputmode: 'tel' });
+    const email = h('input', { class: 'input', value: v(s?.email), type: 'email' });
+    const vat = h('input', { class: 'input', value: v(s?.vat_no) });
+    const address = h('input', { class: 'input', value: v(s?.address) });
+    const contact = h('input', { class: 'input', value: v(s?.contact), placeholder: 'Who to ask for' });
+    const notes = h('input', { class: 'input', value: v(s?.notes) });
+    const bankName = h('input', { class: 'input', value: v(s?.bank?.bank) });
+    const acct = h('input', { class: 'input', value: v(s?.bank?.account_number || s?.bank?.account), inputmode: 'numeric' });
+    const branch = h('input', { class: 'input', value: v(s?.bank?.branch_code) });
+    const confirmBank = s?.bank && !s.bank_confirmed ? h('input', { type: 'checkbox' }) : null;
+    const others = (all || []).filter((x) => x.id !== s?.id);
+    const mergeSel = s && others.length ? h('select', { class: 'input' }, h('option', { value: '' }, 'Merge another entry into this one…'), others.map((x) => h('option', { value: x.id }, x.name))) : null;
+    const err = h('div', { class: 'error' });
+    const b = h('button', { class: 'btn btn-primary', type: 'submit' }, s ? (s.status === 'suggested' ? 'Confirm' : 'Save') : 'Add supplier');
     const go = busy(b, async () => {
-      const row = { name: name.value.trim(), contact: contact.value.trim() || null, notes: notes.value.trim() || null, active: active.checked };
-      if (!row.name) throw new Error('Give the supplier a name.');
-      if (s) unwrap(await sb.from('suppliers').update(row).eq('id', s.id)); else unwrap(await sb.from('suppliers').insert(row));
+      err.textContent = '';
+      if (!name.value.trim()) { err.textContent = 'Give the supplier a name.'; return; }
+      const bank = acct.value.trim() ? { bank: bankName.value.trim() || null, account_number: acct.value.trim(), branch_code: branch.value.trim() || null } : null;
+      const vals = { name: name.value.trim(), phone: phone.value, email: email.value, vat_no: vat.value, address: address.value, contact: contact.value, notes: notes.value, bank, confirm_bank: !!confirmBank?.checked };
+      let id = s?.id;
+      if (!id) id = unwrap(await sb.from('suppliers').insert({ name: vals.name }).select().single()).id;
+      if (bank && s?.bank && last4(bank) !== last4(s.bank) && !(await confirmDialog('Change the bank account?', `The account on file ends …${last4(s.bank)}; the new one ends …${last4(bank)}. Only change it if ${vals.name} told you so on a number you already had. The GM is told.`, { ok: 'Change it', danger: true }))) return;
+      await rpc('save_supplier', { p_id: id, p_values: vals });
+      if (mergeSel?.value) {
+        const other = others.find((x) => x.id === mergeSel.value);
+        if (await confirmDialog(`Merge “${other.name}” into “${vals.name}”?`, 'Its receipts, invoices and details move here and the other entry goes. Use this when both are the same shop.', { ok: 'Merge' })) await rpc('merge_suppliers', { p_keep: id, p_into_keep: other.id });
+      }
       toast('Saved.'); close(); done();
     });
-    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } }, field('Name', name), field('Contact', contact), field('Notes', notes),
-      s ? h('label', { class: 'check', style: { marginBottom: '10px' } }, active, 'Active') : null,
+    return h('form', { onsubmit: (e) => { e.preventDefault(); go(); } },
+      s?.aliases?.length ? h('p', { class: 'hint' }, `Seen as: ${s.aliases.join(' · ')}`) : null,
+      field('Name', name), h('div', { class: 'row' }, field('Phone', phone), field('Email', email)), h('div', { class: 'row' }, field('VAT number', vat), field('Contact person', contact)),
+      field('Address', address),
+      h('fieldset', { class: 'bank-fields' }, h('legend', {}, 'Bank account (for transfers)'), h('div', { class: 'row' }, field('Bank', bankName), field('Account number', acct), field('Branch code', branch)),
+        confirmBank ? h('label', { class: 'check' }, confirmBank, 'I checked these details with the supplier') : null),
+      field('Notes', notes), mergeSel ? field('Same shop as another entry?', mergeSel) : null, err,
       h('div', { class: 'form-actions' }, h('button', { type: 'button', class: 'btn', onclick: close }, 'Cancel'), b));
   });
 }

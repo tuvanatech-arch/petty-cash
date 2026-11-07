@@ -357,6 +357,8 @@ function settingsTab() {
   const tGmLong = h('input', { class: 'input', id: 'set-title-gm-long', value: t.gm_long || 'General Manager', maxlength: 40 });
   const tMd = h('input', { class: 'input', id: 'set-title-md', value: t.md || 'MD', maxlength: 20 });
   const tMdLong = h('input', { class: 'input', id: 'set-title-md-long', value: t.md_long || 'Managing Director', maxlength: 40 });
+  const margin = h('input', { class: 'input', id: 'set-cash-margin', type: 'number', min: 0, max: 50, step: 1, value: s.cash_margin_pct ?? 10 });
+  const roundTo = h('select', { class: 'input', id: 'set-cash-round' }, [1, 5, 10, 20, 50].map((v) => h('option', { value: v, selected: Number(s.cash_round_to ?? 10) === v }, `N$${v}`)));
   const twoStepFrom = h('input', { class: 'input', type: 'date', id: 'set-two-step-from', value: s.two_step_from || '' });
   const b = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save settings');
   const go = busy(b, async () => {
@@ -365,6 +367,7 @@ function settingsTab() {
       headcount: Math.max(1, Math.round(num(headcount.value) || 1)), email_from: emailFrom.value.trim() || null, app_url: appUrl.value.trim() || null,
       accountant_name: acctName.value.trim() || null, accountant_email: acctEmail.value.trim() || null,
       accounting_package: pkg.value.trim() || null, petty_cash_account: cashAcct.value.trim() || null, petty_bank_account: bankAcct.value.trim() || 'PETTY-CASH-BANK',
+      cash_margin_pct: Math.max(0, Math.min(50, Math.round(num(margin.value) || 0))), cash_round_to: Number(roundTo.value) || 10,
       time_zone: tz.value, number_locale: loc.value, two_step_from: twoStepFrom.value || null,
       titles: { gm: tGm.value.trim() || 'GM', gm_long: tGmLong.value.trim() || 'General Manager', md: tMd.value.trim() || 'MD', md_long: tMdLong.value.trim() || 'Managing Director' },
       updated_at: new Date().toISOString(),
@@ -384,6 +387,8 @@ function settingsTab() {
     block('Position titles', h('p', { class: 'muted' }, 'What your organisation calls the two approving positions. Every screen, alert, email and document uses these words.'),
       h('div', { class: 'row' }, field('Approver, short', tGm, raw('Default: GM')), field('Approver, in full', tGmLong, raw('Default: General Manager'))),
       h('div', { class: 'row' }, field('Top approver, short', tMd, raw('Default: MD')), field('Top approver, in full', tMdLong, raw('Default: Managing Director')))),
+    block('Cash hand-outs', h('p', { class: 'muted' }, 'When the price is only an estimate, Petti suggests handing out a little more so the person is not stuck at the till. It learns from past receipts at the same supplier and never goes above the change tolerance.'),
+      h('div', { class: 'row' }, field('Extra on estimates (%)', margin, 'Standard: 10%.'), field('Round up to', roundTo, 'So finance can hand out whole notes.'))),
     block('Month-end pack', h('div', { class: 'row' }, field('Senior accountant', acctName), field('Their email', acctEmail, 'The reviewed pack is emailed here, with the approver in copy.'))),
     block('Accounting export', h('div', { class: 'row' }, field('Accounting package', pkg, 'Named so the journal export can match it; until then it is a generic journal.'), field('Petty cash ledger account', cashAcct, 'The account code the package uses for the cash box. Expense accounts are set per category under Stock → Catalogue → Categories.'),
       field('Petty cash bank account', bankAcct, 'The account code for the petty cash bank account, when petty cash is also kept in a bank account.'))),
